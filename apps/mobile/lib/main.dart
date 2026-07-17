@@ -787,12 +787,13 @@ class _MediaGalleryState extends State<MediaGallery> with SingleTickerProviderSt
   late final PageController controller = PageController();
   late final AnimationController hintController = AnimationController(vsync: this, duration: const Duration(milliseconds: 1100))..repeat(reverse: true);
   int active = 0;
+  bool showSwipeHint = true;
   final galleryColors = const [Color(0xFFD8EFEC), Color(0xFFEFE5C8), Color(0xFFDDE5EA), Color(0xFFE9DDE9), Color(0xFFE8F0EE)];
   @override
   void dispose() { controller.dispose(); hintController.dispose(); super.dispose(); }
   @override
   Widget build(BuildContext context) => Column(children: [
-    SizedBox(height: 205, child: PageView.builder(controller: controller, itemCount: widget.imageCount, onPageChanged: (value) => setState(() => active = value), itemBuilder: (_, index) {
+    SizedBox(height: 205, child: PageView.builder(controller: controller, itemCount: widget.imageCount, onPageChanged: (value) => setState(() { active = value; showSwipeHint = false; }), itemBuilder: (_, index) {
       final image = Container(decoration: BoxDecoration(color: galleryColors[index % galleryColors.length], borderRadius: BorderRadius.circular(20)), child: Stack(children: [Center(child: Icon(Icons.image_outlined, color: deepTeal.withValues(alpha: .45), size: 54)), PositionedDirectional(top: 12, end: 12, child: Container(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5), decoration: BoxDecoration(color: Colors.white.withValues(alpha: .85), borderRadius: BorderRadius.circular(14)), child: Text('${index + 1} / ${widget.imageCount}', style: const TextStyle(color: deepTeal, fontSize: 12, fontWeight: FontWeight.w700))))]));
       if (widget.heroTag == null) return image;
       return Hero(tag: widget.heroTag!, child: image);
@@ -805,7 +806,7 @@ class _MediaGalleryState extends State<MediaGallery> with SingleTickerProviderSt
       return Row(mainAxisAlignment: MainAxisAlignment.center, children: [
         ...dots.take(midpoint),
         const SizedBox(width: 4),
-        Transform.translate(offset: Offset(-4 * hintController.value, 0), child: const Icon(Icons.swipe, color: teal, size: 17)),
+        AnimatedSwitcher(duration: AppMotion.standard, transitionBuilder: (child, animation) => FadeTransition(opacity: animation, child: ScaleTransition(scale: animation, child: child)), child: showSwipeHint ? Transform.translate(key: const ValueKey('swipe-hint'), offset: Offset(-4 * hintController.value, 0), child: const Icon(Icons.swipe, color: teal, size: 17)) : const SizedBox(key: ValueKey('swipe-hidden'), width: 17, height: 17)),
         const SizedBox(width: 4),
         ...dots.skip(midpoint),
       ]);
