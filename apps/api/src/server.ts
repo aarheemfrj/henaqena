@@ -271,6 +271,10 @@ app.get('/api/admin/providers', requireAdmin, async (_req, res, next) => {
   } catch (error) { next(error); }
 });
 
+app.get('/api/admin/provider-reports', requireAdmin, async (_req, res, next) => {
+  try { res.json(await prisma.providerReport.findMany({ include: { provider: true, reporter: true }, orderBy: { createdAt: 'desc' }, take: 100 })); } catch (error) { next(error); }
+});
+
 app.get('/api/admin/listings', requireAdmin, async (_req, res, next) => {
   try {
     const listings = await prisma.listing.findMany({ include: { area: true, owner: true, images: true }, orderBy: { createdAt: 'desc' }, take: 100 });
@@ -286,11 +290,23 @@ app.get('/api/admin/ads', requireAdmin, async (_req, res, next) => {
 });
 
 const moderationSchema = z.object({ status: z.enum([ReviewStatus.APPROVED, ReviewStatus.REJECTED]) });
+const moderationWithNoteSchema = moderationSchema.extend({ note: z.string().trim().max(500).optional() });
+app.patch('/api/admin/providers/:id', requireAdmin, async (req, res, next) => {
+  try {
+    const input = moderationWithNoteSchema.parse(req.body);
+    const provider = await prisma.provider.update({ where: { id: String(req.params.id) }, data: { status: input.status, isVerified: input.status === ReviewStatus.APPROVED } });
+    if (provider.ownerId) await prisma.notification.create({ data: { userId: provider.ownerId, title: input.status === ReviewStatus.APPROVED ? 'تم اعتماد نشاطك' : 'تحتاج مراجعة بيانات نشاطك', body: input.status === ReviewStatus.APPROVED ? 'ظهر نشاطك الآن للمستخدمين مع شارة مضاف من المجتمع.' : `سبب المراجعة: ${input.note ?? 'يرجى تحديث البيانات والصور.'}` } });
+    await audit(`provider.${input.status.toLowerCase()}`, 'provider', provider.id, { status: input.status, note: input.note });
+    res.json(provider);
+  } catch (error) { next(error); }
+});
 app.patch('/api/admin/reviews/:id', requireAdmin, async (req, res, next) => {
   try {
-    const { status } = moderationSchema.parse(req.body);
+    const { status, note } = moderationWithNoteSchema.parse(req.body);
     const review = await prisma.review.update({ where: { id: String(req.params.id) }, data: { status } });
-    await audit(`review.${status.toLowerCase()}`, 'review', review.id, { status });
+    const reviewOwner = await prisma.review.findUnique({ where: { id: review.id }, include: { author: true } });
+    if (reviewOwner) await prisma.notification.create({ data: { userId: reviewOwner.authorId, title: status === ReviewStatus.APPROVED ? 'تم اعتماد تقييمك' : 'لم يتم اعتماد تقييمك', body: status === ReviewStatus.APPROVED ? 'شكراً لمساهمتك في تحسين هنا قنا.' : `سبب الرفض: ${note ?? 'يرجى مراجعة محتوى التقييم.'}` } });
+    await audit(`review.${status.toLowerCase()}`, 'review', review.id, { status, note });
     res.json(review);
   } catch (error) { next(error); }
 });
@@ -298,8 +314,10 @@ app.patch('/api/admin/reviews/:id', requireAdmin, async (req, res, next) => {
 app.patch('/api/admin/listings/:id', requireAdmin, async (req, res, next) => {
   try {
     const status = z.enum([ListingStatus.ACTIVE, ListingStatus.REJECTED, ListingStatus.ARCHIVED]).parse(req.body.status);
+    const note = typeof req.body.note === 'string' ? req.body.note : undefined;
     const listing = await prisma.listing.update({ where: { id: String(req.params.id) }, data: { status } });
-    await audit(`listing.${status.toLowerCase()}`, 'listing', listing.id, { status });
+    await prisma.notification.create({ data: { userId: listing.ownerId, title: status === ListingStatus.ACTIVE ? 'تم اعتماد إعلانك' : 'تحديث على إعلانك', body: status === ListingStatus.ACTIVE ? 'إعلانك أصبح ظاهراً للمستخدمين.' : `سبب القرار: ${note ?? 'يرجى مراجعة بيانات الإعلان.'}` } });
+    await audit(`listing.${status.toLowerCase()}`, 'listing', listing.id, { status, note });
     res.json(listing);
   } catch (error) { next(error); }
 });
