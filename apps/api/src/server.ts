@@ -15,6 +15,8 @@ const passwordHash = async (password: string) => `${randomBytes(16).toString('he
 const verifyPassword = async (password: string, stored: string) => stored.split(':')[1] === (await scrypt(password, 'hena-qena-password-salt', 64) as Buffer).toString('hex');
 const issueSession = async (userId: string) => { const token = randomBytes(32).toString('hex'); await prisma.session.create({ data: { userId, tokenHash: hash(token), expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) } }); return token; };
 const sessionFromRequest = async (req: express.Request) => { const token = typeof req.headers.authorization === 'string' ? req.headers.authorization.replace(/^Bearer\s+/i, '') : ''; if (!token) return null; const session = await prisma.session.findUnique({ where: { tokenHash: hash(token) }, include: { user: true } }); return session && session.expiresAt > new Date() ? session : null; };
+const requireAdmin = (req: express.Request, res: express.Response, next: express.NextFunction) => { const expected = process.env.ADMIN_API_KEY; const provided = typeof req.headers['x-admin-key'] === 'string' ? req.headers['x-admin-key'] : ''; if (expected ? provided !== expected : provided !== 'dev-henaqena-admin') return res.status(403).json({ message: 'صلاحيات الإدارة مطلوبة' }); next(); };
+const audit = (action: string, entity: string, entityId: string, metadata?: Record<string, unknown>) => prisma.auditLog.create({ data: { action, entity, entityId, metadata: metadata as any } });
 
 app.use(cors());
 app.use(express.json({ limit: '2mb' }));
@@ -208,7 +210,7 @@ app.post('/api/reviews/:id/replies', async (req, res, next) => {
 });
 
 // Admin read/moderation endpoints. Authentication is added in the next security step.
-app.get('/api/admin/overview', async (_req, res, next) => {
+app.get('/api/admin/overview', requireAdmin, async (_req, res, next) => {
   try {
     const [providers, pending, listings, reviews] = await Promise.all([
       prisma.provider.count({ where: { status: ReviewStatus.APPROVED } }),
@@ -220,7 +222,7 @@ app.get('/api/admin/overview', async (_req, res, next) => {
   } catch (error) { next(error); }
 });
 
-app.get('/api/admin/reviews', async (req, res, next) => {
+app.get('/api/admin/reviews', requireAdmin, async (req, res, next) => {
   try {
     const status = typeof req.query.status === 'string' && Object.values(ReviewStatus).includes(req.query.status as ReviewStatus)
       ? req.query.status as ReviewStatus : undefined;
@@ -229,21 +231,21 @@ app.get('/api/admin/reviews', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-app.get('/api/admin/providers', async (_req, res, next) => {
+app.get('/api/admin/providers', requireAdmin, async (_req, res, next) => {
   try {
     const providers = await prisma.provider.findMany({ include: { area: true, categories: { include: { category: true } } }, orderBy: { createdAt: 'desc' }, take: 100 });
     res.json(providers);
   } catch (error) { next(error); }
 });
 
-app.get('/api/admin/listings', async (_req, res, next) => {
+app.get('/api/admin/listings', requireAdmin, async (_req, res, next) => {
   try {
     const listings = await prisma.listing.findMany({ include: { area: true, owner: true, images: true }, orderBy: { createdAt: 'desc' }, take: 100 });
     res.json(listings);
   } catch (error) { next(error); }
 });
 
-app.get('/api/admin/ads', async (_req, res, next) => {
+app.get('/api/admin/ads', requireAdmin, async (_req, res, next) => {
   try {
     const ads = await prisma.ad.findMany({ include: { area: true }, orderBy: [{ weight: 'desc' }, { createdAt: 'desc' }] });
     res.json(ads);
@@ -251,26 +253,29 @@ app.get('/api/admin/ads', async (_req, res, next) => {
 });
 
 const moderationSchema = z.object({ status: z.enum([ReviewStatus.APPROVED, ReviewStatus.REJECTED]) });
-app.patch('/api/admin/reviews/:id', async (req, res, next) => {
+app.patch('/api/admin/reviews/:id', requireAdmin, async (req, res, next) => {
   try {
     const { status } = moderationSchema.parse(req.body);
-    const review = await prisma.review.update({ where: { id: req.params.id }, data: { status } });
+    const review = await prisma.review.update({ where: { id: String(req.params.id) }, data: { status } });
+    await audit(`review.${status.toLowerCase()}`, 'review', review.id, { status });
     res.json(review);
   } catch (error) { next(error); }
 });
 
-app.patch('/api/admin/listings/:id', async (req, res, next) => {
+app.patch('/api/admin/listings/:id', requireAdmin, async (req, res, next) => {
   try {
     const status = z.enum([ListingStatus.ACTIVE, ListingStatus.REJECTED, ListingStatus.ARCHIVED]).parse(req.body.status);
-    const listing = await prisma.listing.update({ where: { id: req.params.id }, data: { status } });
+    const listing = await prisma.listing.update({ where: { id: String(req.params.id) }, data: { status } });
+    await audit(`listing.${status.toLowerCase()}`, 'listing', listing.id, { status });
     res.json(listing);
   } catch (error) { next(error); }
 });
 
-app.patch('/api/admin/ads/:id', async (req, res, next) => {
+app.patch('/api/admin/ads/:id', requireAdmin, async (req, res, next) => {
   try {
     const { status } = moderationSchema.parse(req.body);
-    const ad = await prisma.ad.update({ where: { id: req.params.id }, data: { status } });
+    const ad = await prisma.ad.update({ where: { id: String(req.params.id) }, data: { status } });
+    await audit(`ad.${status.toLowerCase()}`, 'ad', ad.id, { status });
     res.json(ad);
   } catch (error) { next(error); }
 });

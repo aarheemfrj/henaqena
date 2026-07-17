@@ -46,6 +46,7 @@ model User {
   interests       String[] @default([])
   notificationScope String @default("all")
   notificationDigest Boolean @default(false)
+  role            String   @default("USER")
   providers       Provider[]
   listings        Listing[]
   reviews         Review[]
@@ -53,6 +54,7 @@ model User {
   notifications   Notification[]
   sessions        Session[]
   verificationCodes VerificationCode[]
+  auditLogs       AuditLog[]
 }
 
 model Session {
@@ -76,6 +78,19 @@ model VerificationCode {
   createdAt  DateTime @default(now())
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   @@index([userId, channel])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actorId   String?
+  action    String
+  entity    String
+  entityId  String
+  metadata  Json?
+  createdAt DateTime @default(now())
+  actor     User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  @@index([entity, entityId])
+  @@index([createdAt])
 }
 
 model Area {

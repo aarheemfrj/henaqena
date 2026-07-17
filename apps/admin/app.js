@@ -1,4 +1,5 @@
 const API_BASE = window.HENA_QENA_API || 'http://127.0.0.1:4000';
+const ADMIN_KEY = window.HENA_QENA_ADMIN_KEY || 'dev-henaqena-admin';
 const queue = [];
 const item = (row) => `<div class="queue-item"><div class="avatar">${row.initial}</div><div class="meta"><strong>${row.name}</strong><small>${row.type} · ${row.detail}</small></div><div class="actions"><button class="approve" data-toast="تم الاعتماد للمراجعة النهائية">اعتماد</button><button class="reject" data-toast="تم تسجيل الرفض للمراجعة">رفض</button></div></div>`;
 document.querySelector('#overview-queue').innerHTML = queue.slice(0,3).map(item).join('');
@@ -6,7 +7,7 @@ document.querySelector('#review-queue').innerHTML = queue.concat([{type:'إعل�
 document.querySelector('#listing-queue').innerHTML = queue.filter((x) => x.type === 'إعلان').map(item).join('');
 const toast = document.querySelector('#toast');
 const showToast = (message) => { toast.textContent = message; toast.classList.add('show'); setTimeout(() => toast.classList.remove('show'), 2200); };
-const getJson = async (path) => { const response = await fetch(`${API_BASE}${path}`); if (!response.ok) throw new Error('API'); return response.json(); };
+const getJson = async (path) => { const response = await fetch(`${API_BASE}${path}`, { headers: { 'x-admin-key': ADMIN_KEY } }); if (!response.ok) throw new Error('API'); return response.json(); };
 const hydrateDashboard = async () => {
   try {
     const [overview, reviews, listings] = await Promise.all([getJson('/api/admin/overview'), getJson('/api/admin/reviews?status=PENDING'), getJson('/api/admin/listings')]);
