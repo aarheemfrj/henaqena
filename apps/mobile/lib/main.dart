@@ -666,7 +666,7 @@ class _ScorePicker extends StatelessWidget {
   final int value;
   final ValueChanged<int> onChanged;
   @override
-  Widget build(BuildContext context) => Padding(padding: const EdgeInsets.only(bottom: 15), child: Row(children: [SizedBox(width: 82, child: Text(label, style: const TextStyle(fontWeight: FontWeight.w700, color: deepTeal))), ...List.generate(5, (index) => IconButton(visualDensity: VisualDensity.compact, onPressed: () => onChanged(index + 1), icon: Icon(index < value ? Icons.star : Icons.star_border, color: gold, size: 27))), if (value > 0) Text('$value/5', style: const TextStyle(color: muted, fontSize: 12))]));
+  Widget build(BuildContext context) => Padding(padding: const EdgeInsets.only(bottom: 15), child: Row(children: [SizedBox(width: 82, child: Text(label, style: const TextStyle(fontWeight: FontWeight.w700, color: deepTeal))), ...List.generate(5, (index) => IconButton(visualDensity: VisualDensity.compact, onPressed: () => onChanged(index + 1), icon: AnimatedScale(scale: index < value ? 1.12 : 1, duration: AppMotion.quick, curve: Curves.easeOutBack, child: AnimatedSwitcher(duration: AppMotion.quick, child: Icon(index < value ? Icons.star : Icons.star_border, key: ValueKey(index < value), color: gold, size: 27))))), if (value > 0) Text('$value/5', style: const TextStyle(color: muted, fontSize: 12))]));
 }
 class PricesPage extends StatefulWidget { const PricesPage({super.key}); @override State<PricesPage> createState() => _PricesPageState(); }
 class _PricesPageState extends State<PricesPage> {
@@ -866,12 +866,12 @@ class NotificationsPage extends StatelessWidget {
     body: ListView(padding: const EdgeInsets.all(18), children: [
       const Text('الجديد', style: TextStyle(color: deepTeal, fontWeight: FontWeight.w700)),
       const SizedBox(height: 8),
-      const _NotificationCard(icon: Icons.local_offer_outlined, title: 'عرض جديد قريب منك', subtitle: 'خصم خاص لأهل قنا · منذ 10 دقائق', unread: true),
-      const _NotificationCard(icon: Icons.thumb_up_alt_outlined, title: 'تفاعل مع مساهمتك', subtitle: '12 شخص اعتبروا تقييمك مفيدًا · منذ ساعة', unread: true),
+      const MotionIn(child: _NotificationCard(icon: Icons.local_offer_outlined, title: 'عرض جديد قريب منك', subtitle: 'خصم خاص لأهل قنا · منذ 10 دقائق', unread: true)),
+      const MotionIn(delay: 80, child: _NotificationCard(icon: Icons.thumb_up_alt_outlined, title: 'تفاعل مع مساهمتك', subtitle: '12 شخص اعتبروا تقييمك مفيدًا · منذ ساعة', unread: true)),
       const SizedBox(height: 16),
       const Text('أقدم', style: TextStyle(color: deepTeal, fontWeight: FontWeight.w700)),
       const SizedBox(height: 8),
-      const _NotificationCard(icon: Icons.bolt_outlined, title: 'تحديث في منطقتك', subtitle: 'تم تأكيد فتح شارع جديد · أمس'),
+      const MotionIn(delay: 160, child: _NotificationCard(icon: Icons.bolt_outlined, title: 'تحديث في منطقتك', subtitle: 'تم تأكيد فتح شارع جديد · أمس')),
     ]),
   ));
 }
@@ -883,7 +883,7 @@ class _NotificationCard extends StatelessWidget {
   final String subtitle;
   final bool unread;
   @override
-  Widget build(BuildContext context) => Card(elevation: 0, margin: const EdgeInsets.only(bottom: 8), color: unread ? const Color(0xFFEFF8F6) : Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15), side: const BorderSide(color: Color(0xFFE0E8E6))), child: ListTile(leading: CircleAvatar(backgroundColor: const Color(0xFFD8EFEC), child: Icon(icon, color: deepTeal)), title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)), subtitle: Text(subtitle, style: const TextStyle(color: muted, fontSize: 12)), trailing: unread ? const Icon(Icons.circle, size: 9, color: teal) : null));
+  Widget build(BuildContext context) => Card(elevation: 0, margin: const EdgeInsets.only(bottom: 8), color: unread ? const Color(0xFFEFF8F6) : Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15), side: const BorderSide(color: Color(0xFFE0E8E6))), child: ListTile(leading: CircleAvatar(backgroundColor: const Color(0xFFD8EFEC), child: Icon(icon, color: deepTeal)), title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)), subtitle: Text(subtitle, style: const TextStyle(color: muted, fontSize: 12)), trailing: unread ? TweenAnimationBuilder<double>(tween: Tween(begin: .55, end: 1), duration: AppMotion.gentle, curve: Curves.easeOutBack, builder: (_, value, child) => Transform.scale(scale: value, child: child), child: const Icon(Icons.circle, size: 9, color: teal)) : null));
 }
 
 class SettingsPage extends StatefulWidget {
