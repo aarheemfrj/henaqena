@@ -605,4 +605,88 @@ class _AlertCard extends StatelessWidget { const _AlertCard({required this.title
 
 class ListingsPage extends StatelessWidget { const ListingsPage({super.key}); @override Widget build(BuildContext context) => BasePage(title: 'عندك؟', child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [const Text('اعرض اللي عندك، ودوّر على اللي محتاجه', style: TextStyle(color: muted)), const SizedBox(height: 14), const TextField(decoration: InputDecoration(prefixIcon: Icon(Icons.search, color: teal), hintText: 'ابحث في الإعلانات')), const SizedBox(height: 10), const CategoryRail(items: ['للبيع', 'للإيجار', 'وظائف', 'سيارات', 'عقارات']), const SizedBox(height: 12), const MiniItem(icon: Icons.home_outlined, title: 'شقة للإيجار في قنا الجديدة', subtitle: '7,500 جنيه · قنا الجديدة · منذ يوم'), const MiniItem(icon: Icons.kitchen_outlined, title: 'ثلاجة بحالة ممتازة', subtitle: '3,500 جنيه · الحميدات · منذ 3 أيام'), const SizedBox(height: 8), FilledButton.icon(onPressed: () {}, icon: const Icon(Icons.add), label: const Text('أضف إعلانًا'), style: FilledButton.styleFrom(backgroundColor: gold, foregroundColor: deepTeal, minimumSize: const Size.fromHeight(48), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))))])); }
 
-class AccountPage extends StatelessWidget { const AccountPage({super.key}); @override Widget build(BuildContext context) => Directionality(textDirection: TextDirection.rtl, child: Scaffold(appBar: AppBar(title: const Text('حسابي')), body: ListView(padding: const EdgeInsets.all(18), children: [Card(elevation: 0, color: Colors.white, child: ListTile(leading: const CircleAvatar(backgroundColor: deepTeal, child: Text('م', style: TextStyle(color: Colors.white))), title: const Text('محمد أحمد', style: TextStyle(fontWeight: FontWeight.w700)), subtitle: const Text('قناوي رايق · 74 نقطة', style: TextStyle(color: teal)), trailing: const Icon(Icons.chevron_left))), const SizedBox(height: 10), const ListTile(leading: Icon(Icons.favorite_border, color: teal), title: Text('المفضلة')), const ListTile(leading: Icon(Icons.rate_review_outlined, color: teal), title: Text('تقييماتي ومساهماتي')), const ListTile(leading: Icon(Icons.campaign_outlined, color: teal), title: Text('إعلاناتي')), const Divider(), const ListTile(leading: Icon(Icons.settings_outlined, color: teal), title: Text('الإعدادات')), const ListTile(leading: Icon(Icons.help_outline, color: teal), title: Text('المساعدة والدعم')), const ListTile(leading: Icon(Icons.delete_outline, color: teal), title: Text('حذف الحساب'))]))); }
+class AccountPage extends StatelessWidget {
+  const AccountPage({super.key});
+  @override
+  Widget build(BuildContext context) => Directionality(textDirection: TextDirection.rtl, child: Scaffold(
+    appBar: AppBar(title: const Text('حسابي'), actions: [IconButton(onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsPage())), icon: const Icon(Icons.settings_outlined))]),
+    body: ListView(padding: const EdgeInsets.all(18), children: [
+      Card(elevation: 0, color: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)), child: const ListTile(contentPadding: EdgeInsets.all(14), leading: CircleAvatar(radius: 25, backgroundColor: deepTeal, child: Text('م', style: TextStyle(color: Colors.white, fontSize: 18))), title: Text('محمد أحمد', style: TextStyle(fontWeight: FontWeight.w700)), subtitle: Text('قناوي رايق · 74 نقطة', style: TextStyle(color: teal)), trailing: Icon(Icons.chevron_left))),
+      const SizedBox(height: 10),
+      _AccountTile(icon: Icons.notifications_none, title: 'الإشعارات', subtitle: '3 إشعارات جديدة', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationsPage()))),
+      _AccountTile(icon: Icons.favorite_border, title: 'المفضلة', onTap: () {}),
+      _AccountTile(icon: Icons.rate_review_outlined, title: 'تقييماتي ومساهماتي', onTap: () {}),
+      _AccountTile(icon: Icons.campaign_outlined, title: 'إعلاناتي', onTap: () {}),
+      const Divider(height: 26),
+      _AccountTile(icon: Icons.settings_outlined, title: 'الإعدادات', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsPage()))),
+      _AccountTile(icon: Icons.help_outline, title: 'المساعدة والدعم', onTap: () {}),
+      _AccountTile(icon: Icons.delete_outline, title: 'حذف الحساب', onTap: () {}, destructive: true),
+    ]),
+  ));
+}
+
+class _AccountTile extends StatelessWidget {
+  const _AccountTile({required this.icon, required this.title, required this.onTap, this.subtitle, this.destructive = false});
+  final IconData icon;
+  final String title;
+  final String? subtitle;
+  final VoidCallback onTap;
+  final bool destructive;
+  @override
+  Widget build(BuildContext context) => ListTile(onTap: onTap, contentPadding: const EdgeInsets.symmetric(horizontal: 4), leading: Icon(icon, color: destructive ? Colors.redAccent : teal), title: Text(title, style: TextStyle(color: destructive ? Colors.redAccent : ink)), subtitle: subtitle == null ? null : Text(subtitle!, style: const TextStyle(color: muted, fontSize: 12)), trailing: const Icon(Icons.chevron_left, color: muted));
+}
+
+class NotificationsPage extends StatelessWidget {
+  const NotificationsPage({super.key});
+  @override
+  Widget build(BuildContext context) => Directionality(textDirection: TextDirection.rtl, child: Scaffold(
+    appBar: AppBar(title: const Text('الإشعارات'), actions: [TextButton(onPressed: () {}, child: const Text('تحديد الكل'))]),
+    body: ListView(padding: const EdgeInsets.all(18), children: [
+      const Text('الجديد', style: TextStyle(color: deepTeal, fontWeight: FontWeight.w700)),
+      const SizedBox(height: 8),
+      const _NotificationCard(icon: Icons.local_offer_outlined, title: 'عرض جديد قريب منك', subtitle: 'خصم خاص لأهل قنا · منذ 10 دقائق', unread: true),
+      const _NotificationCard(icon: Icons.thumb_up_alt_outlined, title: 'تفاعل مع مساهمتك', subtitle: '12 شخص اعتبروا تقييمك مفيدًا · منذ ساعة', unread: true),
+      const SizedBox(height: 16),
+      const Text('أقدم', style: TextStyle(color: deepTeal, fontWeight: FontWeight.w700)),
+      const SizedBox(height: 8),
+      const _NotificationCard(icon: Icons.bolt_outlined, title: 'تحديث في منطقتك', subtitle: 'تم تأكيد فتح شارع جديد · أمس'),
+    ]),
+  ));
+}
+
+class _NotificationCard extends StatelessWidget {
+  const _NotificationCard({required this.icon, required this.title, required this.subtitle, this.unread = false});
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool unread;
+  @override
+  Widget build(BuildContext context) => Card(elevation: 0, margin: const EdgeInsets.only(bottom: 8), color: unread ? const Color(0xFFEFF8F6) : Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15), side: const BorderSide(color: Color(0xFFE0E8E6))), child: ListTile(leading: CircleAvatar(backgroundColor: const Color(0xFFD8EFEC), child: Icon(icon, color: deepTeal)), title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)), subtitle: Text(subtitle, style: const TextStyle(color: muted, fontSize: 12)), trailing: unread ? const Icon(Icons.circle, size: 9, color: teal) : null));
+}
+
+class SettingsPage extends StatefulWidget {
+  const SettingsPage({super.key});
+  @override
+  State<SettingsPage> createState() => _SettingsPageState();
+}
+
+class _SettingsPageState extends State<SettingsPage> {
+  bool allNotifications = true;
+  bool areaOnly = false;
+  bool privateProfile = false;
+  @override
+  Widget build(BuildContext context) => Directionality(textDirection: TextDirection.rtl, child: Scaffold(
+    appBar: AppBar(title: const Text('الإعدادات')),
+    body: ListView(padding: const EdgeInsets.all(18), children: [
+      const Text('الإشعارات', style: TextStyle(color: deepTeal, fontWeight: FontWeight.w700)),
+      SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('كل الإشعارات'), value: allNotifications, onChanged: (value) => setState(() => allNotifications = value), activeThumbColor: teal),
+      SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('إشعارات منطقتي فقط'), value: areaOnly, onChanged: (value) => setState(() => areaOnly = value), activeThumbColor: teal),
+      const Divider(height: 26),
+      const Text('الخصوصية', style: TextStyle(color: deepTeal, fontWeight: FontWeight.w700)),
+      SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('جعل صفحتي خاصة'), subtitle: const Text('مساهماتك تظل ظاهرة باسمك', style: TextStyle(color: muted, fontSize: 12)), value: privateProfile, onChanged: (value) => setState(() => privateProfile = value), activeThumbColor: teal),
+      const Divider(height: 26),
+      const ListTile(contentPadding: EdgeInsets.zero, leading: Icon(Icons.location_on_outlined, color: teal), title: Text('المناطق المختارة'), subtitle: Text('قنا كلها', style: TextStyle(color: muted))),
+      const ListTile(contentPadding: EdgeInsets.zero, leading: Icon(Icons.language, color: teal), title: Text('اللغة'), subtitle: Text('العربية', style: TextStyle(color: muted))),
+    ]),
+  ));
+}
