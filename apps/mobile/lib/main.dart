@@ -540,11 +540,11 @@ class ProviderDetailPage extends StatelessWidget {
         const SizedBox(height: 16),
         Row(children: [Expanded(child: FilledButton.icon(onPressed: () {}, icon: const Icon(Icons.phone_outlined), label: const Text('اتصال'))), const SizedBox(width: 8), Expanded(child: OutlinedButton.icon(onPressed: () {}, icon: const Icon(Icons.chat_outlined), label: const Text('واتساب')))]),
         const SizedBox(height: 20),
-        const SectionTitle(title: 'التقييم'),
+        const SectionTitle(title: 'الوصف'),
+        const SizedBox(height: 8),
+        const Text('خدمة موثقة ومعلوماتها محدثة من فريق هنا قنا.', style: TextStyle(color: muted, height: 1.5)),
         const SizedBox(height: 10),
-        const _RatingRow(label: 'الجودة', value: '4.9'),
-        const _RatingRow(label: 'الالتزام', value: '4.8'),
-        const _RatingRow(label: 'السعر', value: '4.6'),
+        const Row(children: [Icon(Icons.star, color: gold, size: 20), SizedBox(width: 5), Text('4.8', style: TextStyle(color: teal, fontWeight: FontWeight.w700)), SizedBox(width: 5), Text('من 24 تقييم', style: TextStyle(color: muted, fontSize: 12))]),
         const SizedBox(height: 18),
         const SectionTitle(title: 'التقييمات الموجودة'),
         const SizedBox(height: 8),
@@ -554,14 +554,6 @@ class ProviderDetailPage extends StatelessWidget {
       ]),
     ),
   );
-}
-
-class _RatingRow extends StatelessWidget {
-  const _RatingRow({required this.label, required this.value});
-  final String label;
-  final String value;
-  @override
-  Widget build(BuildContext context) => Padding(padding: const EdgeInsets.only(bottom: 8), child: Row(children: [Expanded(child: Text(label)), const Icon(Icons.star, color: gold, size: 18), const SizedBox(width: 4), Text(value, style: const TextStyle(fontWeight: FontWeight.w700, color: teal))]));
 }
 
 class CommentBubble extends StatelessWidget {
