@@ -1663,6 +1663,16 @@ After that, implement the provider-directory data model and admin review workflo
 - Home hero now includes ambient in-interface motion: slowly shifting gradient, floating circles, and a subtle logo lift; motion remains low-frequency and non-blocking.
 - The `دلوقتي` section now has a subtle pulsing `مباشر` status indicator to communicate live updates.
 
+## 30. Initial Technical Foundation (2026-07-17)
+
+- Brand and image asset slots are prepared under `apps/mobile/assets/brand` and `apps/mobile/assets/images`; final logo files are still pending from the owner.
+- Flutter theme/motion primitives live under `apps/mobile/lib/core/theme`, and the first API client lives under `apps/mobile/lib/core/network`.
+- PostgreSQL local infrastructure is defined in `infra/docker-compose.yml`.
+- Prisma schema covers users, areas, providers, provider images, categories, listings, ads, reviews, replies, and notifications.
+- Initial API lives under `apps/api` with health, areas, providers, listings, ads, and review endpoints.
+- Initial admin review dashboard lives under `apps/admin` and is currently a front-end prototype awaiting authenticated API integration.
+- The mobile directory uses API data when available and falls back to local demo data when the API is unavailable.
+
 ---
 
 **Last updated:** 2026-07-16
