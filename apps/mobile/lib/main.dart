@@ -294,6 +294,19 @@ class HomePage extends StatelessWidget {
 }
 
 class SectionTitle extends StatelessWidget { const SectionTitle({super.key, required this.title}); final String title; @override Widget build(BuildContext context) => Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(title, style: const TextStyle(color: deepTeal, fontSize: 16, fontWeight: FontWeight.w700)), const Text('شوف الكل', style: TextStyle(color: teal, fontSize: 12))]); }
+class MotionIn extends StatelessWidget {
+  const MotionIn({super.key, required this.child, this.delay = 0});
+  final Widget child;
+  final int delay;
+  @override
+  Widget build(BuildContext context) => TweenAnimationBuilder<double>(
+    tween: Tween(begin: 0, end: 1),
+    duration: Duration(milliseconds: 280 + delay),
+    curve: Curves.easeOutCubic,
+    builder: (_, value, child) => Opacity(opacity: value, child: Transform.translate(offset: Offset(0, 10 * (1 - value)), child: child)),
+    child: child,
+  );
+}
 class HeroBanner extends StatefulWidget {
   const HeroBanner({super.key});
   @override
@@ -509,7 +522,7 @@ class _RatingRow extends StatelessWidget {
 }
 class PricesPage extends StatelessWidget { const PricesPage({super.key}); @override Widget build(BuildContext context) => BasePage(title: 'بكام؟', child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [const Text('العروض أولًا، ثم الأسعار المحدثة', style: TextStyle(color: muted)), const SizedBox(height: 14), SegmentedButton<String>(segments: const [ButtonSegment(value: 'offers', label: Text('العروض'), icon: Icon(Icons.local_offer_outlined)), ButtonSegment(value: 'prices', label: Text('الأسعار'), icon: Icon(Icons.sell_outlined))], selected: const {'offers'}, onSelectionChanged: (_) {}), const SizedBox(height: 16), const MiniItem(icon: Icons.local_offer_outlined, title: 'خصم 15% على الأجهزة', subtitle: 'من نشاط موثق · ينتهي خلال 3 أيام'), const MiniItem(icon: Icons.shopping_basket_outlined, title: 'زيت عباد الشمس — 1 لتر', subtitle: 'السعر المعتاد 72 جنيه · من 68 إلى 77 · منذ يومين'), const MiniItem(icon: Icons.home_repair_service_outlined, title: 'تركيب تكييف', subtitle: 'من 800 إلى 1,200 جنيه · سعر تقريبي') ])); }
 
-class NowPage extends StatelessWidget { const NowPage({super.key}); @override Widget build(BuildContext context) => BasePage(title: 'دلوقتي', child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [Row(children: [const Expanded(child: Text('اعرف إيه اللي بيحصل حواليك', style: TextStyle(color: muted))), LivePulse()]), const SizedBox(height: 14), Wrap(spacing: 8, children: ['الكل', 'خدمات ومرافق', 'طرق ومواصلات', 'فعاليات'].map((x) => ChoiceChip(label: Text(x), selected: x == 'الكل', onSelected: (_) {})).toList()), const SizedBox(height: 14), const _AlertCard(title: 'انقطاع مياه مؤقت', subtitle: 'الحميدات · منذ ساعتين · تم التأكيد', icon: Icons.water_drop_outlined, color: teal), const _AlertCard(title: 'فتح شارع جديد', subtitle: 'وسط البلد · منذ 30 دقيقة', icon: Icons.traffic_outlined, color: gold), const _AlertCard(title: 'معرض منتجات قنا', subtitle: 'فعالية محلية · اليوم', icon: Icons.event_outlined, color: deepTeal)])); }
+class NowPage extends StatelessWidget { const NowPage({super.key}); @override Widget build(BuildContext context) => BasePage(title: 'دلوقتي', child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [Row(children: [const Expanded(child: Text('اعرف إيه اللي بيحصل حواليك', style: TextStyle(color: muted))), const LivePulse()]), const SizedBox(height: 14), Wrap(spacing: 8, children: ['الكل', 'خدمات ومرافق', 'طرق ومواصلات', 'فعاليات'].map((x) => ChoiceChip(label: Text(x), selected: x == 'الكل', onSelected: (_) {})).toList()), const SizedBox(height: 14), const MotionIn(child: _AlertCard(title: 'انقطاع مياه مؤقت', subtitle: 'الحميدات · منذ ساعتين · تم التأكيد', icon: Icons.water_drop_outlined, color: teal)), const MotionIn(delay: 80, child: _AlertCard(title: 'فتح شارع جديد', subtitle: 'وسط البلد · منذ 30 دقيقة', icon: Icons.traffic_outlined, color: gold)), const MotionIn(delay: 160, child: _AlertCard(title: 'معرض منتجات قنا', subtitle: 'فعالية محلية · اليوم', icon: Icons.event_outlined, color: deepTeal))])); }
 class LivePulse extends StatefulWidget {
   const LivePulse({super.key});
   @override
