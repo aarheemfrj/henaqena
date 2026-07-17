@@ -456,7 +456,7 @@ class DirectoryPage extends StatelessWidget {
     const SizedBox(height: 16),
     const TextField(decoration: InputDecoration(prefixIcon: Icon(Icons.search, color: teal), hintText: 'اكتب اسم الخدمة أو المكان')),
     const SizedBox(height: 10),
-    Row(children: [OutlinedButton.icon(onPressed: () {}, icon: const Icon(Icons.tune), label: const Text('فلاتر')), const Spacer(), OutlinedButton.icon(onPressed: () {}, icon: const Icon(Icons.map_outlined), label: const Text('خريطة'))]),
+    Row(children: [OutlinedButton.icon(onPressed: () => _showFilters(context), icon: const Icon(Icons.tune), label: const Text('فلاتر')), const Spacer(), OutlinedButton.icon(onPressed: () {}, icon: const Icon(Icons.map_outlined), label: const Text('خريطة'))]),
     MiniItem(icon: Icons.build_outlined, title: 'كهربائي المصباح', subtitle: 'قنا · موثق · 4.8 ★ · مفتوح الآن', onTap: () => _openDetails(context, 'كهربائي المصباح', Icons.build_outlined, 'قنا · موثق · مفتوح الآن · 4.8 ★')),
     MiniItem(icon: Icons.local_hospital_outlined, title: 'مركز الشفاء الطبي', subtitle: 'وسط البلد · 4.6 ★', onTap: () => _openDetails(context, 'مركز الشفاء الطبي', Icons.local_hospital_outlined, 'وسط البلد · مفتوح اليوم · 4.6 ★')),
   ]));
@@ -464,6 +464,49 @@ class DirectoryPage extends StatelessWidget {
   void _openDetails(BuildContext context, String title, IconData icon, String subtitle) {
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => ProviderDetailPage(title: title, icon: icon, subtitle: subtitle)));
   }
+
+  void _showFilters(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => const _FilterSheet(),
+    );
+  }
+}
+
+class _FilterSheet extends StatefulWidget {
+  const _FilterSheet();
+  @override
+  State<_FilterSheet> createState() => _FilterSheetState();
+}
+
+class _FilterSheetState extends State<_FilterSheet> {
+  String sort = 'الأقرب';
+  bool openNow = false;
+  bool verified = true;
+  @override
+  Widget build(BuildContext context) => Directionality(
+    textDirection: TextDirection.rtl,
+    child: SafeArea(child: Container(
+      padding: const EdgeInsets.fromLTRB(18, 10, 18, 18),
+      decoration: const BoxDecoration(color: paper, borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      child: Wrap(children: [
+        Center(child: Container(width: 42, height: 4, decoration: BoxDecoration(color: const Color(0xFFD0DAD8), borderRadius: BorderRadius.circular(4)))),
+        const SizedBox(height: 18),
+        Row(children: [const Expanded(child: Text('فلترة النتائج', style: TextStyle(color: deepTeal, fontSize: 19, fontWeight: FontWeight.w700))), IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close))]),
+        const SizedBox(height: 8),
+        const Text('الترتيب', style: TextStyle(color: deepTeal, fontWeight: FontWeight.w700)),
+        const SizedBox(height: 8),
+        Wrap(spacing: 8, children: ['الأقرب', 'الأعلى تقييمًا', 'الأحدث'].map((item) => ChoiceChip(label: Text(item), selected: sort == item, onSelected: (_) => setState(() => sort = item), selectedColor: const Color(0xFFD8EFEC))).toList()),
+        const SizedBox(height: 10),
+        SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('مفتوح الآن'), value: openNow, onChanged: (value) => setState(() => openNow = value), activeThumbColor: teal),
+        SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('أماكن موثقة فقط'), value: verified, onChanged: (value) => setState(() => verified = value), activeThumbColor: teal),
+        const SizedBox(height: 8),
+        FilledButton(onPressed: () => Navigator.pop(context), style: FilledButton.styleFrom(backgroundColor: teal, minimumSize: const Size.fromHeight(50), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))), child: const Text('تطبيق الفلاتر')),
+      ]),
+    )),
+  );
 }
 
 class ProviderDetailPage extends StatelessWidget {
@@ -520,7 +563,18 @@ class _RatingRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(padding: const EdgeInsets.only(bottom: 8), child: Row(children: [Expanded(child: Text(label)), const Icon(Icons.star, color: gold, size: 18), const SizedBox(width: 4), Text(value, style: const TextStyle(fontWeight: FontWeight.w700, color: deepTeal))]));
 }
-class PricesPage extends StatelessWidget { const PricesPage({super.key}); @override Widget build(BuildContext context) => BasePage(title: 'بكام؟', child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [const Text('العروض أولًا، ثم الأسعار المحدثة', style: TextStyle(color: muted)), const SizedBox(height: 14), SegmentedButton<String>(segments: const [ButtonSegment(value: 'offers', label: Text('العروض'), icon: Icon(Icons.local_offer_outlined)), ButtonSegment(value: 'prices', label: Text('الأسعار'), icon: Icon(Icons.sell_outlined))], selected: const {'offers'}, onSelectionChanged: (_) {}), const SizedBox(height: 16), const MiniItem(icon: Icons.local_offer_outlined, title: 'خصم 15% على الأجهزة', subtitle: 'من نشاط موثق · ينتهي خلال 3 أيام'), const MiniItem(icon: Icons.shopping_basket_outlined, title: 'زيت عباد الشمس — 1 لتر', subtitle: 'السعر المعتاد 72 جنيه · من 68 إلى 77 · منذ يومين'), const MiniItem(icon: Icons.home_repair_service_outlined, title: 'تركيب تكييف', subtitle: 'من 800 إلى 1,200 جنيه · سعر تقريبي') ])); }
+class PricesPage extends StatefulWidget { const PricesPage({super.key}); @override State<PricesPage> createState() => _PricesPageState(); }
+class _PricesPageState extends State<PricesPage> {
+  String selected = 'offers';
+  @override
+  Widget build(BuildContext context) => BasePage(title: 'بكام؟', child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+    const Text('العروض أولًا، ثم الأسعار المحدثة', style: TextStyle(color: muted)),
+    const SizedBox(height: 14),
+    SegmentedButton<String>(segments: const [ButtonSegment(value: 'offers', label: Text('العروض'), icon: Icon(Icons.local_offer_outlined)), ButtonSegment(value: 'prices', label: Text('الأسعار'), icon: Icon(Icons.sell_outlined))], selected: {selected}, onSelectionChanged: (value) => setState(() => selected = value.first)),
+    const SizedBox(height: 16),
+    AnimatedSwitcher(duration: AppMotion.standard, child: selected == 'offers' ? const Column(key: ValueKey('offers'), children: [MiniItem(icon: Icons.local_offer_outlined, title: 'خصم 15% على الأجهزة', subtitle: 'من نشاط موثق · ينتهي خلال 3 أيام'), MiniItem(icon: Icons.local_offer_outlined, title: 'عرض نهاية الأسبوع', subtitle: 'مطاعم مختارة · ينتهي غدًا')]) : const Column(key: ValueKey('prices'), children: [MiniItem(icon: Icons.shopping_basket_outlined, title: 'زيت عباد الشمس — 1 لتر', subtitle: 'السعر المعتاد 72 جنيه · من 68 إلى 77 · منذ يومين'), MiniItem(icon: Icons.home_repair_service_outlined, title: 'تركيب تكييف', subtitle: 'من 800 إلى 1,200 جنيه · سعر تقريبي')])),
+  ]));
+}
 
 class NowPage extends StatelessWidget { const NowPage({super.key}); @override Widget build(BuildContext context) => BasePage(title: 'دلوقتي', child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [Row(children: [const Expanded(child: Text('اعرف إيه اللي بيحصل حواليك', style: TextStyle(color: muted))), const LivePulse()]), const SizedBox(height: 14), Wrap(spacing: 8, children: ['الكل', 'خدمات ومرافق', 'طرق ومواصلات', 'فعاليات'].map((x) => ChoiceChip(label: Text(x), selected: x == 'الكل', onSelected: (_) {})).toList()), const SizedBox(height: 14), const MotionIn(child: _AlertCard(title: 'انقطاع مياه مؤقت', subtitle: 'الحميدات · منذ ساعتين · تم التأكيد', icon: Icons.water_drop_outlined, color: teal)), const MotionIn(delay: 80, child: _AlertCard(title: 'فتح شارع جديد', subtitle: 'وسط البلد · منذ 30 دقيقة', icon: Icons.traffic_outlined, color: gold)), const MotionIn(delay: 160, child: _AlertCard(title: 'معرض منتجات قنا', subtitle: 'فعالية محلية · اليوم', icon: Icons.event_outlined, color: deepTeal))])); }
 class LivePulse extends StatefulWidget {
