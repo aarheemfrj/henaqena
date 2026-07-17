@@ -677,11 +677,29 @@ class _PricesPageState extends State<PricesPage> {
     const SizedBox(height: 14),
     SegmentedButton<String>(segments: const [ButtonSegment(value: 'offers', label: Text('العروض'), icon: Icon(Icons.local_offer_outlined)), ButtonSegment(value: 'prices', label: Text('الأسعار'), icon: Icon(Icons.sell_outlined))], selected: {selected}, onSelectionChanged: (value) => setState(() => selected = value.first)),
     const SizedBox(height: 16),
-    AnimatedSwitcher(duration: AppMotion.standard, child: selected == 'offers' ? const Column(key: ValueKey('offers'), children: [MiniItem(icon: Icons.local_offer_outlined, title: 'خصم 15% على الأجهزة', subtitle: 'من نشاط موثق · ينتهي خلال 3 أيام'), MiniItem(icon: Icons.local_offer_outlined, title: 'عرض نهاية الأسبوع', subtitle: 'مطاعم مختارة · ينتهي غدًا')]) : const Column(key: ValueKey('prices'), children: [MiniItem(icon: Icons.shopping_basket_outlined, title: 'زيت عباد الشمس — 1 لتر', subtitle: 'السعر المعتاد 72 جنيه · من 68 إلى 77 · منذ يومين'), MiniItem(icon: Icons.home_repair_service_outlined, title: 'تركيب تكييف', subtitle: 'من 800 إلى 1,200 جنيه · سعر تقريبي')])),
+    AnimatedSwitcher(duration: AppMotion.standard, transitionBuilder: (child, animation) => FadeTransition(opacity: animation, child: SlideTransition(position: Tween<Offset>(begin: const Offset(.03, 0), end: Offset.zero).animate(animation), child: child)), child: selected == 'offers' ? const Column(key: ValueKey('offers'), children: [MiniItem(icon: Icons.local_offer_outlined, title: 'خصم 15% على الأجهزة', subtitle: 'من نشاط موثق · ينتهي خلال 3 أيام'), MiniItem(icon: Icons.local_offer_outlined, title: 'عرض نهاية الأسبوع', subtitle: 'مطاعم مختارة · ينتهي غدًا')]) : const Column(key: ValueKey('prices'), children: [MiniItem(icon: Icons.shopping_basket_outlined, title: 'زيت عباد الشمس — 1 لتر', subtitle: 'السعر المعتاد 72 جنيه · من 68 إلى 77 · منذ يومين'), MiniItem(icon: Icons.home_repair_service_outlined, title: 'تركيب تكييف', subtitle: 'من 800 إلى 1,200 جنيه · سعر تقريبي')])),
   ]));
 }
 
-class NowPage extends StatelessWidget { const NowPage({super.key}); @override Widget build(BuildContext context) => BasePage(title: 'دلوقتي', child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [Row(children: [const Expanded(child: Text('اعرف إيه اللي بيحصل حواليك', style: TextStyle(color: muted))), const LivePulse()]), const SizedBox(height: 14), Wrap(spacing: 8, children: ['الكل', 'خدمات ومرافق', 'طرق ومواصلات', 'فعاليات'].map((x) => ChoiceChip(label: Text(x), selected: x == 'الكل', onSelected: (_) {})).toList()), const SizedBox(height: 14), const MotionIn(child: _AlertCard(title: 'انقطاع مياه مؤقت', subtitle: 'الحميدات · منذ ساعتين · تم التأكيد', icon: Icons.water_drop_outlined, color: teal)), const MotionIn(delay: 80, child: _AlertCard(title: 'فتح شارع جديد', subtitle: 'وسط البلد · منذ 30 دقيقة', icon: Icons.traffic_outlined, color: gold)), const MotionIn(delay: 160, child: _AlertCard(title: 'معرض منتجات قنا', subtitle: 'فعالية محلية · اليوم', icon: Icons.event_outlined, color: deepTeal))])); }
+class NowPage extends StatefulWidget { const NowPage({super.key}); @override State<NowPage> createState() => _NowPageState(); }
+class _NowPageState extends State<NowPage> {
+  String selected = 'الكل';
+  @override
+  Widget build(BuildContext context) => BasePage(title: 'دلوقتي', child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+    const Row(children: [Expanded(child: Text('اعرف إيه اللي بيحصل حواليك', style: TextStyle(color: muted))), LivePulse()]),
+    const SizedBox(height: 14),
+    Wrap(spacing: 8, children: ['الكل', 'خدمات ومرافق', 'طرق ومواصلات', 'فعاليات'].map((x) => ChoiceChip(label: Text(x), selected: x == selected, onSelected: (_) => setState(() => selected = x), selectedColor: const Color(0xFFD8EFEC))).toList()),
+    const SizedBox(height: 14),
+    AnimatedSwitcher(duration: AppMotion.standard, transitionBuilder: (child, animation) => FadeTransition(opacity: animation, child: SlideTransition(position: Tween<Offset>(begin: const Offset(0, .025), end: Offset.zero).animate(animation), child: child)), child: Column(key: ValueKey(selected), children: _items())),
+  ]));
+
+  List<Widget> _items() {
+    if (selected == 'خدمات ومرافق') return const [MotionIn(child: _AlertCard(title: 'انقطاع مياه مؤقت', subtitle: 'الحميدات · منذ ساعتين · تم التأكيد', icon: Icons.water_drop_outlined, color: teal))];
+    if (selected == 'طرق ومواصلات') return const [MotionIn(child: _AlertCard(title: 'فتح شارع جديد', subtitle: 'وسط البلد · منذ 30 دقيقة', icon: Icons.traffic_outlined, color: gold))];
+    if (selected == 'فعاليات') return const [MotionIn(child: _AlertCard(title: 'معرض منتجات قنا', subtitle: 'فعالية محلية · اليوم', icon: Icons.event_outlined, color: deepTeal))];
+    return const [MotionIn(child: _AlertCard(title: 'انقطاع مياه مؤقت', subtitle: 'الحميدات · منذ ساعتين · تم التأكيد', icon: Icons.water_drop_outlined, color: teal)), MotionIn(delay: 80, child: _AlertCard(title: 'فتح شارع جديد', subtitle: 'وسط البلد · منذ 30 دقيقة', icon: Icons.traffic_outlined, color: gold)), MotionIn(delay: 160, child: _AlertCard(title: 'معرض منتجات قنا', subtitle: 'فعالية محلية · اليوم', icon: Icons.event_outlined, color: deepTeal))];
+  }
+}
 class LivePulse extends StatefulWidget {
   const LivePulse({super.key});
   @override
