@@ -222,12 +222,14 @@ app.post('/api/ads', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-const reviewSchema = z.object({ providerId: z.string().min(1), authorId: z.string().min(1), quality: z.number().int().min(1).max(5), commitment: z.number().int().min(1).max(5), value: z.number().int().min(1).max(5), comment: z.string().trim().max(1000).optional() });
+const reviewSchema = z.object({ providerId: z.string().min(1), quality: z.number().int().min(1).max(5), commitment: z.number().int().min(1).max(5), value: z.number().int().min(1).max(5), comment: z.string().trim().max(1000).optional() });
 
 app.post('/api/reviews', async (req, res, next) => {
   try {
+    const session = await sessionFromRequest(req);
+    if (!session) return res.status(401).json({ message: 'غير مسجل الدخول' });
     const input = reviewSchema.parse(req.body);
-    const review = await prisma.review.create({ data: { ...input, status: ReviewStatus.PENDING } });
+    const review = await prisma.review.create({ data: { ...input, authorId: session.userId, status: ReviewStatus.PENDING } });
     res.status(201).json(review);
   } catch (error) {
     next(error);
@@ -236,8 +238,10 @@ app.post('/api/reviews', async (req, res, next) => {
 
 app.post('/api/reviews/:id/replies', async (req, res, next) => {
   try {
-    const input = z.object({ authorId: z.string().min(1), text: z.string().trim().min(1).max(1000) }).parse(req.body);
-    const reply = await prisma.reviewReply.create({ data: { reviewId: req.params.id, authorId: input.authorId, text: input.text }, include: { author: true } });
+    const session = await sessionFromRequest(req);
+    if (!session) return res.status(401).json({ message: 'غير مسجل الدخول' });
+    const input = z.object({ text: z.string().trim().min(1).max(1000) }).parse(req.body);
+    const reply = await prisma.reviewReply.create({ data: { reviewId: req.params.id, authorId: session.userId, text: input.text }, include: { author: true } });
     res.status(201).json(reply);
   } catch (error) { next(error); }
 });
