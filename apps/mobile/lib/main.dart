@@ -47,6 +47,11 @@ class HenaQenaApp extends StatelessWidget {
           labelTextStyle: WidgetStatePropertyAll(TextStyle(fontFamily: 'Tajawal', fontSize: 11, fontWeight: FontWeight.w500, color: muted)),
           height: 72,
         ),
+        pageTransitionsTheme: const PageTransitionsTheme(builders: {
+          TargetPlatform.android: SmoothPageTransitionsBuilder(),
+          TargetPlatform.iOS: SmoothPageTransitionsBuilder(),
+          TargetPlatform.macOS: SmoothPageTransitionsBuilder(),
+        }),
         appBarTheme: const AppBarTheme(backgroundColor: paper, foregroundColor: deepTeal, elevation: 0),
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
@@ -58,6 +63,21 @@ class HenaQenaApp extends StatelessWidget {
         ),
       ),
       home: const WelcomeScreen(),
+    );
+  }
+}
+
+class SmoothPageTransitionsBuilder extends PageTransitionsBuilder {
+  const SmoothPageTransitionsBuilder();
+  @override
+  Widget buildTransitions<T>(PageRoute<T> route, BuildContext context, Animation<double> animation, Animation<double> secondaryAnimation, Widget child) {
+    final curved = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic, reverseCurve: Curves.easeInCubic);
+    return FadeTransition(
+      opacity: curved,
+      child: SlideTransition(
+        position: Tween<Offset>(begin: const Offset(.045, 0), end: Offset.zero).animate(curved),
+        child: ScaleTransition(scale: Tween<double>(begin: .985, end: 1).animate(curved), child: child),
+      ),
     );
   }
 }
