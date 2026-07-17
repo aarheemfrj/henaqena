@@ -535,7 +535,7 @@ class ProviderDetailPage extends StatelessWidget {
             child: Padding(padding: const EdgeInsets.all(18), child: Row(children: [
               Hero(tag: 'provider-icon-$title', child: CircleAvatar(radius: 30, backgroundColor: const Color(0xFFD8EFEC), child: Icon(icon, color: deepTeal, size: 30))),
               const SizedBox(width: 14),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(color: deepTeal, fontSize: 20, fontWeight: FontWeight.w700)), const SizedBox(height: 5), Text(subtitle.replaceAll(RegExp(r' · \d(?:\.\d)? ★'), ''), style: const TextStyle(color: muted)), const SizedBox(height: 8), const Text('موثق', style: TextStyle(color: teal, fontWeight: FontWeight.w700))])),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(color: deepTeal, fontSize: 20, fontWeight: FontWeight.w700)), const SizedBox(height: 7), Row(children: [Expanded(child: Text(subtitle.replaceAll(RegExp(r' · \d(?:\.\d)? ★'), '').replaceAll('موثق · ', '').replaceAll(' · موثق', ''), style: const TextStyle(color: muted))), const SizedBox(width: 10), const Text('موثق', style: TextStyle(color: teal, fontWeight: FontWeight.w700))])])),
             ])),
           ),
         ),
@@ -756,9 +756,20 @@ class _MediaGalleryState extends State<MediaGallery> with SingleTickerProviderSt
       return Hero(tag: widget.heroTag!, child: image);
     })),
     const SizedBox(height: 8),
-    Row(mainAxisAlignment: MainAxisAlignment.center, children: [for (var i = 0; i < widget.imageCount; i++) AnimatedContainer(duration: AppMotion.quick, width: i == active ? 18 : 6, height: 6, margin: const EdgeInsets.symmetric(horizontal: 3), decoration: BoxDecoration(color: i == active ? teal : const Color(0xFFD6E3E0), borderRadius: BorderRadius.circular(8)))]),
     const SizedBox(height: 5),
-    AnimatedBuilder(animation: hintController, builder: (_, value) => Row(mainAxisAlignment: MainAxisAlignment.center, children: [Transform.translate(offset: Offset(-4 * hintController.value, 0), child: const Icon(Icons.swipe, color: teal, size: 17)), const SizedBox(width: 5), Text(widget.label, style: const TextStyle(color: muted, fontSize: 12))])),
+    AnimatedBuilder(animation: hintController, builder: (_, value) {
+      final dots = [for (var i = 0; i < widget.imageCount; i++) AnimatedContainer(duration: AppMotion.quick, width: i == active ? 18 : 6, height: 6, margin: const EdgeInsets.symmetric(horizontal: 3), decoration: BoxDecoration(color: i == active ? teal : const Color(0xFFD6E3E0), borderRadius: BorderRadius.circular(8)))];
+      final midpoint = dots.length ~/ 2;
+      return Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+        ...dots.take(midpoint),
+        const SizedBox(width: 4),
+        Transform.translate(offset: Offset(-4 * hintController.value, 0), child: const Icon(Icons.swipe, color: teal, size: 17)),
+        const SizedBox(width: 4),
+        ...dots.skip(midpoint),
+        const SizedBox(width: 8),
+        Text(widget.label, style: const TextStyle(color: muted, fontSize: 12)),
+      ]);
+    }),
   ]);
 }
 
