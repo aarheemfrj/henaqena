@@ -38,11 +38,40 @@ model User {
   level           UserLevel      @default(QENAWY)
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
+  passwordHash    String?
+  phoneVerifiedAt DateTime?
+  emailVerifiedAt DateTime?
+  authProvider    String?
   providers       Provider[]
   listings        Listing[]
   reviews         Review[]
   replies         ReviewReply[]
   notifications   Notification[]
+  sessions        Session[]
+  verificationCodes VerificationCode[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId])
+}
+
+model VerificationCode {
+  id         String   @id @default(cuid())
+  userId     String
+  channel    String
+  target     String
+  codeHash   String
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId, channel])
 }
 
 model Area {

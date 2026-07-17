@@ -1,4 +1,6 @@
 import 'dotenv/config';
+import { createHash, randomBytes, randomInt, scrypt as scryptCallback } from 'node:crypto';
+import { promisify } from 'node:util';
 import cors from 'cors';
 import express from 'express';
 import { PrismaClient, ReviewStatus, ListingStatus } from '@prisma/client';
@@ -7,11 +9,65 @@ import { z } from 'zod';
 const prisma = new PrismaClient();
 const app = express();
 const port = Number(process.env.PORT ?? 4000);
+const scrypt = promisify(scryptCallback);
+const hash = (value: string) => createHash('sha256').update(value).digest('hex');
+const passwordHash = async (password: string) => `${randomBytes(16).toString('hex')}:${(await scrypt(password, 'hena-qena-password-salt', 64) as Buffer).toString('hex')}`;
+const verifyPassword = async (password: string, stored: string) => stored.split(':')[1] === (await scrypt(password, 'hena-qena-password-salt', 64) as Buffer).toString('hex');
+const issueSession = async (userId: string) => { const token = randomBytes(32).toString('hex'); await prisma.session.create({ data: { userId, tokenHash: hash(token), expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) } }); return token; };
 
 app.use(cors());
 app.use(express.json({ limit: '2mb' }));
 
 app.get('/health', (_req, res) => res.json({ ok: true, service: 'hena-qena-api' }));
+
+const registerSchema = z.object({ name: z.string().trim().min(2).max(80), phone: z.string().regex(/^01[0125][0-9]{8}$/), email: z.string().email().optional(), password: z.string().min(8).max(128) });
+app.post('/api/auth/register', async (req, res, next) => {
+  try {
+    const input = registerSchema.parse(req.body);
+    const user = await prisma.user.create({ data: { name: input.name, phone: input.phone, email: input.email, passwordHash: await passwordHash(input.password), authProvider: 'password' } });
+    const token = await issueSession(user.id);
+    res.status(201).json({ token, user: { id: user.id, name: user.name, phone: user.phone, email: user.email, phoneVerified: false, emailVerified: false } });
+  } catch (error) { next(error); }
+});
+
+app.post('/api/auth/login', async (req, res, next) => {
+  try {
+    const input = z.object({ phone: z.string().regex(/^01[0125][0-9]{8}$/), password: z.string().min(1) }).parse(req.body);
+    const user = await prisma.user.findUnique({ where: { phone: input.phone } });
+    if (!user?.passwordHash || !(await verifyPassword(input.password, user.passwordHash))) return res.status(401).json({ message: 'رقم الهاتف أو كلمة المرور غير صحيحة' });
+    const token = await issueSession(user.id);
+    res.json({ token, user: { id: user.id, name: user.name, phone: user.phone, email: user.email, phoneVerified: Boolean(user.phoneVerifiedAt), emailVerified: Boolean(user.emailVerifiedAt) } });
+  } catch (error) { next(error); }
+});
+
+const verificationSchema = z.object({ channel: z.enum(['whatsapp', 'sms', 'email']) });
+app.post('/api/auth/verification/request', async (req, res, next) => {
+  try {
+    const input = verificationSchema.parse(req.body);
+    const token = typeof req.headers.authorization === 'string' ? req.headers.authorization.replace(/^Bearer\s+/i, '') : '';
+    const session = await prisma.session.findUnique({ where: { tokenHash: hash(token) }, include: { user: true } });
+    if (!session || session.expiresAt < new Date()) return res.status(401).json({ message: 'انتهت الجلسة' });
+    const target = input.channel === 'email' ? session.user.email : session.user.phone;
+    if (!target) return res.status(400).json({ message: 'أضف وسيلة التواصل أولاً' });
+    const code = String(randomInt(100000, 1000000));
+    await prisma.verificationCode.create({ data: { userId: session.userId, channel: input.channel, target, codeHash: hash(code), expiresAt: new Date(Date.now() + 10 * 60 * 1000) } });
+    if (process.env.NODE_ENV !== 'production') console.log(`[verification:${input.channel}] ${target}: ${code}`);
+    res.json({ sent: true, channel: input.channel, targetMasked: `${target.slice(0, 3)}***${target.slice(-2)}` });
+  } catch (error) { next(error); }
+});
+
+app.post('/api/auth/verification/confirm', async (req, res, next) => {
+  try {
+    const input = verificationSchema.extend({ code: z.string().regex(/^\d{6}$/) }).parse(req.body);
+    const token = typeof req.headers.authorization === 'string' ? req.headers.authorization.replace(/^Bearer\s+/i, '') : '';
+    const session = await prisma.session.findUnique({ where: { tokenHash: hash(token) } });
+    if (!session || session.expiresAt < new Date()) return res.status(401).json({ message: 'انتهت الجلسة' });
+    const record = await prisma.verificationCode.findFirst({ where: { userId: session.userId, channel: input.channel, codeHash: hash(input.code), consumedAt: null, expiresAt: { gt: new Date() } }, orderBy: { createdAt: 'desc' } });
+    if (!record) return res.status(400).json({ message: 'رمز التأكيد غير صحيح أو منتهي' });
+    await prisma.$transaction([prisma.verificationCode.update({ where: { id: record.id }, data: { consumedAt: new Date() } }), prisma.user.update({ where: { id: session.userId }, data: input.channel === 'email' ? { emailVerifiedAt: new Date() } : { phoneVerifiedAt: new Date() } })]);
+    res.json({ verified: true, channel: input.channel });
+  } catch (error) { next(error); }
+});
 
 app.get('/api/areas', async (_req, res, next) => {
   try {
@@ -97,7 +153,7 @@ app.get('/api/admin/overview', async (_req, res, next) => {
   try {
     const [providers, pending, listings, reviews] = await Promise.all([
       prisma.provider.count({ where: { status: ReviewStatus.APPROVED } }),
-      prisma.review.count({ where: { status: ReviewStatus.PENDING } }) + prisma.listing.count({ where: { status: ListingStatus.PENDING } }),
+      Promise.all([prisma.review.count({ where: { status: ReviewStatus.PENDING } }), prisma.listing.count({ where: { status: ListingStatus.PENDING } })]).then(([reviewsPending, listingsPending]) => reviewsPending + listingsPending),
       prisma.ad.count({ where: { status: ReviewStatus.APPROVED } }),
       prisma.review.count({ where: { createdAt: { gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) } } }),
     ]);
