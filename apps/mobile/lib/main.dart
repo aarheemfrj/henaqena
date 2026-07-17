@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'core/theme/app_theme.dart';
+import 'core/network/api_client.dart';
 
 void main() => runApp(const HenaQenaApp());
 
@@ -455,8 +456,17 @@ class _MiniItemState extends State<MiniItem> {
   );
 }
 
-class DirectoryPage extends StatelessWidget {
+class DirectoryPage extends StatefulWidget {
   const DirectoryPage({super.key});
+  @override
+  State<DirectoryPage> createState() => _DirectoryPageState();
+}
+
+class _DirectoryPageState extends State<DirectoryPage> {
+  late Future<List<ProviderSummary>> providersFuture;
+  final api = ApiClient();
+  @override
+  void initState() { super.initState(); providersFuture = api.fetchProviders(); }
   @override
   Widget build(BuildContext context) => BasePage(title: 'مين؟', child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
     const Text('اختار الفئة الأقرب لاحتياجك', style: TextStyle(color: muted)),
@@ -466,8 +476,11 @@ class DirectoryPage extends StatelessWidget {
     const TextField(decoration: InputDecoration(prefixIcon: Icon(Icons.search, color: teal), hintText: 'اكتب اسم الخدمة أو المكان')),
     const SizedBox(height: 10),
     Row(children: [OutlinedButton.icon(onPressed: () => _showFilters(context), icon: const Icon(Icons.tune), label: const Text('فلاتر')), const Spacer(), OutlinedButton.icon(onPressed: () {}, icon: const Icon(Icons.map_outlined), label: const Text('خريطة'))]),
-    MiniItem(icon: Icons.build_outlined, title: 'كهربائي المصباح', subtitle: 'قنا · موثق · 4.8 ★ · مفتوح الآن', onTap: () => _openDetails(context, 'كهربائي المصباح', Icons.build_outlined, 'قنا · موثق · مفتوح الآن · 4.8 ★')),
-    MiniItem(icon: Icons.local_hospital_outlined, title: 'مركز الشفاء الطبي', subtitle: 'وسط البلد · 4.6 ★', onTap: () => _openDetails(context, 'مركز الشفاء الطبي', Icons.local_hospital_outlined, 'وسط البلد · مفتوح اليوم · 4.6 ★')),
+    FutureBuilder<List<ProviderSummary>>(future: providersFuture, builder: (context, snapshot) {
+      final fallback = [const ProviderSummary(id: 'local-electrician', name: 'كهربائي المصباح', subtitle: 'قنا · موثق · 4.8 ★ · مفتوح الآن'), const ProviderSummary(id: 'local-medical', name: 'مركز الشفاء الطبي', subtitle: 'وسط البلد · 4.6 ★')];
+      final providers = snapshot.hasData && snapshot.data!.isNotEmpty ? snapshot.data! : fallback;
+      return Column(children: [if (snapshot.connectionState == ConnectionState.waiting) const LinearProgressIndicator(minHeight: 3, color: teal), if (snapshot.hasError) const Padding(padding: EdgeInsets.only(bottom: 8), child: Text('بيانات تجريبية — سيتم تحديثها عند تشغيل الخادم', style: TextStyle(color: muted, fontSize: 11))), ...providers.asMap().entries.map((entry) { final icon = entry.key == 0 ? Icons.build_outlined : Icons.local_hospital_outlined; final provider = entry.value; return MiniItem(icon: icon, title: provider.name, subtitle: provider.subtitle, onTap: () => _openDetails(context, provider.name, icon, provider.subtitle)); })]);
+    }),
   ]));
 
   void _openDetails(BuildContext context, String title, IconData icon, String subtitle) {
