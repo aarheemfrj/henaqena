@@ -42,6 +42,10 @@ model User {
   phoneVerifiedAt DateTime?
   emailVerifiedAt DateTime?
   authProvider    String?
+  preferredAreaIds String[] @default([])
+  interests       String[] @default([])
+  notificationScope String @default("all")
+  notificationDigest Boolean @default(false)
   providers       Provider[]
   listings        Listing[]
   reviews         Review[]

@@ -14,11 +14,33 @@ const hash = (value: string) => createHash('sha256').update(value).digest('hex')
 const passwordHash = async (password: string) => `${randomBytes(16).toString('hex')}:${(await scrypt(password, 'hena-qena-password-salt', 64) as Buffer).toString('hex')}`;
 const verifyPassword = async (password: string, stored: string) => stored.split(':')[1] === (await scrypt(password, 'hena-qena-password-salt', 64) as Buffer).toString('hex');
 const issueSession = async (userId: string) => { const token = randomBytes(32).toString('hex'); await prisma.session.create({ data: { userId, tokenHash: hash(token), expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) } }); return token; };
+const sessionFromRequest = async (req: express.Request) => { const token = typeof req.headers.authorization === 'string' ? req.headers.authorization.replace(/^Bearer\s+/i, '') : ''; if (!token) return null; const session = await prisma.session.findUnique({ where: { tokenHash: hash(token) }, include: { user: true } }); return session && session.expiresAt > new Date() ? session : null; };
 
 app.use(cors());
 app.use(express.json({ limit: '2mb' }));
 
 app.get('/health', (_req, res) => res.json({ ok: true, service: 'hena-qena-api' }));
+
+app.get('/api/me', async (req, res, next) => {
+  try { const session = await sessionFromRequest(req); if (!session) return res.status(401).json({ message: 'غير مسجل الدخول' }); const { passwordHash, ...user } = session.user; res.json(user); } catch (error) { next(error); }
+});
+
+app.patch('/api/me/preferences', async (req, res, next) => {
+  try {
+    const session = await sessionFromRequest(req); if (!session) return res.status(401).json({ message: 'غير مسجل الدخول' });
+    const input = z.object({ preferredAreaIds: z.array(z.string()).max(3).optional(), interests: z.array(z.string()).max(5).optional(), notificationScope: z.enum(['all', 'area']).optional(), notificationDigest: z.boolean().optional() }).parse(req.body);
+    const user = await prisma.user.update({ where: { id: session.userId }, data: input });
+    res.json({ preferredAreaIds: user.preferredAreaIds, interests: user.interests, notificationScope: user.notificationScope, notificationDigest: user.notificationDigest });
+  } catch (error) { next(error); }
+});
+
+app.get('/api/notifications', async (req, res, next) => {
+  try { const session = await sessionFromRequest(req); if (!session) return res.status(401).json({ message: 'غير مسجل الدخول' }); const notifications = await prisma.notification.findMany({ where: { userId: session.userId }, orderBy: { createdAt: 'desc' }, take: 50 }); res.json(notifications); } catch (error) { next(error); }
+});
+
+app.patch('/api/notifications/:id/read', async (req, res, next) => {
+  try { const session = await sessionFromRequest(req); if (!session) return res.status(401).json({ message: 'غير مسجل الدخول' }); const notification = await prisma.notification.updateMany({ where: { id: req.params.id, userId: session.userId }, data: { readAt: new Date() } }); res.json({ updated: notification.count === 1 }); } catch (error) { next(error); }
+});
 
 const registerSchema = z.object({ name: z.string().trim().min(2).max(80), phone: z.string().regex(/^01[0125][0-9]{8}$/), email: z.string().email().optional(), password: z.string().min(8).max(128) });
 app.post('/api/auth/register', async (req, res, next) => {
