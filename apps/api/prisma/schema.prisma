@@ -7,9 +7,25 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum ReviewStatus { PENDING APPROVED REJECTED }
-enum ListingStatus { PENDING ACTIVE EXPIRED ARCHIVED REJECTED }
-enum UserLevel { QENAWY QENAWY_RAYEQ QENAWY_ASIL }
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ListingStatus {
+  PENDING
+  ACTIVE
+  EXPIRED
+  ARCHIVED
+  REJECTED
+}
+
+enum UserLevel {
+  QENAWY
+  QENAWY_RAYEQ
+  QENAWY_ASIL
+}
 
 model User {
   id              String         @id @default(cuid())
