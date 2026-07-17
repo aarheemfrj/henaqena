@@ -137,6 +137,33 @@ app.post('/api/providers', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+const providerEditSchema = providerCreateSchema.partial().omit({ categoryIds: true, images: true }).extend({ categoryIds: z.array(z.string().min(1)).min(1).max(5).optional(), images: z.array(z.object({ url: z.string().url(), kind: z.string().max(30).optional() })).min(1).max(10).optional() });
+app.patch('/api/providers/:id', async (req, res, next) => {
+  try {
+    const input = providerEditSchema.parse(req.body);
+    const ownerId = typeof req.headers['x-user-id'] === 'string' ? req.headers['x-user-id'] : undefined;
+    const existing = await prisma.provider.findUnique({ where: { id: String(req.params.id) } });
+    if (!existing) return res.status(404).json({ message: 'النشاط غير موجود' });
+    if (!ownerId || existing.ownerId !== ownerId) return res.status(403).json({ message: 'لا تملك صلاحية تعديل النشاط' });
+    const { categoryIds, images, ...fields } = input;
+    const provider = await prisma.$transaction(async (tx) => {
+      if (images) await tx.providerImage.deleteMany({ where: { providerId: existing.id } });
+      if (categoryIds) await tx.providerCategory.deleteMany({ where: { providerId: existing.id } });
+      return tx.provider.update({ where: { id: existing.id }, data: { ...fields, status: ReviewStatus.PENDING, isVerified: false, ...(images ? { images: { create: images.map((image, index) => ({ url: image.url, kind: image.kind ?? 'work', sortOrder: index })) } } : {}), ...(categoryIds ? { categories: { create: categoryIds.map((categoryId) => ({ categoryId })) } } : {}) }, include: { area: true, images: true, categories: { include: { category: true } } } });
+    });
+    res.json(provider);
+  } catch (error) { next(error); }
+});
+
+app.post('/api/provider-reports', async (req, res, next) => {
+  try {
+    const input = z.object({ kind: z.enum(['CLAIM', 'REPORT']), name: z.string().trim().min(2).max(120), phone: z.string().regex(/^01[0125][0-9]{8}$/).optional(), note: z.string().trim().max(1000).optional(), providerId: z.string().optional() }).parse(req.body);
+    const reporterId = typeof req.headers['x-user-id'] === 'string' ? req.headers['x-user-id'] : undefined;
+    const report = await prisma.providerReport.create({ data: { ...input, reporterId, status: ReviewStatus.PENDING } });
+    res.status(201).json({ id: report.id, status: report.status, message: input.kind === 'CLAIM' ? 'تم إرسال طلب إثبات ملكية النشاط' : 'تم إرسال بلاغ النشاط للمراجعة' });
+  } catch (error) { next(error); }
+});
+
 app.get('/api/providers/:id', async (req, res, next) => {
   try {
     const provider = await prisma.provider.findUnique({

@@ -46,6 +46,11 @@ class ApiClient {
     if (response.statusCode != 201) throw Exception('API error ${response.statusCode}');
   }
 
+  Future<void> submitProviderReport({required Map<String, dynamic> data}) async {
+    final response = await http.post(Uri.parse('$baseUrl/api/provider-reports'), headers: {'content-type': 'application/json'}, body: jsonEncode(data)).timeout(const Duration(seconds: 5));
+    if (response.statusCode != 201) throw Exception('API error ${response.statusCode}');
+  }
+
   Future<List<ProviderSummary>> fetchProviders({String? areaId, String? category}) async {
     final query = <String, String>{
       ...?(areaId == null ? null : {'areaId': areaId}),

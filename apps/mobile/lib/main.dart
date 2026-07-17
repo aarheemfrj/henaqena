@@ -982,6 +982,25 @@ class _AddActivityPageState extends State<AddActivityPage> {
   Future<void> _submit() async { try { final category = categoryId; if (category == null) return; final resolvedArea = areaId ?? (await areas).first.id; await api.submitProvider(data: {'name': name.text.trim(), 'description': description.text.trim(), 'phone': phone.text.trim(), 'whatsapp': whatsapp.text.trim().isEmpty ? null : whatsapp.text.trim(), 'phoneType': phoneType, 'serviceMode': mode, 'areaId': resolvedArea, 'categoryIds': [category], 'openingTime': opening, 'closingTime': closing, 'address': address.text.trim(), 'images': List.generate(imageCount, (index) => {'url': 'https://placehold.co/800x600/png?text=Hena+Qena', 'kind': index == 0 ? 'cover' : 'gallery'})}); if (!mounted) return; Navigator.pop(context); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم إرسال النشاط للمراجعة'))); } catch (error) { if (!mounted) return; ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString().contains('duplicate') ? 'النشاط موجود بالفعل أو قيد المراجعة' : 'تعذر إرسال النشاط حالياً'))); } }
 }
 
+class CommunityRequestPage extends StatefulWidget {
+  const CommunityRequestPage({super.key, required this.kind});
+  final String kind;
+  @override
+  State<CommunityRequestPage> createState() => _CommunityRequestPageState();
+}
+
+class _CommunityRequestPageState extends State<CommunityRequestPage> {
+  final api = ApiClient();
+  final name = TextEditingController();
+  final phone = TextEditingController();
+  final note = TextEditingController();
+  @override
+  void dispose() { name.dispose(); phone.dispose(); note.dispose(); super.dispose(); }
+  @override
+  Widget build(BuildContext context) => Directionality(textDirection: TextDirection.rtl, child: Scaffold(appBar: AppBar(title: Text(widget.kind == 'CLAIM' ? 'أملك نشاط' : 'أبلغ عن نشاط')), body: ListView(padding: const EdgeInsets.all(18), children: [Text(widget.kind == 'CLAIM' ? 'أثبت ملكيتك لنشاط موجود' : 'ساعدنا نراجع بيانات نشاط', style: const TextStyle(color: deepTeal, fontSize: 21, fontWeight: FontWeight.w700)), const SizedBox(height: 8), Text(widget.kind == 'CLAIM' ? 'اكتب بيانات النشاط وهنراجع الطلب مع الإدارة.' : 'اكتب اسم النشاط وسبب البلاغ، ولن يظهر البلاغ للجمهور.', style: const TextStyle(color: muted, height: 1.5)), const SizedBox(height: 22), TextField(controller: name, decoration: const InputDecoration(labelText: 'اسم النشاط *')), const SizedBox(height: 12), TextField(controller: phone, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'رقم الهاتف (اختياري)')), const SizedBox(height: 12), TextField(controller: note, maxLines: 5, decoration: InputDecoration(labelText: widget.kind == 'CLAIM' ? 'معلومة تساعدنا في التحقق' : 'سبب البلاغ')), const SizedBox(height: 22), FilledButton(onPressed: _submit, style: FilledButton.styleFrom(backgroundColor: teal, minimumSize: const Size.fromHeight(52), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))), child: const Text('إرسال للمراجعة'))])));
+  Future<void> _submit() async { if (name.text.trim().length < 2) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('اكتب اسم النشاط'))); return; } try { await api.submitProviderReport(data: {'kind': widget.kind, 'name': name.text.trim(), 'phone': phone.text.trim().isEmpty ? null : phone.text.trim(), 'note': note.text.trim().isEmpty ? null : note.text.trim()}); if (!mounted) return; Navigator.pop(context); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم إرسال الطلب للمراجعة'))); } catch (_) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر إرسال الطلب حالياً'))); } }
+}
+
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
   @override
@@ -998,6 +1017,9 @@ class _SettingsPageState extends State<SettingsPage> {
     body: ListView(padding: const EdgeInsets.all(18), children: [
       Card(elevation: 0, color: const Color(0xFFE8F5F2), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)), child: ListTile(onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AddActivityPage())), leading: const CircleAvatar(backgroundColor: teal, child: Icon(Icons.add_business_outlined, color: Colors.white)), title: const Text('أضف نشاط', style: TextStyle(color: deepTeal, fontWeight: FontWeight.w700)), subtitle: const Text('ساعدنا نضيف نشاط موثوق لقنا', style: TextStyle(color: muted)), trailing: const Icon(Icons.chevron_left, color: deepTeal))),
       const SizedBox(height: 18),
+      _AccountTile(icon: Icons.verified_user_outlined, title: 'أملك نشاط', subtitle: 'اطلب إثبات ملكية نشاط موجود', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CommunityRequestPage(kind: 'CLAIM')))),
+      _AccountTile(icon: Icons.flag_outlined, title: 'أبلغ عن نشاط', subtitle: 'أرسل ملاحظة للإدارة للمراجعة', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CommunityRequestPage(kind: 'REPORT')))),
+      const Divider(height: 26),
       const Text('الإشعارات', style: TextStyle(color: deepTeal, fontWeight: FontWeight.w700)),
       SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('كل الإشعارات'), value: allNotifications, onChanged: (value) => setState(() => allNotifications = value), activeThumbColor: teal),
       SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('إشعارات منطقتي فقط'), value: areaOnly, onChanged: (value) => setState(() => areaOnly = value), activeThumbColor: teal),

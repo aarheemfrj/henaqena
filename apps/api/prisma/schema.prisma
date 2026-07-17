@@ -55,6 +55,7 @@ model User {
   sessions        Session[]
   verificationCodes VerificationCode[]
   auditLogs       AuditLog[]
+  providerReports ProviderReport[] @relation("reportedBy")
 }
 
 model Session {
@@ -118,6 +119,7 @@ model Provider {
   openingTime String?
   closingTime String?
   communityAdded Boolean      @default(true)
+  submissionKind String        @default("COMMUNITY")
   isVerified  Boolean         @default(false)
   status      ReviewStatus    @default(PENDING)
   ownerId     String?
@@ -129,6 +131,22 @@ model Provider {
   categories  ProviderCategory[]
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
+  reports     ProviderReport[] @relation("providerReports")
+}
+
+model ProviderReport {
+  id        String   @id @default(cuid())
+  providerId String?
+  reporterId String?
+  kind      String
+  name      String
+  phone     String?
+  note      String?
+  status    ReviewStatus @default(PENDING)
+  createdAt DateTime @default(now())
+  provider  Provider? @relation("providerReports", fields: [providerId], references: [id], onDelete: SetNull)
+  reporter  User?     @relation("reportedBy", fields: [reporterId], references: [id], onDelete: SetNull)
+  @@index([status, createdAt])
 }
 
 model ProviderImage {
