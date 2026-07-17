@@ -521,7 +521,7 @@ class ProviderDetailPage extends StatelessWidget {
     child: Scaffold(
       appBar: AppBar(title: const Text('تفاصيل المكان')),
       body: ListView(padding: const EdgeInsets.fromLTRB(18, 8, 18, 30), children: [
-        const MediaGallery(imageCount: 4, label: 'صور المكان والشغل'),
+        const MediaGallery(imageCount: 4),
         const SizedBox(height: 14),
         TweenAnimationBuilder<double>(
           tween: Tween(begin: 0.96, end: 1),
@@ -733,9 +733,9 @@ class _CreateListingPageState extends State<CreateListingPage> {
 }
 
 class MediaGallery extends StatefulWidget {
-  const MediaGallery({super.key, required this.imageCount, required this.label, this.heroTag});
+  const MediaGallery({super.key, required this.imageCount, this.label, this.heroTag});
   final int imageCount;
-  final String label;
+  final String? label;
   final String? heroTag;
   @override
   State<MediaGallery> createState() => _MediaGalleryState();
@@ -766,8 +766,6 @@ class _MediaGalleryState extends State<MediaGallery> with SingleTickerProviderSt
         Transform.translate(offset: Offset(-4 * hintController.value, 0), child: const Icon(Icons.swipe, color: teal, size: 17)),
         const SizedBox(width: 4),
         ...dots.skip(midpoint),
-        const SizedBox(width: 8),
-        Text(widget.label, style: const TextStyle(color: muted, fontSize: 12)),
       ]);
     }),
   ]);
