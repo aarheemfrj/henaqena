@@ -603,7 +603,66 @@ class _LivePulseState extends State<LivePulse> with SingleTickerProviderStateMix
 }
 class _AlertCard extends StatelessWidget { const _AlertCard({required this.title, required this.subtitle, required this.icon, required this.color}); final String title; final String subtitle; final IconData icon; final Color color; @override Widget build(BuildContext context) => Card(elevation: 0, margin: const EdgeInsets.only(bottom: 9), color: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: Color(0xFFE0E8E6))), child: ListTile(leading: CircleAvatar(backgroundColor: color.withValues(alpha: .14), child: Icon(icon, color: color)), title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)), subtitle: Text(subtitle, style: const TextStyle(color: muted, fontSize: 12)), trailing: OutlinedButton(onPressed: () {}, child: const Text('مفيد')))); }
 
-class ListingsPage extends StatelessWidget { const ListingsPage({super.key}); @override Widget build(BuildContext context) => BasePage(title: 'عندك؟', child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [const Text('اعرض اللي عندك، ودوّر على اللي محتاجه', style: TextStyle(color: muted)), const SizedBox(height: 14), const TextField(decoration: InputDecoration(prefixIcon: Icon(Icons.search, color: teal), hintText: 'ابحث في الإعلانات')), const SizedBox(height: 10), const CategoryRail(items: ['للبيع', 'للإيجار', 'وظائف', 'سيارات', 'عقارات']), const SizedBox(height: 12), const MiniItem(icon: Icons.home_outlined, title: 'شقة للإيجار في قنا الجديدة', subtitle: '7,500 جنيه · قنا الجديدة · منذ يوم'), const MiniItem(icon: Icons.kitchen_outlined, title: 'ثلاجة بحالة ممتازة', subtitle: '3,500 جنيه · الحميدات · منذ 3 أيام'), const SizedBox(height: 8), FilledButton.icon(onPressed: () {}, icon: const Icon(Icons.add), label: const Text('أضف إعلانًا'), style: FilledButton.styleFrom(backgroundColor: gold, foregroundColor: deepTeal, minimumSize: const Size.fromHeight(48), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))))])); }
+class ListingsPage extends StatelessWidget {
+  const ListingsPage({super.key});
+  @override
+  Widget build(BuildContext context) => BasePage(title: 'عندك؟', child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+    const Text('اعرض اللي عندك، ودوّر على اللي محتاجه', style: TextStyle(color: muted)),
+    const SizedBox(height: 14),
+    const TextField(decoration: InputDecoration(prefixIcon: Icon(Icons.search, color: teal), hintText: 'ابحث في الإعلانات')),
+    const SizedBox(height: 10),
+    const CategoryRail(items: ['للبيع', 'للإيجار', 'وظائف', 'سيارات', 'عقارات']),
+    const SizedBox(height: 12),
+    MiniItem(icon: Icons.home_outlined, title: 'شقة للإيجار في قنا الجديدة', subtitle: '7,500 جنيه · قنا الجديدة · منذ يوم', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ListingDetailPage(title: 'شقة للإيجار في قنا الجديدة', price: '7,500 جنيه', location: 'قنا الجديدة')))),
+    MiniItem(icon: Icons.kitchen_outlined, title: 'ثلاجة بحالة ممتازة', subtitle: '3,500 جنيه · الحميدات · منذ 3 أيام', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ListingDetailPage(title: 'ثلاجة بحالة ممتازة', price: '3,500 جنيه', location: 'الحميدات')))),
+    const SizedBox(height: 8),
+    FilledButton.icon(onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CreateListingPage())), icon: const Icon(Icons.add), label: const Text('أضف إعلانًا'), style: FilledButton.styleFrom(backgroundColor: gold, foregroundColor: deepTeal, minimumSize: const Size.fromHeight(48), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)))),
+  ]));
+}
+
+class CreateListingPage extends StatefulWidget {
+  const CreateListingPage({super.key});
+  @override
+  State<CreateListingPage> createState() => _CreateListingPageState();
+}
+
+class ListingDetailPage extends StatelessWidget {
+  const ListingDetailPage({super.key, required this.title, required this.price, required this.location});
+  final String title;
+  final String price;
+  final String location;
+  @override
+  Widget build(BuildContext context) => Directionality(textDirection: TextDirection.rtl, child: Scaffold(appBar: AppBar(title: const Text('تفاصيل الإعلان')), body: ListView(padding: const EdgeInsets.all(18), children: [Container(height: 190, decoration: BoxDecoration(color: const Color(0xFFE8F0EE), borderRadius: BorderRadius.circular(20)), child: const Icon(Icons.image_outlined, color: teal, size: 54)), const SizedBox(height: 16), Text(title, style: const TextStyle(color: deepTeal, fontSize: 21, fontWeight: FontWeight.w700)), const SizedBox(height: 8), Text('$price · $location', style: const TextStyle(color: muted)), const SizedBox(height: 20), Row(children: [Expanded(child: FilledButton.icon(onPressed: () {}, icon: const Icon(Icons.phone_outlined), label: const Text('اتصال'))), const SizedBox(width: 8), Expanded(child: OutlinedButton.icon(onPressed: () {}, icon: const Icon(Icons.chat_outlined), label: const Text('واتساب')))]), const SizedBox(height: 22), const SectionTitle(title: 'الوصف'), const SizedBox(height: 8), const Text('إعلان منشور من مستخدم بعد مراجعة الإدارة. التفاصيل والصور قابلة للتحديث من صاحب الإعلان.', style: TextStyle(color: muted, height: 1.5)), const SizedBox(height: 22), OutlinedButton.icon(onPressed: () {}, icon: const Icon(Icons.flag_outlined), label: const Text('إبلاغ عن الإعلان'))])));
+}
+
+class _CreateListingPageState extends State<CreateListingPage> {
+  int step = 0;
+  String category = 'للبيع';
+  final title = TextEditingController();
+  final price = TextEditingController();
+  final description = TextEditingController();
+  @override
+  void dispose() { title.dispose(); price.dispose(); description.dispose(); super.dispose(); }
+  void next() { if (step < 2) { setState(() => step++); } else { Navigator.pop(context); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم إرسال الإعلان للمراجعة'))); } }
+  @override
+  Widget build(BuildContext context) => Directionality(textDirection: TextDirection.rtl, child: Scaffold(
+    appBar: AppBar(title: const Text('إضافة إعلان')),
+    body: ListView(padding: const EdgeInsets.fromLTRB(18, 10, 18, 24), children: [
+      Text('${step + 1} من 3', style: const TextStyle(color: muted)),
+      const SizedBox(height: 7),
+      LinearProgressIndicator(value: (step + 1) / 3, minHeight: 5, borderRadius: BorderRadius.circular(8), color: teal, backgroundColor: const Color(0xFFDDE9E7)),
+      const SizedBox(height: 22),
+      AnimatedSwitcher(duration: AppMotion.standard, child: KeyedSubtree(key: ValueKey(step), child: _body())),
+      const SizedBox(height: 24),
+      FilledButton(onPressed: next, style: FilledButton.styleFrom(backgroundColor: teal, minimumSize: const Size.fromHeight(50), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))), child: Text(step == 2 ? 'إرسال للمراجعة' : 'التالي')),
+    ]),
+  ));
+  Widget _body() {
+    if (step == 0) return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [const Text('بيانات الإعلان', style: TextStyle(color: deepTeal, fontSize: 20, fontWeight: FontWeight.w700)), const SizedBox(height: 10), const Text('اختار نوع الإعلان واكتب البيانات الأساسية.', style: TextStyle(color: muted)), const SizedBox(height: 18), const Text('القسم', style: TextStyle(color: deepTeal, fontWeight: FontWeight.w700)), const SizedBox(height: 8), Wrap(spacing: 8, children: ['للبيع', 'للإيجار', 'وظائف', 'سيارات', 'عقارات'].map((x) => ChoiceChip(label: Text(x), selected: category == x, onSelected: (_) => setState(() => category = x), selectedColor: const Color(0xFFD8EFEC))).toList()), const SizedBox(height: 18), TextField(controller: title, decoration: const InputDecoration(labelText: 'عنوان الإعلان', hintText: 'مثال: شقة غرفتين للإيجار')), const SizedBox(height: 12), TextField(controller: price, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'السعر *', hintText: 'السعر بالجنيه المصري'))]);
+    if (step == 1) return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [const Text('صور ووصف', style: TextStyle(color: deepTeal, fontSize: 20, fontWeight: FontWeight.w700)), const SizedBox(height: 10), const Text('أضف صورة واضحة واحدة على الأقل، وبحد أقصى 5 صور.', style: TextStyle(color: muted)), const SizedBox(height: 16), OutlinedButton.icon(onPressed: () {}, icon: const Icon(Icons.add_a_photo_outlined), label: const Text('إضافة صور')), const SizedBox(height: 12), TextField(controller: description, maxLines: 5, decoration: const InputDecoration(labelText: 'وصف الإعلان', hintText: 'اكتب التفاصيل المهمة'))]);
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [const Text('المراجعة والإرسال', style: TextStyle(color: deepTeal, fontSize: 20, fontWeight: FontWeight.w700)), const SizedBox(height: 10), const Text('إعلانك سيظهر بعد مراجعة الإدارة والتأكد من السعر والصور.', style: TextStyle(color: muted, height: 1.5)), const SizedBox(height: 18), Card(elevation: 0, color: Colors.white, child: ListTile(title: Text(title.text.isEmpty ? 'عنوان الإعلان' : title.text, style: const TextStyle(fontWeight: FontWeight.w700)), subtitle: Text('${price.text.isEmpty ? 'السعر غير مكتوب' : price.text} · $category'))), const SizedBox(height: 12), const Text('بإرسال الإعلان أنت توافق على مراجعته قبل النشر.', style: TextStyle(color: muted, fontSize: 12))]);
+}
+}
 
 class AccountPage extends StatelessWidget {
   const AccountPage({super.key});
