@@ -533,7 +533,7 @@ class ProviderDetailPage extends StatelessWidget {
             child: Padding(padding: const EdgeInsets.all(18), child: Row(children: [
               Hero(tag: 'provider-icon-$title', child: CircleAvatar(radius: 30, backgroundColor: const Color(0xFFD8EFEC), child: Icon(icon, color: deepTeal, size: 30))),
               const SizedBox(width: 14),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(color: deepTeal, fontSize: 20, fontWeight: FontWeight.w700)), const SizedBox(height: 5), Text(subtitle, style: const TextStyle(color: muted)), const SizedBox(height: 8), const Text('4.8 ★  ·  موثق', style: TextStyle(color: teal, fontWeight: FontWeight.w700))])),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(color: deepTeal, fontSize: 20, fontWeight: FontWeight.w700)), const SizedBox(height: 5), Text(subtitle.replaceAll(RegExp(r' · \d(?:\.\d)? ★'), ''), style: const TextStyle(color: muted)), const SizedBox(height: 8), const Text('موثق', style: TextStyle(color: teal, fontWeight: FontWeight.w700))])),
             ])),
           ),
         ),
@@ -548,8 +548,8 @@ class ProviderDetailPage extends StatelessWidget {
         const SizedBox(height: 18),
         const SectionTitle(title: 'التقييمات الموجودة'),
         const SizedBox(height: 8),
-        const MiniItem(icon: Icons.person_outline, title: 'أحمد محمد', subtitle: 'خدمة ممتازة والتعامل محترم · 5 ★'),
-        const MiniItem(icon: Icons.person_outline, title: 'مريم علي', subtitle: 'سعر مناسب وملتزمين بالموعد · 4 ★'),
+        const CommentBubble(name: 'أحمد محمد', initial: 'أ', text: 'خدمة ممتازة والتعامل محترم.', rating: 5, replies: [CommentReply(name: 'مريم علي', initial: 'م', text: 'أتفق معاك، تجربتي كانت كويسة برضه.')]),
+        const CommentBubble(name: 'مريم علي', initial: 'م', text: 'سعر مناسب وملتزمين بالموعد.', rating: 4),
         FilledButton.icon(onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ReviewPage(providerName: title))), icon: const Icon(Icons.star_border), label: const Text('أضف تقييمك'), style: FilledButton.styleFrom(backgroundColor: teal, minimumSize: const Size.fromHeight(48), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)))),
       ]),
     ),
@@ -561,7 +561,40 @@ class _RatingRow extends StatelessWidget {
   final String label;
   final String value;
   @override
-  Widget build(BuildContext context) => Padding(padding: const EdgeInsets.only(bottom: 8), child: Row(children: [Expanded(child: Text(label)), const Icon(Icons.star, color: gold, size: 18), const SizedBox(width: 4), Text(value, style: const TextStyle(fontWeight: FontWeight.w700, color: deepTeal))]));
+  Widget build(BuildContext context) => Padding(padding: const EdgeInsets.only(bottom: 8), child: Row(children: [Expanded(child: Text(label)), const Icon(Icons.star, color: gold, size: 18), const SizedBox(width: 4), Text(value, style: const TextStyle(fontWeight: FontWeight.w700, color: teal))]));
+}
+
+class CommentBubble extends StatelessWidget {
+  const CommentBubble({super.key, required this.name, required this.initial, required this.text, required this.rating, this.replies = const []});
+  final String name;
+  final String initial;
+  final String text;
+  final int rating;
+  final List<CommentReply> replies;
+  @override
+  Widget build(BuildContext context) => Padding(padding: const EdgeInsets.only(bottom: 16), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+    Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      CircleAvatar(radius: 19, backgroundColor: const Color(0xFFD8EFEC), child: Text(initial, style: const TextStyle(color: deepTeal, fontWeight: FontWeight.w700))),
+      const SizedBox(width: 10),
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [Expanded(child: Text(name, style: const TextStyle(color: deepTeal, fontWeight: FontWeight.w700))), Text('منذ يوم', style: const TextStyle(color: muted, fontSize: 11))]),
+        const SizedBox(height: 5),
+        Text(text, style: const TextStyle(color: ink, height: 1.4)),
+        const SizedBox(height: 5),
+        Row(children: [Text('$rating', style: const TextStyle(color: teal, fontWeight: FontWeight.w700)), const Icon(Icons.star, color: gold, size: 15), const SizedBox(width: 12), TextButton(onPressed: () {}, style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: Size.zero), child: const Text('مفيد')), const SizedBox(width: 12), TextButton(onPressed: () {}, style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: Size.zero), child: const Text('رد'))]),
+      ])),
+    ]),
+    if (replies.isNotEmpty) Padding(padding: const EdgeInsetsDirectional.only(start: 42, top: 8), child: Column(children: replies)),
+  ]));
+}
+
+class CommentReply extends StatelessWidget {
+  const CommentReply({super.key, required this.name, required this.initial, required this.text});
+  final String name;
+  final String initial;
+  final String text;
+  @override
+  Widget build(BuildContext context) => Padding(padding: const EdgeInsets.only(bottom: 8), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [CircleAvatar(radius: 15, backgroundColor: const Color(0xFFE8F5F2), child: Text(initial, style: const TextStyle(color: deepTeal, fontSize: 12, fontWeight: FontWeight.w700))), const SizedBox(width: 8), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(name, style: const TextStyle(color: deepTeal, fontSize: 13, fontWeight: FontWeight.w700)), const SizedBox(height: 2), Text(text, style: const TextStyle(color: ink, fontSize: 13, height: 1.3)), Row(children: [TextButton(onPressed: () {}, style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: Size.zero), child: const Text('مفيد', style: TextStyle(fontSize: 12))), TextButton(onPressed: () {}, style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: Size.zero), child: const Text('رد', style: TextStyle(fontSize: 12)))])]))]));
 }
 
 class ReviewPage extends StatefulWidget {
