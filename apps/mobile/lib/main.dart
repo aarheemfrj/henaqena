@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'core/theme/app_theme.dart';
 import 'core/network/api_client.dart';
 
@@ -918,6 +921,7 @@ class _AddActivityPageState extends State<AddActivityPage> {
   String opening = '09:00';
   String closing = '22:00';
   int imageCount = 1;
+  final selectedImages = <XFile>[];
   bool preview = false;
   late Future<List<AreaOption>> areas;
   late Future<List<CategoryOption>> categories;
@@ -961,8 +965,9 @@ class _AddActivityPageState extends State<AddActivityPage> {
     const SizedBox(height: 14),
     if (mode == 'LOCAL') Row(children: [const Expanded(child: Text('مواعيد العمل', style: TextStyle(color: deepTeal, fontWeight: FontWeight.w700))), TextButton(onPressed: () => _pickTime(true), child: Text(opening)), const Text('–'), TextButton(onPressed: () => _pickTime(false), child: Text(closing))]),
     const SizedBox(height: 8),
-    Row(children: [Expanded(child: Text('الصور $imageCount / 10', style: const TextStyle(color: deepTeal, fontWeight: FontWeight.w700))), IconButton(onPressed: imageCount >= 10 ? null : () => setState(() => imageCount++), icon: const Icon(Icons.add_a_photo_outlined, color: teal)), if (imageCount > 1) IconButton(onPressed: () => setState(() => imageCount--), icon: const Icon(Icons.remove_circle_outline, color: muted))]),
-    Text('صور مؤقتة للمعاينة حالياً — اختيار الصور من الجهاز في المرحلة التالية.', style: const TextStyle(color: muted, fontSize: 12)),
+    Row(children: [Expanded(child: Text('الصور ${selectedImages.isEmpty ? imageCount : selectedImages.length} / 10', style: const TextStyle(color: deepTeal, fontWeight: FontWeight.w700))), IconButton(onPressed: selectedImages.length >= 10 ? null : _pickImages, icon: const Icon(Icons.add_a_photo_outlined, color: teal))]),
+    if (selectedImages.isNotEmpty) SizedBox(height: 76, child: ListView.separated(scrollDirection: Axis.horizontal, itemCount: selectedImages.length, separatorBuilder: (_, index) => const SizedBox(width: 8), itemBuilder: (_, index) => ClipRRect(borderRadius: BorderRadius.circular(12), child: Image.file(File(selectedImages[index].path), width: 76, height: 76, fit: BoxFit.cover)))),
+    Text(selectedImages.isEmpty ? 'أضف من 1 إلى 10 صور واضحة للنشاط.' : 'تم اختيار ${selectedImages.length} صور — الصورة الأولى هي الغلاف.', style: const TextStyle(color: muted, fontSize: 12)),
   ]);
 
   Future<void> _pickTime(bool isOpening) async {
@@ -971,6 +976,7 @@ class _AddActivityPageState extends State<AddActivityPage> {
       setState(() { final value = picked.format(context); if (isOpening) { opening = value; } else { closing = value; } });
     }
   }
+  Future<void> _pickImages() async { final picked = await ImagePicker().pickMultiImage(imageQuality: 82, maxWidth: 1600); if (!mounted || picked.isEmpty) return; setState(() { selectedImages..clear()..addAll(picked.take(10)); imageCount = selectedImages.length; }); }
   void _review() { if (formKey.currentState?.validate() ?? false) setState(() => preview = true); }
   Widget _previewCard() => Card(elevation: 0, color: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18), side: const BorderSide(color: Color(0xFFE0E8E6))), child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [Container(height: 130, decoration: BoxDecoration(color: const Color(0xFFD8EFEC), borderRadius: BorderRadius.circular(14)), child: const Icon(Icons.image_outlined, color: deepTeal, size: 52)), const SizedBox(height: 14), Text(name.text, style: const TextStyle(color: deepTeal, fontSize: 20, fontWeight: FontWeight.w700)), const SizedBox(height: 6), Text('${mode == 'LOCAL' ? 'محلي' : 'أونلاين'} · ${phoneType == 'BUSINESS' ? 'رقم نشاط' : 'رقم شخصي'}', style: const TextStyle(color: teal)), if (address.text.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 6), child: Text(address.text, style: const TextStyle(color: muted))), if (description.text.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 10), child: Text(description.text, style: const TextStyle(color: ink, height: 1.4))), const SizedBox(height: 12), const Row(children: [Icon(Icons.hourglass_top_outlined, size: 16, color: gold), SizedBox(width: 5), Text('بانتظار مراجعة الإدارة', style: TextStyle(color: muted, fontSize: 12))])])));
   Future<void> _submit() async { try { final category = categoryId; if (category == null) return; final resolvedArea = areaId ?? (await areas).first.id; await api.submitProvider(data: {'name': name.text.trim(), 'description': description.text.trim(), 'phone': phone.text.trim(), 'whatsapp': whatsapp.text.trim().isEmpty ? null : whatsapp.text.trim(), 'phoneType': phoneType, 'serviceMode': mode, 'areaId': resolvedArea, 'categoryIds': [category], 'openingTime': opening, 'closingTime': closing, 'address': address.text.trim(), 'images': List.generate(imageCount, (index) => {'url': 'https://placehold.co/800x600/png?text=Hena+Qena', 'kind': index == 0 ? 'cover' : 'gallery'})}); if (!mounted) return; Navigator.pop(context); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم إرسال النشاط للمراجعة'))); } catch (error) { if (!mounted) return; ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString().contains('duplicate') ? 'النشاط موجود بالفعل أو قيد المراجعة' : 'تعذر إرسال النشاط حالياً'))); } }
