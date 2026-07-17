@@ -335,10 +335,23 @@ app.patch('/api/admin/ads/:id', requireAdmin, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+app.use((_req: express.Request, res: express.Response) => {
+  res.status(404).json({ message: 'المسار غير موجود' });
+});
+
 app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  if (error instanceof z.ZodError) return res.status(400).json({ message: 'Invalid request', issues: error.issues });
-  console.error(error);
-  res.status(500).json({ message: 'Internal server error' });
+  if (error instanceof z.ZodError) {
+    const formatted = error.issues.map(issue => ({ path: issue.path.join('.'), message: issue.message }));
+    return res.status(400).json({ message: 'بيانات المدخلات غير صحيحة', errors: formatted });
+  }
+  if (error instanceof Error && error.message.includes('Unique constraint')) {
+    return res.status(409).json({ message: 'البيانات موجودة بالفعل' });
+  }
+  if (error instanceof Error && error.message.includes('NotFound')) {
+    return res.status(404).json({ message: 'العنصر غير موجود' });
+  }
+  console.error('[API Error]', error);
+  res.status(500).json({ message: 'خطأ في الخادم - يرجى المحاولة لاحقاً' });
 });
 
 app.listen(port, () => console.log(`Hena Qena API listening on http://localhost:${port}`));
