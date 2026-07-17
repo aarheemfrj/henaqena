@@ -1,5 +1,5 @@
 const API_BASE = window.HENA_QENA_API || 'http://127.0.0.1:4000';
-const ADMIN_KEY = window.HENA_QENA_ADMIN_KEY || 'dev-henaqena-admin';
+const ADMIN_KEY = window.HENA_QENA_ADMIN_KEY || localStorage.getItem('henaqena-admin-key') || 'dev-henaqena-admin';
 const queue = [];
 const item = (row) => `<div class="queue-item"><div class="avatar">${row.initial}</div><div class="meta"><strong>${row.name}</strong><small>${row.type} · ${row.detail}</small></div><div class="actions"><button class="approve" data-toast="تم الاعتماد للمراجعة النهائية">اعتماد</button><button class="reject" data-toast="تم تسجيل الرفض للمراجعة">رفض</button></div></div>`;
 document.querySelector('#overview-queue').innerHTML = queue.slice(0,3).map(item).join('');
