@@ -6,6 +6,23 @@ import express from 'express';
 import { PrismaClient, ReviewStatus, ListingStatus } from '@prisma/client';
 import { z } from 'zod';
 
+type RateLimitStore = Map<string, { count: number; resetAt: number }>;
+const createRateLimiter = (maxRequests: number, windowMs: number) => {
+  const store: RateLimitStore = new Map();
+  return (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const key = req.ip || 'unknown';
+    const now = Date.now();
+    const record = store.get(key) || { count: 0, resetAt: now + windowMs };
+    if (now > record.resetAt) { record.count = 0; record.resetAt = now + windowMs; }
+    record.count++;
+    store.set(key, record);
+    res.set('X-RateLimit-Limit', String(maxRequests));
+    res.set('X-RateLimit-Remaining', String(Math.max(0, maxRequests - record.count)));
+    if (record.count > maxRequests) return res.status(429).json({ message: 'عدد المحاولات زائد - حاول لاحقاً' });
+    next();
+  };
+};
+
 const prisma = new PrismaClient();
 const app = express();
 const port = Number(process.env.PORT ?? 4000);
@@ -20,6 +37,9 @@ const audit = (action: string, entity: string, entityId: string, metadata?: Reco
 
 app.use(cors());
 app.use(express.json({ limit: '2mb' }));
+
+const authLimiter = createRateLimiter(5, 15 * 60 * 1000); // 5 attempts per 15 minutes
+const verificationLimiter = createRateLimiter(10, 60 * 60 * 1000); // 10 attempts per hour
 
 app.get('/health', (_req, res) => res.json({ ok: true, service: 'hena-qena-api' }));
 
@@ -45,7 +65,7 @@ app.patch('/api/notifications/:id/read', async (req, res, next) => {
 });
 
 const registerSchema = z.object({ name: z.string().trim().min(2).max(80), phone: z.string().regex(/^01[0125][0-9]{8}$/), email: z.string().email().optional(), password: z.string().min(8).max(128) });
-app.post('/api/auth/register', async (req, res, next) => {
+app.post('/api/auth/register', authLimiter, async (req, res, next) => {
   try {
     const input = registerSchema.parse(req.body);
     const user = await prisma.user.create({ data: { name: input.name, phone: input.phone, email: input.email, passwordHash: await passwordHash(input.password), authProvider: 'password' } });
@@ -54,7 +74,7 @@ app.post('/api/auth/register', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-app.post('/api/auth/login', async (req, res, next) => {
+app.post('/api/auth/login', authLimiter, async (req, res, next) => {
   try {
     const input = z.object({ phone: z.string().regex(/^01[0125][0-9]{8}$/), password: z.string().min(1) }).parse(req.body);
     const user = await prisma.user.findUnique({ where: { phone: input.phone } });
@@ -65,7 +85,7 @@ app.post('/api/auth/login', async (req, res, next) => {
 });
 
 const verificationSchema = z.object({ channel: z.enum(['whatsapp', 'sms', 'email']) });
-app.post('/api/auth/verification/request', async (req, res, next) => {
+app.post('/api/auth/verification/request', verificationLimiter, async (req, res, next) => {
   try {
     const input = verificationSchema.parse(req.body);
     const token = typeof req.headers.authorization === 'string' ? req.headers.authorization.replace(/^Bearer\s+/i, '') : '';
@@ -80,7 +100,7 @@ app.post('/api/auth/verification/request', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-app.post('/api/auth/verification/confirm', async (req, res, next) => {
+app.post('/api/auth/verification/confirm', verificationLimiter, async (req, res, next) => {
   try {
     const input = verificationSchema.extend({ code: z.string().regex(/^\d{6}$/) }).parse(req.body);
     const token = typeof req.headers.authorization === 'string' ? req.headers.authorization.replace(/^Bearer\s+/i, '') : '';
