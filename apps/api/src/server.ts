@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import cors from 'cors';
 import express from 'express';
-import { PrismaClient, ReviewStatus } from '@prisma/client';
+import { PrismaClient, ReviewStatus, ListingStatus } from '@prisma/client';
 import { z } from 'zod';
 
 const prisma = new PrismaClient();
@@ -90,6 +90,74 @@ app.post('/api/reviews', async (req, res, next) => {
   } catch (error) {
     next(error);
   }
+});
+
+// Admin read/moderation endpoints. Authentication is added in the next security step.
+app.get('/api/admin/overview', async (_req, res, next) => {
+  try {
+    const [providers, pending, listings, reviews] = await Promise.all([
+      prisma.provider.count({ where: { status: ReviewStatus.APPROVED } }),
+      prisma.review.count({ where: { status: ReviewStatus.PENDING } }) + prisma.listing.count({ where: { status: ListingStatus.PENDING } }),
+      prisma.ad.count({ where: { status: ReviewStatus.APPROVED } }),
+      prisma.review.count({ where: { createdAt: { gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) } } }),
+    ]);
+    res.json({ providers, pending, listings, reviews });
+  } catch (error) { next(error); }
+});
+
+app.get('/api/admin/reviews', async (req, res, next) => {
+  try {
+    const status = typeof req.query.status === 'string' && Object.values(ReviewStatus).includes(req.query.status as ReviewStatus)
+      ? req.query.status as ReviewStatus : undefined;
+    const reviews = await prisma.review.findMany({ where: status ? { status } : {}, include: { author: true, provider: true }, orderBy: { createdAt: 'desc' }, take: 100 });
+    res.json(reviews);
+  } catch (error) { next(error); }
+});
+
+app.get('/api/admin/providers', async (_req, res, next) => {
+  try {
+    const providers = await prisma.provider.findMany({ include: { area: true, categories: { include: { category: true } } }, orderBy: { createdAt: 'desc' }, take: 100 });
+    res.json(providers);
+  } catch (error) { next(error); }
+});
+
+app.get('/api/admin/listings', async (_req, res, next) => {
+  try {
+    const listings = await prisma.listing.findMany({ include: { area: true, owner: true, images: true }, orderBy: { createdAt: 'desc' }, take: 100 });
+    res.json(listings);
+  } catch (error) { next(error); }
+});
+
+app.get('/api/admin/ads', async (_req, res, next) => {
+  try {
+    const ads = await prisma.ad.findMany({ include: { area: true }, orderBy: [{ weight: 'desc' }, { createdAt: 'desc' }] });
+    res.json(ads);
+  } catch (error) { next(error); }
+});
+
+const moderationSchema = z.object({ status: z.enum([ReviewStatus.APPROVED, ReviewStatus.REJECTED]) });
+app.patch('/api/admin/reviews/:id', async (req, res, next) => {
+  try {
+    const { status } = moderationSchema.parse(req.body);
+    const review = await prisma.review.update({ where: { id: req.params.id }, data: { status } });
+    res.json(review);
+  } catch (error) { next(error); }
+});
+
+app.patch('/api/admin/listings/:id', async (req, res, next) => {
+  try {
+    const status = z.enum([ListingStatus.ACTIVE, ListingStatus.REJECTED, ListingStatus.ARCHIVED]).parse(req.body.status);
+    const listing = await prisma.listing.update({ where: { id: req.params.id }, data: { status } });
+    res.json(listing);
+  } catch (error) { next(error); }
+});
+
+app.patch('/api/admin/ads/:id', async (req, res, next) => {
+  try {
+    const { status } = moderationSchema.parse(req.body);
+    const ad = await prisma.ad.update({ where: { id: req.params.id }, data: { status } });
+    res.json(ad);
+  } catch (error) { next(error); }
 });
 
 app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
