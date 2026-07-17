@@ -444,24 +444,40 @@ class CategoryRail extends StatelessWidget {
     ),
   );
 }
-class MiniItem extends StatelessWidget {
+class MiniItem extends StatefulWidget {
   const MiniItem({super.key, required this.icon, required this.title, required this.subtitle, this.onTap});
   final IconData icon;
   final String title;
   final String subtitle;
   final VoidCallback? onTap;
   @override
-  Widget build(BuildContext context) => Card(
-    elevation: 0,
-    color: Colors.white,
-    margin: const EdgeInsets.only(bottom: 8),
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15), side: const BorderSide(color: Color(0xFFE0E8E6))),
-    child: ListTile(
-      onTap: onTap,
-      leading: Hero(tag: 'provider-icon-$title', child: CircleAvatar(backgroundColor: const Color(0xFFD8EFEC), child: Icon(icon, color: deepTeal))),
-      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
-      subtitle: Text(subtitle, style: const TextStyle(color: muted, fontSize: 12)),
-      trailing: const Icon(Icons.chevron_left, color: muted),
+  State<MiniItem> createState() => _MiniItemState();
+}
+
+class _MiniItemState extends State<MiniItem> {
+  bool pressed = false;
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTapDown: widget.onTap == null ? null : (_) => setState(() => pressed = true),
+    onTapUp: widget.onTap == null ? null : (_) => setState(() => pressed = false),
+    onTapCancel: widget.onTap == null ? null : () => setState(() => pressed = false),
+    onTap: widget.onTap,
+    child: AnimatedScale(
+      scale: pressed ? .975 : 1,
+      duration: AppMotion.quick,
+      curve: Curves.easeOutCubic,
+      child: Card(
+        elevation: 0,
+        color: Colors.white,
+        margin: const EdgeInsets.only(bottom: 8),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15), side: const BorderSide(color: Color(0xFFE0E8E6))),
+        child: ListTile(
+          leading: Hero(tag: 'provider-icon-${widget.title}', child: CircleAvatar(backgroundColor: const Color(0xFFD8EFEC), child: Icon(widget.icon, color: deepTeal))),
+          title: Text(widget.title, style: const TextStyle(fontWeight: FontWeight.w700)),
+          subtitle: Text(widget.subtitle, style: const TextStyle(color: muted, fontSize: 12)),
+          trailing: const Icon(Icons.chevron_left, color: muted),
+        ),
+      ),
     ),
   );
 }
