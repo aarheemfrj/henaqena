@@ -521,6 +521,8 @@ class ProviderDetailPage extends StatelessWidget {
     child: Scaffold(
       appBar: AppBar(title: const Text('تفاصيل المكان')),
       body: ListView(padding: const EdgeInsets.fromLTRB(18, 8, 18, 30), children: [
+        const MediaGallery(imageCount: 4, label: 'صور المكان والشغل'),
+        const SizedBox(height: 14),
         TweenAnimationBuilder<double>(
           tween: Tween(begin: 0.96, end: 1),
           duration: AppMotion.gentle,
@@ -728,6 +730,36 @@ class _CreateListingPageState extends State<CreateListingPage> {
     if (step == 1) return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [const Text('صور ووصف', style: TextStyle(color: deepTeal, fontSize: 20, fontWeight: FontWeight.w700)), const SizedBox(height: 10), const Text('أضف صورة واضحة واحدة على الأقل، وبحد أقصى 5 صور.', style: TextStyle(color: muted)), const SizedBox(height: 16), OutlinedButton.icon(onPressed: () {}, icon: const Icon(Icons.add_a_photo_outlined), label: const Text('إضافة صور')), const SizedBox(height: 12), TextField(controller: description, maxLines: 5, decoration: const InputDecoration(labelText: 'وصف الإعلان', hintText: 'اكتب التفاصيل المهمة'))]);
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [const Text('المراجعة والإرسال', style: TextStyle(color: deepTeal, fontSize: 20, fontWeight: FontWeight.w700)), const SizedBox(height: 10), const Text('إعلانك سيظهر بعد مراجعة الإدارة والتأكد من السعر والصور.', style: TextStyle(color: muted, height: 1.5)), const SizedBox(height: 18), Card(elevation: 0, color: Colors.white, child: ListTile(title: Text(title.text.isEmpty ? 'عنوان الإعلان' : title.text, style: const TextStyle(fontWeight: FontWeight.w700)), subtitle: Text('${price.text.isEmpty ? 'السعر غير مكتوب' : price.text} · $category'))), const SizedBox(height: 12), const Text('بإرسال الإعلان أنت توافق على مراجعته قبل النشر.', style: TextStyle(color: muted, fontSize: 12))]);
 }
+}
+
+class MediaGallery extends StatefulWidget {
+  const MediaGallery({super.key, required this.imageCount, required this.label, this.heroTag});
+  final int imageCount;
+  final String label;
+  final String? heroTag;
+  @override
+  State<MediaGallery> createState() => _MediaGalleryState();
+}
+
+class _MediaGalleryState extends State<MediaGallery> with SingleTickerProviderStateMixin {
+  late final PageController controller = PageController();
+  late final AnimationController hintController = AnimationController(vsync: this, duration: const Duration(milliseconds: 1100))..repeat(reverse: true);
+  int active = 0;
+  final galleryColors = const [Color(0xFFD8EFEC), Color(0xFFEFE5C8), Color(0xFFDDE5EA), Color(0xFFE9DDE9), Color(0xFFE8F0EE)];
+  @override
+  void dispose() { controller.dispose(); hintController.dispose(); super.dispose(); }
+  @override
+  Widget build(BuildContext context) => Column(children: [
+    SizedBox(height: 205, child: PageView.builder(controller: controller, itemCount: widget.imageCount, onPageChanged: (value) => setState(() => active = value), itemBuilder: (_, index) {
+      final image = Container(decoration: BoxDecoration(color: galleryColors[index % galleryColors.length], borderRadius: BorderRadius.circular(20)), child: Stack(children: [Center(child: Icon(Icons.image_outlined, color: deepTeal.withValues(alpha: .45), size: 54)), PositionedDirectional(top: 12, end: 12, child: Container(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5), decoration: BoxDecoration(color: Colors.white.withValues(alpha: .85), borderRadius: BorderRadius.circular(14)), child: Text('${index + 1} / ${widget.imageCount}', style: const TextStyle(color: deepTeal, fontSize: 12, fontWeight: FontWeight.w700))))]));
+      if (widget.heroTag == null) return image;
+      return Hero(tag: widget.heroTag!, child: image);
+    })),
+    const SizedBox(height: 8),
+    Row(mainAxisAlignment: MainAxisAlignment.center, children: [for (var i = 0; i < widget.imageCount; i++) AnimatedContainer(duration: AppMotion.quick, width: i == active ? 18 : 6, height: 6, margin: const EdgeInsets.symmetric(horizontal: 3), decoration: BoxDecoration(color: i == active ? teal : const Color(0xFFD6E3E0), borderRadius: BorderRadius.circular(8)))]),
+    const SizedBox(height: 5),
+    AnimatedBuilder(animation: hintController, builder: (_, value) => Row(mainAxisAlignment: MainAxisAlignment.center, children: [Transform.translate(offset: Offset(-4 * hintController.value, 0), child: const Icon(Icons.swipe, color: teal, size: 17)), const SizedBox(width: 5), Text(widget.label, style: const TextStyle(color: muted, fontSize: 12))])),
+  ]);
 }
 
 class AccountPage extends StatelessWidget {
