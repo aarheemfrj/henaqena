@@ -250,11 +250,30 @@ class _HomeShellState extends State<HomeShell> {
 }
 
 class BasePage extends StatelessWidget {
-  const BasePage({super.key, required this.child, this.title});
+  const BasePage({super.key, required this.child, this.title, this.onRefresh});
   final Widget child;
   final String? title;
+  final Future<void> Function()? onRefresh;
   @override
-  Widget build(BuildContext context) => SafeArea(child: RefreshIndicator(color: teal, onRefresh: () async { await Future<void>.delayed(const Duration(milliseconds: 500)); }, child: ListView(padding: const EdgeInsets.fromLTRB(18, 12, 18, 24), children: [Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [if (title != null) Text(title!, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: deepTeal)) else const BrandText(), Row(children: [IconButton(onPressed: () {}, icon: const Icon(Icons.notifications_none, color: deepTeal)), IconButton(onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AccountPage())), icon: const CircleAvatar(radius: 15, backgroundColor: deepTeal, child: Text('م', style: TextStyle(color: Colors.white, fontSize: 12))))])]), const SizedBox(height: 12), child])));
+  Widget build(BuildContext context) {
+    final refresh = onRefresh ?? () async => Future<void>.delayed(const Duration(milliseconds: 450));
+    return SafeArea(child: RefreshIndicator(
+      color: teal,
+      displacement: 24,
+      onRefresh: refresh,
+      child: ListView(padding: const EdgeInsets.fromLTRB(18, 12, 18, 24), children: [
+        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          if (title != null) Text(title!, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: deepTeal)) else const BrandText(),
+          Row(children: [
+            IconButton(onPressed: () {}, icon: const Icon(Icons.notifications_none, color: deepTeal)),
+            IconButton(onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AccountPage())), icon: const CircleAvatar(radius: 15, backgroundColor: deepTeal, child: Text('م', style: TextStyle(color: Colors.white, fontSize: 12))))
+          ])
+        ]),
+        const SizedBox(height: 12),
+        child,
+      ]),
+    ));
+  }
 }
 
 class BrandText extends StatelessWidget { const BrandText({super.key}); @override Widget build(BuildContext context) => const Text('هنا قنا', style: TextStyle(color: deepTeal, fontSize: 20, fontWeight: FontWeight.w700)); }
@@ -468,7 +487,7 @@ class _DirectoryPageState extends State<DirectoryPage> {
   @override
   void initState() { super.initState(); providersFuture = api.fetchProviders(); }
   @override
-  Widget build(BuildContext context) => BasePage(title: 'مين؟', child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+  Widget build(BuildContext context) => BasePage(title: 'مين؟', onRefresh: _reload, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
     const Text('اختار الفئة الأقرب لاحتياجك', style: TextStyle(color: muted)),
     const SizedBox(height: 10),
     const CategoryRail(items: ['خدمات طبية', 'مطاعم وكافيهات', 'صيانة وفنيين', 'سوبر ماركت', 'تعليم ودروس', 'ترفيه']),
@@ -482,6 +501,11 @@ class _DirectoryPageState extends State<DirectoryPage> {
       return Column(children: [if (snapshot.connectionState == ConnectionState.waiting) const LinearProgressIndicator(minHeight: 3, color: teal), if (snapshot.hasError) const Padding(padding: EdgeInsets.only(bottom: 8), child: Text('بيانات تجريبية — سيتم تحديثها عند تشغيل الخادم', style: TextStyle(color: muted, fontSize: 11))), ...providers.asMap().entries.map((entry) { final icon = entry.key == 0 ? Icons.build_outlined : Icons.local_hospital_outlined; final provider = entry.value; return MiniItem(icon: icon, title: provider.name, subtitle: provider.subtitle, onTap: () => _openDetails(context, provider.name, icon, provider.subtitle)); })]);
     }),
   ]));
+
+  Future<void> _reload() async {
+    setState(() => providersFuture = api.fetchProviders());
+    await providersFuture;
+  }
 
   void _openDetails(BuildContext context, String title, IconData icon, String subtitle) {
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => ProviderDetailPage(title: title, icon: icon, subtitle: subtitle)));
