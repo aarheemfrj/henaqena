@@ -97,6 +97,16 @@ app.get('/api/providers', async (req, res, next) => {
   }
 });
 
+const providerCreateSchema = z.object({ name: z.string().trim().min(2).max(120), description: z.string().trim().max(1000).optional(), phone: z.string().regex(/^01[0125][0-9]{8}$/).optional(), whatsapp: z.string().regex(/^01[0125][0-9]{8}$/).optional(), address: z.string().trim().max(240).optional(), areaId: z.string().min(1), categoryIds: z.array(z.string().min(1)).min(1).max(5), images: z.array(z.object({ url: z.string().url(), kind: z.string().max(30).optional() })).min(1).max(10) });
+app.post('/api/providers', async (req, res, next) => {
+  try {
+    const input = providerCreateSchema.parse(req.body);
+    const ownerId = typeof req.headers['x-user-id'] === 'string' ? req.headers['x-user-id'] : undefined;
+    const provider = await prisma.provider.create({ data: { name: input.name, description: input.description, phone: input.phone, whatsapp: input.whatsapp, address: input.address, areaId: input.areaId, ownerId, status: ReviewStatus.PENDING, images: { create: input.images.map((image, index) => ({ url: image.url, kind: image.kind ?? 'work', sortOrder: index })) }, categories: { create: input.categoryIds.map((categoryId) => ({ categoryId })) } }, include: { area: true, images: true, categories: { include: { category: true } } } });
+    res.status(201).json(provider);
+  } catch (error) { next(error); }
+});
+
 app.get('/api/providers/:id', async (req, res, next) => {
   try {
     const provider = await prisma.provider.findUnique({
@@ -125,6 +135,15 @@ app.get('/api/listings', async (req, res, next) => {
   }
 });
 
+const listingCreateSchema = z.object({ title: z.string().trim().min(3).max(120), description: z.string().trim().max(1200).optional(), price: z.number().positive().max(999999999), ownerId: z.string().min(1), areaId: z.string().min(1), images: z.array(z.string().url()).min(1).max(5) });
+app.post('/api/listings', async (req, res, next) => {
+  try {
+    const input = listingCreateSchema.parse(req.body);
+    const listing = await prisma.listing.create({ data: { title: input.title, description: input.description, price: input.price, ownerId: input.ownerId, areaId: input.areaId, status: ListingStatus.PENDING, images: { create: input.images.map((url, index) => ({ url, sortOrder: index })) } }, include: { area: true, images: true } });
+    res.status(201).json(listing);
+  } catch (error) { next(error); }
+});
+
 app.get('/api/ads', async (req, res, next) => {
   try {
     const areaId = typeof req.query.areaId === 'string' ? req.query.areaId : undefined;
@@ -134,6 +153,16 @@ app.get('/api/ads', async (req, res, next) => {
   } catch (error) {
     next(error);
   }
+});
+
+const adCreateSchema = z.object({ name: z.string().trim().min(2).max(120), imageUrl: z.string().url(), description: z.string().trim().max(600).optional(), targetUrl: z.string().url().optional(), weight: z.number().int().min(1).max(100).default(100), areaId: z.string().min(1).nullable().optional(), startsAt: z.coerce.date(), endsAt: z.coerce.date() });
+app.post('/api/ads', async (req, res, next) => {
+  try {
+    const input = adCreateSchema.parse(req.body);
+    if (input.endsAt <= input.startsAt) return res.status(400).json({ message: 'تاريخ الانتهاء يجب أن يكون بعد البداية' });
+    const ad = await prisma.ad.create({ data: { ...input, areaId: input.areaId ?? null, status: ReviewStatus.PENDING } });
+    res.status(201).json(ad);
+  } catch (error) { next(error); }
 });
 
 const reviewSchema = z.object({ providerId: z.string().min(1), authorId: z.string().min(1), quality: z.number().int().min(1).max(5), commitment: z.number().int().min(1).max(5), value: z.number().int().min(1).max(5), comment: z.string().trim().max(1000).optional() });
@@ -146,6 +175,14 @@ app.post('/api/reviews', async (req, res, next) => {
   } catch (error) {
     next(error);
   }
+});
+
+app.post('/api/reviews/:id/replies', async (req, res, next) => {
+  try {
+    const input = z.object({ authorId: z.string().min(1), text: z.string().trim().min(1).max(1000) }).parse(req.body);
+    const reply = await prisma.reviewReply.create({ data: { reviewId: req.params.id, authorId: input.authorId, text: input.text }, include: { author: true } });
+    res.status(201).json(reply);
+  } catch (error) { next(error); }
 });
 
 // Admin read/moderation endpoints. Authentication is added in the next security step.
