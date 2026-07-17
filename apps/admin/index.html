@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>هنا قنا — لوحة الإدارة</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <aside class="sidebar">
+      <div class="brand"><span class="brand-mark">ق</span><div><strong>هنا قنا</strong><small>لوحة الإدارة</small></div></div>
+      <nav>
+        <button class="nav-item active" data-view="overview">نظرة عامة</button>
+        <button class="nav-item" data-view="reviews">المراجعات</button>
+        <button class="nav-item" data-view="providers">مقدمو الخدمات</button>
+        <button class="nav-item" data-view="listings">الإعلانات</button>
+        <button class="nav-item" data-view="ads">إعلانات الرئيسية</button>
+        <button class="nav-item" data-view="areas">المناطق والفئات</button>
+      </nav>
+      <div class="sidebar-footer"><span class="status-dot"></span> النظام يعمل بشكل طبيعي</div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar"><div><span class="eyebrow">الأربعاء، 17 يوليو</span><h1 id="page-title">نظرة عامة</h1></div><div class="admin-user"><span>م</span><div><strong>محمد أحمد</strong><small>مدير المشروع</small></div></div></header>
+
+      <section id="overview" class="view active-view">
+        <div class="stats"><article><span class="stat-icon teal">⌁</span><div><small>مقدم خدمة نشط</small><strong>248</strong><em>+12 هذا الأسبوع</em></div></article><article><span class="stat-icon gold">★</span><div><small>في انتظار المراجعة</small><strong>37</strong><em class="warn">تحتاج إجراء</em></div></article><article><span class="stat-icon blue">◉</span><div><small>إعلانات نشطة</small><strong>96</strong><em>+8 اليوم</em></div></article><article><span class="stat-icon violet">♧</span><div><small>تقييمات هذا الشهر</small><strong>1,284</strong><em>معدل 4.6 ★</em></div></article></div>
+        <div class="grid-two"><section class="panel"><div class="panel-head"><div><h2>آخر ما يحتاج مراجعة</h2><small>طلبات جديدة من التطبيق</small></div><button class="link-btn" data-view="reviews">عرض الكل</button></div><div id="overview-queue" class="queue"></div></section><section class="panel"><div class="panel-head"><div><h2>توزيع المناطق</h2><small>مقدمو الخدمات النشطون</small></div><span class="pill">قنا كلها</span></div><div class="bars"><div><span>وسط البلد</span><b style="width:82%"></b><strong>82</strong></div><div><span>الحميدات</span><b style="width:64%"></b><strong>64</strong></div><div><span>مدينة العمال</span><b style="width:48%"></b><strong>48</strong></div><div><span>الشؤون</span><b style="width:34%"></b><strong>34</strong></div></div></section></div>
+      </section>
+
+      <section id="reviews" class="view"><div class="panel"><div class="panel-head"><div><h2>مركز المراجعات</h2><small>راجع المحتوى قبل ظهوره للمستخدمين</small></div><div class="filters"><button class="filter active">الكل</button><button class="filter">تقييمات</button><button class="filter">إعلانات</button></div></div><div id="review-queue" class="queue"></div></div></section>
+      <section id="providers" class="view"><div class="panel"><div class="panel-head"><div><h2>مقدمو الخدمات</h2><small>إدارة البيانات والحالة والتوثيق</small></div><button class="primary">إضافة مقدم خدمة</button></div><div class="table"><div class="table-row header"><span>الاسم</span><span>الفئة</span><span>المنطقة</span><span>الحالة</span></div><div class="table-row"><span>كهربائي المصباح</span><span>صيانة وفنيين</span><span>قنا</span><span class="tag approved">موثق</span></div><div class="table-row"><span>مركز الشفاء الطبي</span><span>خدمات طبية</span><span>وسط البلد</span><span class="tag approved">موثق</span></div><div class="table-row"><span>صيدلية الرحمة</span><span>خدمات طبية</span><span>الحميدات</span><span class="tag pending">مراجعة</span></div></div></div></section>
+      <section id="listings" class="view"><div class="panel"><div class="panel-head"><div><h2>الإعلانات</h2><small>تتبع الحالة ومدة الظهور</small></div><button class="primary">إضافة إعلان</button></div><div id="listing-queue" class="queue"></div></div></section>
+      <section id="ads" class="view"><div class="panel"><div class="panel-head"><div><h2>إعلانات الرئيسية</h2><small>المدة، المناطق، الوزن، ووجهة الضغط</small></div><button class="primary">إضافة إعلان رئيسي</button></div><div class="ad-grid"><article class="ad-card"><div class="ad-preview teal-bg">خصم خاص<br><strong>لأهل قنا</strong></div><div><h3>عرض نهاية الأسبوع</h3><p>الوزن 50% · قنا كلها</p><span class="tag approved">نشط حتى 24 يوليو</span></div></article><article class="ad-card"><div class="ad-preview gold-bg">كل ما تحتاجه<br><strong>قريب منك</strong></div><div><h3>رسالة الموسم</h3><p>الوزن 25% · وسط البلد</p><span class="tag pending">مراجعة</span></div></article></div></div></section>
+      <section id="areas" class="view"><div class="panel"><div class="panel-head"><div><h2>المناطق والفئات</h2><small>تحكم في نطاق التغطية والترشيحات</small></div><button class="primary">إضافة منطقة</button></div><div class="chips"><span>قنا كلها</span><span>وسط البلد</span><span>مدينة العمال</span><span>الشؤون</span><span>الحميدات</span><span>المساكن</span><span class="muted-chip">تحديثات قادمة</span></div></div></section>
+    </main>
+    <div id="toast" class="toast"></div>
+    <script src="app.js"></script>
+  </body>
+</html>
