@@ -102,6 +102,10 @@ app.get('/api/areas', async (_req, res, next) => {
   }
 });
 
+app.get('/api/categories', async (_req, res, next) => {
+  try { res.json(await prisma.category.findMany({ where: { isActive: true }, orderBy: { name: 'asc' } })); } catch (error) { next(error); }
+});
+
 app.get('/api/providers', async (req, res, next) => {
   try {
     const areaId = typeof req.query.areaId === 'string' ? req.query.areaId : undefined;
@@ -121,12 +125,14 @@ app.get('/api/providers', async (req, res, next) => {
   }
 });
 
-const providerCreateSchema = z.object({ name: z.string().trim().min(2).max(120), description: z.string().trim().max(1000).optional(), phone: z.string().regex(/^01[0125][0-9]{8}$/).optional(), whatsapp: z.string().regex(/^01[0125][0-9]{8}$/).optional(), address: z.string().trim().max(240).optional(), areaId: z.string().min(1), categoryIds: z.array(z.string().min(1)).min(1).max(5), images: z.array(z.object({ url: z.string().url(), kind: z.string().max(30).optional() })).min(1).max(10) });
+const providerCreateSchema = z.object({ name: z.string().trim().min(2).max(120), description: z.string().trim().max(1000).optional(), phone: z.string().regex(/^01[0125][0-9]{8}$/).optional(), whatsapp: z.string().regex(/^01[0125][0-9]{8}$/).optional(), phoneType: z.enum(['BUSINESS', 'PERSONAL']).default('BUSINESS'), address: z.string().trim().max(240).optional(), areaId: z.string().min(1), serviceMode: z.enum(['LOCAL', 'ONLINE']).default('LOCAL'), openingTime: z.string().max(10).optional(), closingTime: z.string().max(10).optional(), categoryIds: z.array(z.string().min(1)).min(1).max(5), images: z.array(z.object({ url: z.string().url(), kind: z.string().max(30).optional() })).min(1).max(10) });
 app.post('/api/providers', async (req, res, next) => {
   try {
     const input = providerCreateSchema.parse(req.body);
     const ownerId = typeof req.headers['x-user-id'] === 'string' ? req.headers['x-user-id'] : undefined;
-    const provider = await prisma.provider.create({ data: { name: input.name, description: input.description, phone: input.phone, whatsapp: input.whatsapp, address: input.address, areaId: input.areaId, ownerId, status: ReviewStatus.PENDING, images: { create: input.images.map((image, index) => ({ url: image.url, kind: image.kind ?? 'work', sortOrder: index })) }, categories: { create: input.categoryIds.map((categoryId) => ({ categoryId })) } }, include: { area: true, images: true, categories: { include: { category: true } } } });
+    const duplicate = await prisma.provider.findFirst({ where: { areaId: input.areaId, status: { not: ReviewStatus.REJECTED }, OR: [{ name: { equals: input.name, mode: 'insensitive' } }, ...(input.phone ? [{ phone: input.phone }] : [])] } });
+    if (duplicate) return res.status(409).json({ message: 'يوجد نشاط مشابه بالفعل في هذه المنطقة' });
+    const provider = await prisma.provider.create({ data: { name: input.name, description: input.description, phone: input.phone, whatsapp: input.whatsapp, phoneType: input.phoneType, address: input.address, areaId: input.areaId, serviceMode: input.serviceMode, openingTime: input.openingTime, closingTime: input.closingTime, ownerId, communityAdded: true, status: ReviewStatus.PENDING, images: { create: input.images.map((image, index) => ({ url: image.url, kind: image.kind ?? 'work', sortOrder: index })) }, categories: { create: input.categoryIds.map((categoryId) => ({ categoryId })) } }, include: { area: true, images: true, categories: { include: { category: true } } } });
     res.status(201).json(provider);
   } catch (error) { next(error); }
 });

@@ -897,6 +897,85 @@ class _NotificationCard extends StatelessWidget {
   Widget build(BuildContext context) => Card(elevation: 0, margin: const EdgeInsets.only(bottom: 8), color: unread ? const Color(0xFFEFF8F6) : Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15), side: const BorderSide(color: Color(0xFFE0E8E6))), child: ListTile(leading: CircleAvatar(backgroundColor: const Color(0xFFD8EFEC), child: Icon(icon, color: deepTeal)), title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)), subtitle: Text(subtitle, style: const TextStyle(color: muted, fontSize: 12)), trailing: unread ? TweenAnimationBuilder<double>(tween: Tween(begin: .55, end: 1), duration: AppMotion.gentle, curve: Curves.easeOutBack, builder: (_, value, child) => Transform.scale(scale: value, child: child), child: const Icon(Icons.circle, size: 9, color: teal)) : null));
 }
 
+class AddActivityPage extends StatefulWidget {
+  const AddActivityPage({super.key});
+  @override
+  State<AddActivityPage> createState() => _AddActivityPageState();
+}
+
+class _AddActivityPageState extends State<AddActivityPage> {
+  final formKey = GlobalKey<FormState>();
+  final api = ApiClient();
+  final name = TextEditingController();
+  final description = TextEditingController();
+  final address = TextEditingController();
+  final phone = TextEditingController();
+  final whatsapp = TextEditingController();
+  String? areaId;
+  String? categoryId;
+  String mode = 'LOCAL';
+  String phoneType = 'BUSINESS';
+  String opening = '09:00';
+  String closing = '22:00';
+  int imageCount = 1;
+  bool preview = false;
+  late Future<List<AreaOption>> areas;
+  late Future<List<CategoryOption>> categories;
+
+  @override
+  void initState() { super.initState(); areas = api.fetchAreas(); categories = api.fetchCategories(); }
+  @override
+  void dispose() { for (final controller in [name, description, address, phone, whatsapp]) { controller.dispose(); } super.dispose(); }
+
+  @override
+  Widget build(BuildContext context) => Directionality(textDirection: TextDirection.rtl, child: Scaffold(
+    appBar: AppBar(title: Text(preview ? 'مراجعة النشاط' : 'أضف نشاط')),
+    body: Form(key: formKey, child: ListView(padding: const EdgeInsets.fromLTRB(18, 10, 18, 24), children: [
+      if (!preview) ...[_intro(), _fields()] else ...[_previewCard(), const SizedBox(height: 14), const Text('سيظهر النشاط بعد مراجعة الإدارة فقط، وسيحمل شارة «مضاف من المجتمع».', style: TextStyle(color: muted, height: 1.5))],
+      const SizedBox(height: 22),
+      FilledButton(onPressed: preview ? _submit : _review, style: FilledButton.styleFrom(backgroundColor: teal, minimumSize: const Size.fromHeight(52), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))), child: Text(preview ? 'إرسال للمراجعة' : 'معاينة النشاط')),
+      if (preview) TextButton(onPressed: () => setState(() => preview = false), child: const Text('تعديل البيانات')),
+    ])),
+  ));
+
+  Widget _intro() => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: const [Text('ساعد أهل قنا يعرفوا نشاطك', style: TextStyle(color: deepTeal, fontSize: 22, fontWeight: FontWeight.w700)), SizedBox(height: 6), Text('أضف البيانات الأساسية، وإحنا نراجعها قبل ما تظهر للجمهور.', style: TextStyle(color: muted)), SizedBox(height: 18)]);
+
+  Widget _fields() => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+    TextFormField(controller: name, decoration: const InputDecoration(labelText: 'اسم النشاط *'), validator: (value) => value == null || value.trim().length < 2 ? 'اكتب اسم النشاط' : null),
+    const SizedBox(height: 12),
+    FutureBuilder<List<CategoryOption>>(future: categories, builder: (_, snapshot) => DropdownButtonFormField<String>(initialValue: categoryId, decoration: const InputDecoration(labelText: 'نوع النشاط *'), items: (snapshot.data ?? const []).map((item) => DropdownMenuItem(value: item.id, child: Text(item.name))).toList(), onChanged: (value) => setState(() => categoryId = value), validator: (value) => value == null ? 'اختار نوع النشاط' : null)),
+    const SizedBox(height: 12),
+    SegmentedButton<String>(segments: const [ButtonSegment(value: 'LOCAL', label: Text('محلي'), icon: Icon(Icons.storefront_outlined)), ButtonSegment(value: 'ONLINE', label: Text('أونلاين'), icon: Icon(Icons.language))], selected: {mode}, onSelectionChanged: (value) => setState(() => mode = value.first)),
+    const SizedBox(height: 12),
+    FutureBuilder<List<AreaOption>>(future: areas, builder: (_, snapshot) => DropdownButtonFormField<String>(initialValue: areaId, decoration: const InputDecoration(labelText: 'المنطقة *'), items: (snapshot.data ?? const []).map((item) => DropdownMenuItem(value: item.id, child: Text(item.name))).toList(), onChanged: mode == 'ONLINE' ? null : (value) => setState(() => areaId = value), validator: (value) => mode == 'ONLINE' || value != null ? null : 'اختار المنطقة')),
+    const SizedBox(height: 12),
+    if (mode == 'LOCAL') TextFormField(controller: address, decoration: const InputDecoration(labelText: 'العنوان بالتفصيل *'), validator: (value) => mode == 'LOCAL' && (value == null || value.trim().isEmpty) ? 'اكتب العنوان' : null),
+    if (mode == 'LOCAL') const SizedBox(height: 12),
+    TextFormField(controller: description, maxLines: 3, decoration: const InputDecoration(labelText: 'وصف مختصر', hintText: 'اكتب للناس نشاطك بيقدم إيه')),
+    const SizedBox(height: 12),
+    TextFormField(controller: phone, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'رقم الهاتف *'), validator: (value) => value == null || !RegExp(r'^01[0125][0-9]{8}$').hasMatch(value) ? 'اكتب رقم مصري صحيح' : null),
+    const SizedBox(height: 12),
+    SegmentedButton<String>(segments: const [ButtonSegment(value: 'BUSINESS', label: Text('رقم نشاط')), ButtonSegment(value: 'PERSONAL', label: Text('رقم شخصي'))], selected: {phoneType}, onSelectionChanged: (value) => setState(() => phoneType = value.first)),
+    const SizedBox(height: 12),
+    TextFormField(controller: whatsapp, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'واتساب (اختياري)')),
+    const SizedBox(height: 14),
+    if (mode == 'LOCAL') Row(children: [const Expanded(child: Text('مواعيد العمل', style: TextStyle(color: deepTeal, fontWeight: FontWeight.w700))), TextButton(onPressed: () => _pickTime(true), child: Text(opening)), const Text('–'), TextButton(onPressed: () => _pickTime(false), child: Text(closing))]),
+    const SizedBox(height: 8),
+    Row(children: [Expanded(child: Text('الصور $imageCount / 10', style: const TextStyle(color: deepTeal, fontWeight: FontWeight.w700))), IconButton(onPressed: imageCount >= 10 ? null : () => setState(() => imageCount++), icon: const Icon(Icons.add_a_photo_outlined, color: teal)), if (imageCount > 1) IconButton(onPressed: () => setState(() => imageCount--), icon: const Icon(Icons.remove_circle_outline, color: muted))]),
+    Text('صور مؤقتة للمعاينة حالياً — اختيار الصور من الجهاز في المرحلة التالية.', style: const TextStyle(color: muted, fontSize: 12)),
+  ]);
+
+  Future<void> _pickTime(bool isOpening) async {
+    final picked = await showTimePicker(context: context, initialTime: TimeOfDay(hour: int.parse((isOpening ? opening : closing).split(':').first), minute: 0));
+    if (picked != null) {
+      setState(() { final value = picked.format(context); if (isOpening) { opening = value; } else { closing = value; } });
+    }
+  }
+  void _review() { if (formKey.currentState?.validate() ?? false) setState(() => preview = true); }
+  Widget _previewCard() => Card(elevation: 0, color: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18), side: const BorderSide(color: Color(0xFFE0E8E6))), child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [Container(height: 130, decoration: BoxDecoration(color: const Color(0xFFD8EFEC), borderRadius: BorderRadius.circular(14)), child: const Icon(Icons.image_outlined, color: deepTeal, size: 52)), const SizedBox(height: 14), Text(name.text, style: const TextStyle(color: deepTeal, fontSize: 20, fontWeight: FontWeight.w700)), const SizedBox(height: 6), Text('${mode == 'LOCAL' ? 'محلي' : 'أونلاين'} · ${phoneType == 'BUSINESS' ? 'رقم نشاط' : 'رقم شخصي'}', style: const TextStyle(color: teal)), if (address.text.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 6), child: Text(address.text, style: const TextStyle(color: muted))), if (description.text.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 10), child: Text(description.text, style: const TextStyle(color: ink, height: 1.4))), const SizedBox(height: 12), const Row(children: [Icon(Icons.hourglass_top_outlined, size: 16, color: gold), SizedBox(width: 5), Text('بانتظار مراجعة الإدارة', style: TextStyle(color: muted, fontSize: 12))])])));
+  Future<void> _submit() async { try { final category = categoryId; if (category == null) return; await api.submitProvider(data: {'name': name.text.trim(), 'description': description.text.trim(), 'phone': phone.text.trim(), 'whatsapp': whatsapp.text.trim().isEmpty ? null : whatsapp.text.trim(), 'phoneType': phoneType, 'serviceMode': mode, 'areaId': areaId ?? '', 'categoryIds': [category], 'openingTime': opening, 'closingTime': closing, 'address': address.text.trim(), 'images': List.generate(imageCount, (index) => {'url': 'https://placehold.co/800x600/png?text=Hena+Qena', 'kind': index == 0 ? 'cover' : 'gallery'})}); if (!mounted) return; Navigator.pop(context); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم إرسال النشاط للمراجعة'))); } catch (error) { if (!mounted) return; ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString().contains('duplicate') ? 'النشاط موجود بالفعل أو قيد المراجعة' : 'تعذر إرسال النشاط حالياً'))); } }
+}
+
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
   @override
@@ -911,6 +990,8 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget build(BuildContext context) => Directionality(textDirection: TextDirection.rtl, child: Scaffold(
     appBar: AppBar(title: const Text('الإعدادات')),
     body: ListView(padding: const EdgeInsets.all(18), children: [
+      Card(elevation: 0, color: const Color(0xFFE8F5F2), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)), child: ListTile(onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AddActivityPage())), leading: const CircleAvatar(backgroundColor: teal, child: Icon(Icons.add_business_outlined, color: Colors.white)), title: const Text('أضف نشاط', style: TextStyle(color: deepTeal, fontWeight: FontWeight.w700)), subtitle: const Text('ساعدنا نضيف نشاط موثوق لقنا', style: TextStyle(color: muted)), trailing: const Icon(Icons.chevron_left, color: deepTeal))),
+      const SizedBox(height: 18),
       const Text('الإشعارات', style: TextStyle(color: deepTeal, fontWeight: FontWeight.w700)),
       SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('كل الإشعارات'), value: allNotifications, onChanged: (value) => setState(() => allNotifications = value), activeThumbColor: teal),
       SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('إشعارات منطقتي فقط'), value: areaOnly, onChanged: (value) => setState(() => areaOnly = value), activeThumbColor: teal),

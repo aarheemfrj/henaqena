@@ -113,6 +113,11 @@ model Provider {
   address     String?
   latitude    Float?
   longitude   Float?
+  serviceMode String         @default("LOCAL")
+  phoneType   String         @default("BUSINESS")
+  openingTime String?
+  closingTime String?
+  communityAdded Boolean      @default(true)
   isVerified  Boolean         @default(false)
   status      ReviewStatus    @default(PENDING)
   ownerId     String?
