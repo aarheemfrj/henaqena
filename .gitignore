@@ -1,5 +1,9 @@
 .DS_Store
 .dart_tool/
+node_modules/
+.env
+.env.*
+!.env.example
 .packages
 .pub-cache/
 build/
@@ -8,4 +12,3 @@ android/.gradle/
 android/local.properties
 *.iml
 .idea/
-

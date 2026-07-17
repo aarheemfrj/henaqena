@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: henaqena-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: henaqena
+      POSTGRES_PASSWORD: henaqena
+      POSTGRES_DB: henaqena
+    ports:
+      - "5432:5432"
+    volumes:
+      - henaqena_pgdata:/var/lib/postgresql/data
+
+volumes:
+  henaqena_pgdata:
