@@ -550,7 +550,7 @@ class ProviderDetailPage extends StatelessWidget {
         const SizedBox(height: 8),
         const MiniItem(icon: Icons.person_outline, title: 'أحمد محمد', subtitle: 'خدمة ممتازة والتعامل محترم · 5 ★'),
         const MiniItem(icon: Icons.person_outline, title: 'مريم علي', subtitle: 'سعر مناسب وملتزمين بالموعد · 4 ★'),
-        FilledButton.icon(onPressed: () {}, icon: const Icon(Icons.star_border), label: const Text('أضف تقييمك'), style: FilledButton.styleFrom(backgroundColor: teal, minimumSize: const Size.fromHeight(48), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)))),
+        FilledButton.icon(onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ReviewPage(providerName: title))), icon: const Icon(Icons.star_border), label: const Text('أضف تقييمك'), style: FilledButton.styleFrom(backgroundColor: teal, minimumSize: const Size.fromHeight(48), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)))),
       ]),
     ),
   );
@@ -562,6 +562,46 @@ class _RatingRow extends StatelessWidget {
   final String value;
   @override
   Widget build(BuildContext context) => Padding(padding: const EdgeInsets.only(bottom: 8), child: Row(children: [Expanded(child: Text(label)), const Icon(Icons.star, color: gold, size: 18), const SizedBox(width: 4), Text(value, style: const TextStyle(fontWeight: FontWeight.w700, color: deepTeal))]));
+}
+
+class ReviewPage extends StatefulWidget {
+  const ReviewPage({super.key, required this.providerName});
+  final String providerName;
+  @override
+  State<ReviewPage> createState() => _ReviewPageState();
+}
+
+class _ReviewPageState extends State<ReviewPage> {
+  final scores = <String, int>{'الجودة': 0, 'الالتزام': 0, 'السعر': 0};
+  final comment = TextEditingController();
+  @override
+  void dispose() { comment.dispose(); super.dispose(); }
+  @override
+  Widget build(BuildContext context) => Directionality(textDirection: TextDirection.rtl, child: Scaffold(
+    appBar: AppBar(title: const Text('إضافة تقييم')),
+    body: ListView(padding: const EdgeInsets.fromLTRB(18, 12, 18, 24), children: [
+      Text('قيّم ${widget.providerName}', style: const TextStyle(color: deepTeal, fontSize: 21, fontWeight: FontWeight.w700)),
+      const SizedBox(height: 7),
+      const Text('تقييمك يساعد أهل قنا يختاروا بشكل أفضل.', style: TextStyle(color: muted)),
+      const SizedBox(height: 22),
+      ...scores.keys.map((label) => _ScorePicker(label: label, value: scores[label]!, onChanged: (value) => setState(() => scores[label] = value))),
+      const SizedBox(height: 18),
+      TextField(controller: comment, maxLines: 5, decoration: const InputDecoration(labelText: 'اكتب تعليقك', hintText: 'إيه اللي عجبك أو محتاج يتحسن؟')),
+      const SizedBox(height: 12),
+      const Text('التقييم يظهر باسمك الحقيقي ويمكنك تعديله من مساهماتك.', style: TextStyle(color: muted, fontSize: 12)),
+      const SizedBox(height: 22),
+      FilledButton(onPressed: scores.values.any((value) => value == 0) ? null : () { Navigator.pop(context); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم إرسال التقييم للمراجعة'))); }, style: FilledButton.styleFrom(backgroundColor: teal, minimumSize: const Size.fromHeight(50), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))), child: const Text('إرسال التقييم')),
+    ]),
+  ));
+}
+
+class _ScorePicker extends StatelessWidget {
+  const _ScorePicker({required this.label, required this.value, required this.onChanged});
+  final String label;
+  final int value;
+  final ValueChanged<int> onChanged;
+  @override
+  Widget build(BuildContext context) => Padding(padding: const EdgeInsets.only(bottom: 15), child: Row(children: [SizedBox(width: 82, child: Text(label, style: const TextStyle(fontWeight: FontWeight.w700, color: deepTeal))), ...List.generate(5, (index) => IconButton(visualDensity: VisualDensity.compact, onPressed: () => onChanged(index + 1), icon: Icon(index < value ? Icons.star : Icons.star_border, color: gold, size: 27))), if (value > 0) Text('$value/5', style: const TextStyle(color: muted, fontSize: 12))]));
 }
 class PricesPage extends StatefulWidget { const PricesPage({super.key}); @override State<PricesPage> createState() => _PricesPageState(); }
 class _PricesPageState extends State<PricesPage> {
