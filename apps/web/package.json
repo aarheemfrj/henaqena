@@ -3,9 +3,9 @@
   "private": true,
   "version": "0.1.0",
   "scripts": {
-    "dev": "node ./node_modules/next/dist/bin/next dev",
+    "dev": "node ./node_modules/next/dist/bin/next dev --port 3100",
     "build": "node ./node_modules/next/dist/bin/next build",
-    "start": "node ./node_modules/next/dist/bin/next start",
+    "start": "node ./node_modules/next/dist/bin/next start --port 3100",
     "lint": "node ./node_modules/eslint/bin/eslint.js ."
   },
   "dependencies": {
