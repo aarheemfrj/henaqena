@@ -164,6 +164,8 @@ model Provider {
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
   reports     ProviderReport[] @relation("providerReports")
+  services    ProviderService[]
+  offers      ProviderOffer[]
 }
 
 model ProviderReport {
@@ -188,6 +190,33 @@ model ProviderImage {
   sortOrder  Int      @default(0)
   kind       String   @default("work")
   provider   Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+}
+
+model ProviderService {
+  id          String       @id @default(cuid())
+  providerId  String
+  name        String
+  description String?
+  price       Decimal?     @db.Decimal(12, 2)
+  priceNote   String?
+  status      ReviewStatus @default(PENDING)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  provider    Provider     @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  @@index([providerId, status])
+}
+
+model ProviderOffer {
+  id          String       @id @default(cuid())
+  providerId  String
+  title       String
+  description String?
+  startsAt    DateTime
+  endsAt      DateTime
+  status      ReviewStatus @default(PENDING)
+  createdAt   DateTime     @default(now())
+  provider    Provider     @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  @@index([providerId, status, endsAt])
 }
 
 model Category {

@@ -317,6 +317,8 @@ app.get('/api/providers/:id', async (req, res, next) => {
         area: true,
         images: { orderBy: { sortOrder: 'asc' } },
         categories: { include: { category: true } },
+        services: { where: { status: ReviewStatus.APPROVED }, orderBy: { createdAt: 'desc' } },
+        offers: { where: { status: ReviewStatus.APPROVED, startsAt: { lte: new Date() }, endsAt: { gte: new Date() } }, orderBy: { endsAt: 'asc' } },
         reviews: { where: { status: ReviewStatus.APPROVED }, include: { author: { select: publicAuthorSelect }, replies: { include: { author: { select: publicAuthorSelect } } } }, orderBy: { createdAt: 'desc' } },
       },
     });
@@ -326,6 +328,11 @@ app.get('/api/providers/:id', async (req, res, next) => {
     next(error);
   }
 });
+
+const serviceSchema = z.object({ name: z.string().trim().min(2).max(120), description: z.string().trim().max(600).optional(), price: z.number().nonnegative().max(999999999).optional(), priceNote: z.string().trim().max(120).optional() });
+app.post('/api/providers/:id/services', async (req, res, next) => { try { const session = await sessionFromRequest(req); if (!session) return res.status(401).json({ message: 'سجّل الدخول أولاً' }); const input = serviceSchema.parse(req.body); const provider = await prisma.provider.findUnique({ where: { id: String(req.params.id) } }); if (!provider || provider.ownerId !== session.userId) return res.status(403).json({ message: 'لا تملك النشاط' }); const service = await prisma.providerService.create({ data: { ...input, providerId: provider.id, status: ReviewStatus.PENDING } }); res.status(201).json(service); } catch (error) { next(error); } });
+const offerSchema = z.object({ title: z.string().trim().min(2).max(120), description: z.string().trim().max(600).optional(), startsAt: z.coerce.date(), endsAt: z.coerce.date() }).refine((value) => value.endsAt > value.startsAt, { message: 'تاريخ العرض غير صحيح' });
+app.post('/api/providers/:id/offers', async (req, res, next) => { try { const session = await sessionFromRequest(req); if (!session) return res.status(401).json({ message: 'سجّل الدخول أولاً' }); const input = offerSchema.parse(req.body); const provider = await prisma.provider.findUnique({ where: { id: String(req.params.id) } }); if (!provider || provider.ownerId !== session.userId) return res.status(403).json({ message: 'لا تملك النشاط' }); const offer = await prisma.providerOffer.create({ data: { ...input, providerId: provider.id, status: ReviewStatus.PENDING } }); res.status(201).json(offer); } catch (error) { next(error); } });
 
 app.get('/api/listings', async (req, res, next) => {
   try {
@@ -337,13 +344,21 @@ app.get('/api/listings', async (req, res, next) => {
   }
 });
 
+app.get('/api/me/contributions', async (req, res, next) => {
+  try { const session = await sessionFromRequest(req); if (!session) return res.status(401).json({ message: 'غير مسجل الدخول' }); const [providers, listings, reviews, reports] = await Promise.all([prisma.provider.findMany({ where: { ownerId: session.userId }, include: { area: true }, orderBy: { createdAt: 'desc' } }), prisma.listing.findMany({ where: { ownerId: session.userId }, include: { area: true, images: true }, orderBy: { createdAt: 'desc' } }), prisma.review.findMany({ where: { authorId: session.userId }, include: { provider: { select: { id: true, name: true } } }, orderBy: { createdAt: 'desc' } }), prisma.providerReport.findMany({ where: { reporterId: session.userId }, include: { provider: { select: { id: true, name: true } } }, orderBy: { createdAt: 'desc' } })]); res.json({ providers, listings, reviews, reports }); } catch (error) { next(error); }
+});
+
+app.post('/api/jobs/expire-listings', requireAdmin, async (_req, res, next) => {
+  try { const result = await prisma.listing.updateMany({ where: { status: ListingStatus.ACTIVE, expiresAt: { lt: new Date() } }, data: { status: ListingStatus.EXPIRED } }); res.json({ expired: result.count }); } catch (error) { next(error); }
+});
+
 const listingCreateSchema = z.object({ title: z.string().trim().min(3).max(120), description: z.string().trim().max(1200).optional(), price: z.number().positive().max(999999999), areaId: z.string().min(1), images: z.array(z.string().url()).min(1).max(5) });
 app.post('/api/listings', async (req, res, next) => {
   try {
     const session = await sessionFromRequest(req);
     if (!session) return res.status(401).json({ message: 'سجّل الدخول أولاً لإضافة إعلان' });
     const input = listingCreateSchema.parse(req.body);
-    const listing = await prisma.listing.create({ data: { title: input.title, description: input.description, price: input.price, ownerId: session.userId, areaId: input.areaId, status: ListingStatus.PENDING, images: { create: input.images.map((url, index) => ({ url, sortOrder: index })) } }, include: { area: true, images: true } });
+    const listing = await prisma.listing.create({ data: { title: input.title, description: input.description, price: input.price, ownerId: session.userId, areaId: input.areaId, status: ListingStatus.PENDING, expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), images: { create: input.images.map((url, index) => ({ url, sortOrder: index })) } }, include: { area: true, images: true } });
     res.status(201).json(listing);
   } catch (error) { next(error); }
 });
