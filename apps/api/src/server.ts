@@ -1,5 +1,7 @@
 import 'dotenv/config';
 import { createHash, randomBytes, randomInt, scrypt as scryptCallback } from 'node:crypto';
+import { mkdir, writeFile } from 'node:fs/promises';
+import path from 'node:path';
 import { promisify } from 'node:util';
 import cors from 'cors';
 import express from 'express';
@@ -26,6 +28,8 @@ const createRateLimiter = (maxRequests: number, windowMs: number) => {
 const prisma = new PrismaClient();
 const app = express();
 const port = Number(process.env.PORT ?? 4000);
+const uploadRoot = process.env.UPLOADS_DIR ?? path.join(process.cwd(), 'uploads');
+const publicApiBaseUrl = (process.env.PUBLIC_API_BASE_URL ?? `http://127.0.0.1:${port}`).replace(/\/$/, '');
 const scrypt = promisify(scryptCallback);
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
 const passwordHash = async (password: string) => { const salt = randomBytes(16); const derived = await scrypt(password, salt, 64) as Buffer; return `${salt.toString('hex')}:${derived.toString('hex')}`; };
@@ -37,7 +41,8 @@ const audit = (action: string, entity: string, entityId: string, metadata?: Reco
 const publicAuthorSelect = { id: true, name: true, avatarUrl: true, isProfilePrivate: true, points: true, level: true } as const;
 
 app.use(cors());
-app.use(express.json({ limit: '2mb' }));
+app.use(express.json({ limit: '16mb' }));
+app.use('/uploads', express.static(uploadRoot, { maxAge: '7d', etag: true }));
 
 const authLimiter = createRateLimiter(5, 15 * 60 * 1000); // 5 attempts per 15 minutes
 const verificationLimiter = createRateLimiter(10, 60 * 60 * 1000); // 10 attempts per hour
@@ -144,6 +149,30 @@ app.get('/api/providers', async (req, res, next) => {
   } catch (error) {
     next(error);
   }
+});
+
+const uploadedImageSchema = z.object({
+  base64: z.string().min(32),
+  mimeType: z.enum(['image/jpeg', 'image/png', 'image/webp']),
+});
+
+app.post('/api/uploads/provider-images', async (req, res, next) => {
+  try {
+    const session = await sessionFromRequest(req);
+    if (!session) return res.status(401).json({ message: 'سجّل الدخول أولاً لرفع الصور' });
+    const input = z.object({ images: z.array(uploadedImageSchema).min(1).max(10) }).parse(req.body);
+    const folder = path.join(uploadRoot, 'providers');
+    await mkdir(folder, { recursive: true });
+    const images = await Promise.all(input.images.map(async (image) => {
+      const bytes = Buffer.from(image.base64, 'base64');
+      if (bytes.length === 0 || bytes.length > 2 * 1024 * 1024) throw new Error('حجم الصورة يجب ألا يزيد عن 2 ميجابايت');
+      const extension = image.mimeType === 'image/png' ? 'png' : image.mimeType === 'image/webp' ? 'webp' : 'jpg';
+      const filename = `${Date.now()}-${randomBytes(10).toString('hex')}.${extension}`;
+      await writeFile(path.join(folder, filename), bytes, { flag: 'wx' });
+      return { url: `${publicApiBaseUrl}/uploads/providers/${filename}`, kind: 'work' };
+    }));
+    res.status(201).json({ images });
+  } catch (error) { next(error); }
 });
 
 const providerCreateSchema = z.object({ name: z.string().trim().min(2).max(120), description: z.string().trim().max(1000).optional(), phone: z.string().regex(/^01[0125][0-9]{8}$/).optional(), whatsapp: z.string().regex(/^01[0125][0-9]{8}$/).optional(), phoneType: z.enum(['BUSINESS', 'PERSONAL']).default('BUSINESS'), address: z.string().trim().max(240).optional(), areaId: z.string().min(1), serviceMode: z.enum(['LOCAL', 'ONLINE']).default('LOCAL'), openingTime: z.string().max(10).optional(), closingTime: z.string().max(10).optional(), categoryIds: z.array(z.string().min(1)).min(1).max(5), images: z.array(z.object({ url: z.string().url(), kind: z.string().max(30).optional() })).min(1).max(10) });

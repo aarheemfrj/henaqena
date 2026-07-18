@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 
 import '../auth/auth_session.dart';
 
@@ -70,6 +71,21 @@ class ApiClient {
     if (response.statusCode == 409) throw Exception('duplicate');
     if (response.statusCode == 401) throw Exception('unauthorized');
     if (response.statusCode != 201) throw Exception('API error ${response.statusCode}');
+  }
+
+  Future<List<Map<String, dynamic>>> uploadProviderImages(List<XFile> images) async {
+    if (!AuthSession.isSignedIn) throw Exception('unauthorized');
+    final payload = <Map<String, String>>[];
+    for (final image in images) {
+      final path = image.path.toLowerCase();
+      final mimeType = path.endsWith('.png') ? 'image/png' : path.endsWith('.webp') ? 'image/webp' : 'image/jpeg';
+      payload.add({'base64': base64Encode(await image.readAsBytes()), 'mimeType': mimeType});
+    }
+    final response = await http.post(Uri.parse('$baseUrl/api/uploads/provider-images'), headers: _jsonHeaders, body: jsonEncode({'images': payload})).timeout(const Duration(seconds: 30));
+    if (response.statusCode == 401) throw Exception('unauthorized');
+    if (response.statusCode != 201) throw Exception('upload_error');
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    return (body['images'] as List<dynamic>).map((item) => Map<String, dynamic>.from(item as Map)).toList();
   }
 
   Future<void> submitProviderReport({required Map<String, dynamic> data}) async {

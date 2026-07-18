@@ -9,6 +9,7 @@ dist/
 .pub-cache/
 build/
 .next/
+apps/api/uploads/
 ios/Pods/
 android/.gradle/
 android/local.properties
