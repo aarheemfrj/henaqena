@@ -486,6 +486,15 @@ app.get('/api/admin/users', requireAdmin, async (_req, res, next) => {
   try { res.json(await prisma.user.findMany({ select: { id: true, name: true, phone: true, email: true, points: true, level: true, role: true, createdAt: true, _count: { select: { reviews: true, listings: true, providers: true } } }, orderBy: { createdAt: 'desc' }, take: 500 })); } catch (error) { next(error); }
 });
 
+app.get('/api/admin/audit', requireAdmin, async (req, res, next) => {
+  try {
+    const entity = typeof req.query.entity === 'string' ? req.query.entity : undefined;
+    const action = typeof req.query.action === 'string' ? req.query.action : undefined;
+    const logs = await prisma.auditLog.findMany({ where: { ...(entity ? { entity } : {}), ...(action ? { action: { contains: action, mode: 'insensitive' } } : {}) }, include: { actor: { select: { name: true, email: true } } }, orderBy: { createdAt: 'desc' }, take: 250 });
+    res.json(logs);
+  } catch (error) { next(error); }
+});
+
 const parseCsvLine = (line: string) => line.split(',').map((value) => value.trim().replace(/^"|"$/g, ''));
 app.post('/api/admin/import/providers', requireAdmin, async (req, res, next) => {
   try {
