@@ -245,8 +245,15 @@ class WelcomeScreen extends StatelessWidget {
 }
 
 class AuthPage extends StatefulWidget {
-  const AuthPage({super.key, this.createAccount = false});
+  const AuthPage({
+    super.key,
+    this.createAccount = false,
+    this.setupAreas = const [],
+    this.setupInterests = const [],
+  });
   final bool createAccount;
+  final List<String> setupAreas;
+  final List<String> setupInterests;
 
   @override
   State<AuthPage> createState() => _AuthPageState();
@@ -289,6 +296,21 @@ class _AuthPageState extends State<AuthPage> {
         );
       } else {
         await api.login(phone: phone.text.trim(), password: password.text);
+      }
+      if (widget.setupAreas.isNotEmpty || widget.setupInterests.isNotEmpty) {
+        final availableAreas = await api.fetchAreas();
+        final areaIds = availableAreas
+            .where((area) => widget.setupAreas.contains(area.name))
+            .map((area) => area.id)
+            .take(3)
+            .toList();
+        await api.updatePreferences(
+          profilePrivate: false,
+          notificationScope: 'all',
+          notificationDigest: false,
+          preferredAreaIds: areaIds,
+          interests: widget.setupInterests,
+        );
       }
       if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
@@ -809,7 +831,11 @@ class _SetupFlowState extends State<SetupFlow> {
           'اسم، رقم هاتف، وكلمة مرور',
           () => Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (_) => const AuthPage(createAccount: true),
+              builder: (_) => AuthPage(
+                createAccount: true,
+                setupAreas: areas.toList(),
+                setupInterests: interests.toList(),
+              ),
             ),
           ),
         ),
@@ -817,9 +843,14 @@ class _SetupFlowState extends State<SetupFlow> {
           Icons.login,
           'تسجيل الدخول',
           'ادخل على حسابك الحالي',
-          () => Navigator.of(
-            context,
-          ).push(MaterialPageRoute(builder: (_) => const AuthPage())),
+          () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => AuthPage(
+                setupAreas: areas.toList(),
+                setupInterests: interests.toList(),
+              ),
+            ),
+          ),
         ),
         _authChoice(
           Icons.g_mobiledata,
@@ -1084,6 +1115,8 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   String selectedArea = 'قنا كلها';
+  String? selectedAreaId;
+  late Future<List<ProviderSummary>> featured = ApiClient().fetchProviders();
 
   void _openDirectory(String query) => Navigator.of(
     context,
@@ -1101,7 +1134,7 @@ class _HomePageState extends State<HomePage> {
       return;
     }
     if (!mounted) return;
-    final picked = await showModalBottomSheet<String>(
+    final picked = await showModalBottomSheet<AreaOption>(
       context: context,
       useSafeArea: true,
       builder: (context) => Directionality(
@@ -1117,21 +1150,39 @@ class _HomePageState extends State<HomePage> {
               ),
             ),
             for (final area in options)
-              RadioListTile<String>(
-                value: area.name,
-                groupValue: selectedArea,
+              ListTile(
                 title: Text(area.name),
-                onChanged: (value) => Navigator.pop(context, value),
+                leading: Icon(
+                  selectedAreaId == area.id
+                      ? Icons.check_circle
+                      : Icons.circle_outlined,
+                  color: teal,
+                ),
+                onTap: () => Navigator.pop(context, area),
               ),
           ],
         ),
       ),
     );
-    if (picked != null && mounted) setState(() => selectedArea = picked);
+    if (picked != null && mounted) {
+      setState(() {
+        selectedArea = picked.name;
+        selectedAreaId = picked.id;
+        featured = ApiClient().fetchProviders(areaId: picked.id);
+      });
+    }
+  }
+
+  Future<void> _reload() async {
+    setState(
+      () => featured = ApiClient().fetchProviders(areaId: selectedAreaId),
+    );
+    await featured;
   }
 
   @override
   Widget build(BuildContext context) => BasePage(
+    onRefresh: _reload,
     header: Row(
       children: [
         Expanded(
@@ -1188,59 +1239,55 @@ class _HomePageState extends State<HomePage> {
         const SizedBox(height: 20),
         const SectionTitle(title: 'مختارات قنا'),
         const SizedBox(height: 9),
-        MotionIn(
-          child: MiniItem(
-            icon: Icons.local_pharmacy_outlined,
-            title: 'صيدلية الرحمة',
-            subtitle: 'الحميدات · مفتوح الآن · 4.8 ★',
-            onTap: () => _openDetails(
-              context,
-              'صيدلية الرحمة',
-              Icons.local_pharmacy_outlined,
-              'الحميدات · مفتوح الآن · 4.8 ★',
-            ),
-          ),
-        ),
-        MotionIn(
-          delay: 60,
-          child: MiniItem(
-            icon: Icons.coffee_outlined,
-            title: 'قهوة البلد',
-            subtitle: 'وسط البلد · على بُعد 0.8 كم',
-            onTap: () => _openDetails(
-              context,
-              'قهوة البلد',
-              Icons.coffee_outlined,
-              'وسط البلد · مفتوح الآن · 4.7 ★',
-            ),
-          ),
+        FutureBuilder<List<ProviderSummary>>(
+          future: featured,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const LinearProgressIndicator(color: teal);
+            }
+            final items = snapshot.data ?? const <ProviderSummary>[];
+            if (snapshot.hasError || items.isEmpty) {
+              return const _StateMessage(
+                icon: Icons.storefront_outlined,
+                title: 'لا توجد مختارات منشورة حالياً',
+                subtitle: 'المختارات تظهر من الأنشطة المعتمدة في الدليل.',
+              );
+            }
+            return Column(
+              children: [
+                for (var index = 0; index < items.take(4).length; index++)
+                  MotionIn(
+                    delay: index * 50,
+                    child: MiniItem(
+                      icon: Icons.storefront_outlined,
+                      title: items[index].name,
+                      subtitle: items[index].subtitle,
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ProviderDetailPage(
+                            providerId: items[index].id,
+                            title: items[index].name,
+                            icon: Icons.storefront_outlined,
+                            subtitle: items[index].subtitle,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            );
+          },
         ),
       ],
     ),
   );
-
-  void _openDetails(
-    BuildContext context,
-    String title,
-    IconData icon,
-    String subtitle,
-  ) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => ProviderDetailPage(
-          providerId: null,
-          title: title,
-          icon: icon,
-          subtitle: subtitle,
-        ),
-      ),
-    );
-  }
 }
 
 class SectionTitle extends StatelessWidget {
-  const SectionTitle({super.key, required this.title});
+  const SectionTitle({super.key, required this.title, this.onSeeAll});
   final String title;
+  final VoidCallback? onSeeAll;
   @override
   Widget build(BuildContext context) => Row(
     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1253,7 +1300,8 @@ class SectionTitle extends StatelessWidget {
           fontWeight: FontWeight.w700,
         ),
       ),
-      const Text('شوف الكل', style: TextStyle(color: teal, fontSize: 12)),
+      if (onSeeAll != null)
+        TextButton(onPressed: onSeeAll, child: const Text('شوف الكل')),
     ],
   );
 }
@@ -1432,21 +1480,7 @@ class PromoCarousel extends StatefulWidget {
 class _PromoCarouselState extends State<PromoCarousel> {
   final controller = PageController(viewportFraction: .94);
   int active = 0;
-  List<(String, String, IconData, Color)> promos = [
-    ('إعلان مميز', 'خصم خاص لأهل قنا اليوم', Icons.campaign_outlined, gold),
-    (
-      'قنا كلها هنا',
-      'اعرف الجديد والخدمات الأقرب ليك',
-      Icons.explore_outlined,
-      teal,
-    ),
-    (
-      'دلوقتي في قنا',
-      'تحديثات محلية مهمة من حواليك',
-      Icons.bolt_outlined,
-      deepTeal,
-    ),
-  ];
+  List<Map<String, dynamic>> promos = const [];
 
   @override
   void initState() {
@@ -1454,19 +1488,7 @@ class _PromoCarouselState extends State<PromoCarousel> {
     ApiClient()
         .fetchAds()
         .then((ads) {
-          if (!mounted || ads.isEmpty) return;
-          setState(() {
-            promos = ads
-                .map(
-                  (ad) => (
-                    ad['name'] as String,
-                    (ad['description'] as String?) ?? 'إعلان مميز من هنا قنا',
-                    Icons.campaign_outlined,
-                    gold,
-                  ),
-                )
-                .toList();
-          });
+          if (mounted) setState(() => promos = ads);
         })
         .catchError((_) {});
   }
@@ -1478,93 +1500,107 @@ class _PromoCarouselState extends State<PromoCarousel> {
   }
 
   @override
-  Widget build(BuildContext context) => Column(
-    children: [
-      SizedBox(
-        height: 104,
-        child: PageView.builder(
-          controller: controller,
-          itemCount: promos.length,
-          onPageChanged: (value) => setState(() => active = value),
-          itemBuilder: (_, index) {
-            final promo = promos[index];
-            final isGold = promo.$4 == gold;
-            return AnimatedScale(
-              duration: AppMotion.quick,
-              scale: index == active ? 1 : .97,
-              child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 3),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
-                ),
-                decoration: BoxDecoration(
-                  color: isGold ? gold.withValues(alpha: .22) : promo.$4,
+  Widget build(BuildContext context) {
+    if (promos.isEmpty) return const SizedBox.shrink();
+    return Column(
+      children: [
+        SizedBox(
+          height: 104,
+          child: PageView.builder(
+            controller: controller,
+            itemCount: promos.length,
+            onPageChanged: (value) => setState(() => active = value),
+            itemBuilder: (_, index) {
+              final promo = promos[index];
+              final imageUrl = promo['imageUrl'] as String?;
+              return AnimatedScale(
+                duration: AppMotion.quick,
+                scale: index == active ? 1 : .97,
+                child: InkWell(
                   borderRadius: BorderRadius.circular(18),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      promo.$3,
-                      color: isGold ? deepTeal : Colors.white,
-                      size: 25,
+                  onTap: promo['targetUrl'] == null
+                      ? null
+                      : () => AppActions.openUrl(promo['targetUrl'] as String?),
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 3),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
                     ),
-                    const SizedBox(width: 11),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            promo.$1,
-                            style: TextStyle(
-                              color: isGold ? deepTeal : Colors.white,
-                              fontWeight: FontWeight.w700,
+                    decoration: BoxDecoration(
+                      color: gold.withValues(alpha: .22),
+                      image: imageUrl == null
+                          ? null
+                          : DecorationImage(
+                              image: NetworkImage(imageUrl),
+                              fit: BoxFit.cover,
+                              colorFilter: ColorFilter.mode(
+                                deepTeal.withValues(alpha: .48),
+                                BlendMode.srcOver,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            promo.$2,
-                            style: TextStyle(
-                              color: isGold
-                                  ? ink
-                                  : Colors.white.withValues(alpha: .9),
-                              fontSize: 13,
-                            ),
-                          ),
-                        ],
-                      ),
+                      borderRadius: BorderRadius.circular(18),
                     ),
-                    Icon(
-                      Icons.chevron_left,
-                      color: isGold ? deepTeal : Colors.white,
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.campaign_outlined,
+                          color: Colors.white,
+                          size: 25,
+                        ),
+                        const SizedBox(width: 11),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                promo['name'] as String? ?? 'إعلان مميز',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                promo['description'] as String? ?? '',
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: .92),
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Icon(Icons.chevron_left, color: Colors.white),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         ),
-      ),
-      const SizedBox(height: 7),
-      Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          for (var i = 0; i < promos.length; i++)
-            AnimatedContainer(
-              duration: AppMotion.quick,
-              width: i == active ? 18 : 6,
-              height: 6,
-              margin: const EdgeInsets.symmetric(horizontal: 3),
-              decoration: BoxDecoration(
-                color: i == active ? teal : const Color(0xFFD6E3E0),
-                borderRadius: BorderRadius.circular(6),
+        const SizedBox(height: 7),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            for (var i = 0; i < promos.length; i++)
+              AnimatedContainer(
+                duration: AppMotion.quick,
+                width: i == active ? 18 : 6,
+                height: 6,
+                margin: const EdgeInsets.symmetric(horizontal: 3),
+                decoration: BoxDecoration(
+                  color: i == active ? teal : const Color(0xFFD6E3E0),
+                  borderRadius: BorderRadius.circular(6),
+                ),
               ),
-            ),
-        ],
-      ),
-    ],
-  );
+          ],
+        ),
+      ],
+    );
+  }
 }
 
 class CategoryRail extends StatelessWidget {
@@ -2725,16 +2761,27 @@ class PricesPage extends StatefulWidget {
 class _PricesPageState extends State<PricesPage> {
   String selected = 'offers';
   late Future<List<Map<String, dynamic>>> pricesFuture;
+  late Future<List<Map<String, dynamic>>> offersFuture;
 
   @override
   void initState() {
     super.initState();
     pricesFuture = ApiClient().fetchPrices();
+    offersFuture = ApiClient().fetchOffers();
+  }
+
+  Future<void> _reload() async {
+    setState(() {
+      pricesFuture = ApiClient().fetchPrices();
+      offersFuture = ApiClient().fetchOffers();
+    });
+    await Future.wait([pricesFuture, offersFuture]);
   }
 
   @override
   Widget build(BuildContext context) => BasePage(
     title: 'بكام؟',
+    onRefresh: _reload,
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -2773,25 +2820,57 @@ class _PricesPageState extends State<PricesPage> {
             ),
           ),
           child: selected == 'offers'
-              ? const Column(
-                  key: ValueKey('offers'),
-                  children: [
-                    MotionIn(
-                      child: MiniItem(
+              ? FutureBuilder<List<Map<String, dynamic>>>(
+                  key: const ValueKey('offers'),
+                  future: offersFuture,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(
+                        child: CircularProgressIndicator(color: teal),
+                      );
+                    }
+                    final items =
+                        snapshot.data ?? const <Map<String, dynamic>>[];
+                    if (snapshot.hasError || items.isEmpty) {
+                      return const _StateMessage(
                         icon: Icons.local_offer_outlined,
-                        title: 'خصم 15% على الأجهزة',
-                        subtitle: 'من نشاط موثق · ينتهي خلال 3 أيام',
-                      ),
-                    ),
-                    MotionIn(
-                      delay: 60,
-                      child: MiniItem(
-                        icon: Icons.local_offer_outlined,
-                        title: 'عرض نهاية الأسبوع',
-                        subtitle: 'مطاعم مختارة · ينتهي غدًا',
-                      ),
-                    ),
-                  ],
+                        title: 'لا توجد عروض سارية حالياً',
+                        subtitle: 'العروض المعتمدة هتظهر هنا فور نشرها.',
+                      );
+                    }
+                    return Column(
+                      children: [
+                        for (var index = 0; index < items.length; index++)
+                          MotionIn(
+                            delay: index * 50,
+                            child: MiniItem(
+                              icon: Icons.local_offer_outlined,
+                              title: items[index]['title'] as String? ?? 'عرض',
+                              subtitle:
+                                  '${items[index]['provider']?['name'] ?? 'نشاط موثق'} · ${items[index]['description'] ?? 'عرض ساري'}',
+                              onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => ProviderDetailPage(
+                                    providerId:
+                                        items[index]['providerId'] as String,
+                                    title:
+                                        items[index]['provider']?['name']
+                                            as String? ??
+                                        'نشاط',
+                                    icon: Icons.storefront_outlined,
+                                    subtitle:
+                                        items[index]['provider']?['area']?['name']
+                                            as String? ??
+                                        'قنا',
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    );
+                  },
                 )
               : FutureBuilder<List<Map<String, dynamic>>>(
                   key: const ValueKey('prices'),
@@ -4009,7 +4088,7 @@ class AccountPage extends StatelessWidget {
               _AccountTile(
                 icon: Icons.notifications_none,
                 title: 'الإشعارات',
-                subtitle: '3 إشعارات جديدة',
+                subtitle: 'راجع آخر التنبيهات والقرارات',
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const NotificationsPage()),
@@ -4684,18 +4763,29 @@ class _AddActivityPageState extends State<AddActivityPage> {
       const SizedBox(height: 12),
       FutureBuilder<List<CategoryOption>>(
         future: categories,
-        builder: (_, snapshot) => DropdownButtonFormField<String>(
-          initialValue: categoryId,
-          decoration: const InputDecoration(labelText: 'نوع النشاط *'),
-          items: (snapshot.data ?? const [])
-              .map(
-                (item) =>
-                    DropdownMenuItem(value: item.id, child: Text(item.name)),
-              )
-              .toList(),
-          onChanged: (value) => setState(() => categoryId = value),
-          validator: (value) => value == null ? 'اختار نوع النشاط' : null,
-        ),
+        builder: (_, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const LinearProgressIndicator(color: teal);
+          }
+          if (snapshot.hasError) {
+            return const Text(
+              'تعذر تحميل أنواع النشاط. تأكد من الاتصال ثم افتح الصفحة من جديد.',
+              style: TextStyle(color: Colors.redAccent),
+            );
+          }
+          return DropdownButtonFormField<String>(
+            initialValue: categoryId,
+            decoration: const InputDecoration(labelText: 'نوع النشاط *'),
+            items: (snapshot.data ?? const <CategoryOption>[])
+                .map(
+                  (item) =>
+                      DropdownMenuItem(value: item.id, child: Text(item.name)),
+                )
+                .toList(),
+            onChanged: (value) => setState(() => categoryId = value),
+            validator: (value) => value == null ? 'اختار نوع النشاط' : null,
+          );
+        },
       ),
       const SizedBox(height: 12),
       SegmentedButton<String>(
@@ -4717,21 +4807,32 @@ class _AddActivityPageState extends State<AddActivityPage> {
       const SizedBox(height: 12),
       FutureBuilder<List<AreaOption>>(
         future: areas,
-        builder: (_, snapshot) => DropdownButtonFormField<String>(
-          initialValue: areaId,
-          decoration: const InputDecoration(labelText: 'المنطقة *'),
-          items: (snapshot.data ?? const [])
-              .map(
-                (item) =>
-                    DropdownMenuItem(value: item.id, child: Text(item.name)),
-              )
-              .toList(),
-          onChanged: mode == 'ONLINE'
-              ? null
-              : (value) => setState(() => areaId = value),
-          validator: (value) =>
-              mode == 'ONLINE' || value != null ? null : 'اختار المنطقة',
-        ),
+        builder: (_, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const LinearProgressIndicator(color: teal);
+          }
+          if (snapshot.hasError) {
+            return const Text(
+              'تعذر تحميل المناطق. تأكد من الاتصال ثم افتح الصفحة من جديد.',
+              style: TextStyle(color: Colors.redAccent),
+            );
+          }
+          return DropdownButtonFormField<String>(
+            initialValue: areaId,
+            decoration: const InputDecoration(labelText: 'المنطقة *'),
+            items: (snapshot.data ?? const <AreaOption>[])
+                .map(
+                  (item) =>
+                      DropdownMenuItem(value: item.id, child: Text(item.name)),
+                )
+                .toList(),
+            onChanged: mode == 'ONLINE'
+                ? null
+                : (value) => setState(() => areaId = value),
+            validator: (value) =>
+                mode == 'ONLINE' || value != null ? null : 'اختار المنطقة',
+          );
+        },
       ),
       const SizedBox(height: 12),
       if (mode == 'LOCAL')
@@ -5129,6 +5230,160 @@ class _SettingsPageState extends State<SettingsPage> {
   bool allNotifications = true;
   bool areaOnly = false;
   bool privateProfile = false;
+  Set<String> selectedAreaIds = {};
+  List<String> selectedAreaNames = const [];
+  Set<String> selectedInterests = {};
+
+  @override
+  void initState() {
+    super.initState();
+    if (AuthSession.isSignedIn) _loadPreferences();
+  }
+
+  Future<void> _loadPreferences() async {
+    try {
+      final results = await Future.wait([api.fetchMe(), api.fetchAreas()]);
+      final profile = results[0] as Map<String, dynamic>;
+      final areas = results[1] as List<AreaOption>;
+      final ids = (profile['preferredAreaIds'] as List<dynamic>? ?? [])
+          .cast<String>()
+          .toSet();
+      if (!mounted) return;
+      setState(() {
+        privateProfile = profile['isProfilePrivate'] as bool? ?? false;
+        areaOnly = profile['notificationScope'] == 'area';
+        allNotifications = !(profile['notificationDigest'] as bool? ?? false);
+        selectedAreaIds = ids;
+        selectedAreaNames = areas
+            .where((area) => ids.contains(area.id))
+            .map((area) => area.name)
+            .toList();
+        selectedInterests = (profile['interests'] as List<dynamic>? ?? [])
+            .cast<String>()
+            .toSet();
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _pickAreas() async {
+    final options = await api.fetchAreas();
+    if (!mounted) return;
+    final draft = {...selectedAreaIds};
+    final result = await showModalBottomSheet<Set<String>>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setSheetState) => Directionality(
+          textDirection: TextDirection.rtl,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 12, 18, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'اختار حتى 3 مناطق',
+                  style: TextStyle(
+                    color: deepTeal,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                for (final area in options)
+                  CheckboxListTile(
+                    value: draft.contains(area.id),
+                    title: Text(area.name),
+                    onChanged: (checked) {
+                      setSheetState(() {
+                        if (checked == true && draft.length < 3) {
+                          draft.add(area.id);
+                        } else if (checked == false) {
+                          draft.remove(area.id);
+                        }
+                      });
+                    },
+                  ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(context, draft),
+                  child: const Text('حفظ المناطق'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    if (result == null || !mounted) return;
+    setState(() {
+      selectedAreaIds = result;
+      selectedAreaNames = options
+          .where((area) => result.contains(area.id))
+          .map((area) => area.name)
+          .toList();
+    });
+    await _savePreferences();
+  }
+
+  Future<void> _pickInterests() async {
+    const options = [
+      'خدمات طبية',
+      'مطاعم وكافيهات',
+      'صيانة وفنيين',
+      'سوبر ماركت',
+      'تعليم ودروس',
+      'ترفيه ومناسبات',
+      'عقارات',
+      'سيارات',
+    ];
+    final draft = {...selectedInterests};
+    final result = await showModalBottomSheet<Set<String>>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setSheetState) => Directionality(
+          textDirection: TextDirection.rtl,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 12, 18, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'اختار حتى 5 اهتمامات',
+                  style: TextStyle(
+                    color: deepTeal,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                for (final item in options)
+                  CheckboxListTile(
+                    value: draft.contains(item),
+                    title: Text(item),
+                    onChanged: (checked) {
+                      setSheetState(() {
+                        if (checked == true && draft.length < 5) {
+                          draft.add(item);
+                        } else if (checked == false) {
+                          draft.remove(item);
+                        }
+                      });
+                    },
+                  ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(context, draft),
+                  child: const Text('حفظ الاهتمامات'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    if (result == null || !mounted) return;
+    setState(() => selectedInterests = result);
+    await _savePreferences();
+  }
+
   Future<void> _adminLogin() async {
     final email = TextEditingController();
     final password = TextEditingController();
@@ -5295,6 +5550,8 @@ class _SettingsPageState extends State<SettingsPage> {
         profilePrivate: privateProfile,
         notificationScope: areaOnly ? 'area' : 'all',
         notificationDigest: !allNotifications,
+        preferredAreaIds: selectedAreaIds.toList(),
+        interests: selectedInterests.toList(),
       );
     } catch (_) {
       if (mounted)
@@ -5431,23 +5688,27 @@ class _SettingsPageState extends State<SettingsPage> {
             activeThumbColor: teal,
           ),
           const Divider(height: 26),
-          const ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: Icon(Icons.location_on_outlined, color: teal),
-            title: Text('المناطق المختارة'),
-            subtitle: Text('قنا كلها', style: TextStyle(color: muted)),
+          _AccountTile(
+            icon: Icons.location_on_outlined,
+            title: 'المناطق المختارة',
+            subtitle: selectedAreaNames.isEmpty
+                ? 'لم تحدد مناطق؛ سيظهر ترتيب قنا العام'
+                : selectedAreaNames.join('، '),
+            onTap: _pickAreas,
+          ),
+          _AccountTile(
+            icon: Icons.interests_outlined,
+            title: 'الاهتمامات',
+            subtitle: selectedInterests.isEmpty
+                ? 'لم تحدد اهتمامات'
+                : selectedInterests.join('، '),
+            onTap: _pickInterests,
           ),
           _AccountTile(
             icon: Icons.delete_forever_outlined,
             title: 'حذف الحساب نهائياً',
             onTap: _deleteAccount,
             destructive: true,
-          ),
-          const ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: Icon(Icons.language, color: teal),
-            title: Text('اللغة'),
-            subtitle: Text('العربية', style: TextStyle(color: muted)),
           ),
         ],
       ),

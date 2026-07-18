@@ -147,6 +147,17 @@ class ApiClient {
         .toList();
   }
 
+  Future<List<Map<String, dynamic>>> fetchOffers({String? areaId}) async {
+    final uri = Uri.parse(
+      '$baseUrl/api/offers',
+    ).replace(queryParameters: {if (areaId != null) 'areaId': areaId});
+    final response = await http.get(uri).timeout(const Duration(seconds: 5));
+    if (response.statusCode != 200) throw Exception('offers_error');
+    return (jsonDecode(response.body) as List<dynamic>)
+        .map((item) => Map<String, dynamic>.from(item as Map))
+        .toList();
+  }
+
   Future<List<Map<String, dynamic>>> fetchNow({String? areaId}) async {
     final uri = Uri.parse(
       '$baseUrl/api/now',
@@ -677,6 +688,8 @@ class ApiClient {
     required bool profilePrivate,
     required String notificationScope,
     required bool notificationDigest,
+    List<String>? preferredAreaIds,
+    List<String>? interests,
   }) async {
     final response = await http
         .patch(
@@ -686,6 +699,9 @@ class ApiClient {
             'isProfilePrivate': profilePrivate,
             'notificationScope': notificationScope,
             'notificationDigest': notificationDigest,
+            if (preferredAreaIds != null)
+              'preferredAreaIds': preferredAreaIds.take(3).toList(),
+            if (interests != null) 'interests': interests.take(5).toList(),
           }),
         )
         .timeout(const Duration(seconds: 8));

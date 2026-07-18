@@ -351,6 +351,20 @@ app.post('/api/providers/:id/services', async (req, res, next) => { try { const 
 const offerSchema = z.object({ title: z.string().trim().min(2).max(120), description: z.string().trim().max(600).optional(), startsAt: z.coerce.date(), endsAt: z.coerce.date() }).refine((value) => value.endsAt > value.startsAt, { message: 'تاريخ العرض غير صحيح' });
 app.post('/api/providers/:id/offers', async (req, res, next) => { try { const session = await sessionFromRequest(req); if (!session) return res.status(401).json({ message: 'سجّل الدخول أولاً' }); const input = offerSchema.parse(req.body); const provider = await prisma.provider.findUnique({ where: { id: String(req.params.id) } }); if (!provider || provider.ownerId !== session.userId) return res.status(403).json({ message: 'لا تملك النشاط' }); const offer = await prisma.providerOffer.create({ data: { ...input, providerId: provider.id, status: ReviewStatus.PENDING } }); res.status(201).json(offer); } catch (error) { next(error); } });
 
+app.get('/api/offers', async (req, res, next) => {
+  try {
+    const areaId = typeof req.query.areaId === 'string' ? req.query.areaId : undefined;
+    const now = new Date();
+    const offers = await prisma.providerOffer.findMany({
+      where: { status: ReviewStatus.APPROVED, startsAt: { lte: now }, endsAt: { gte: now }, ...(areaId ? { provider: { areaId, status: ReviewStatus.APPROVED } } : { provider: { status: ReviewStatus.APPROVED } }) },
+      include: { provider: { select: { id: true, name: true, area: true } } },
+      orderBy: { endsAt: 'asc' },
+      take: 100,
+    });
+    res.json(offers);
+  } catch (error) { next(error); }
+});
+
 app.get('/api/listings', async (req, res, next) => {
   try {
     const areaId = typeof req.query.areaId === 'string' ? req.query.areaId : undefined;

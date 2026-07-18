@@ -37,6 +37,13 @@ class AppActions {
     return launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
+  static Future<bool> openUrl(String? value) async {
+    if (value == null || value.trim().isEmpty) return false;
+    final uri = Uri.tryParse(value.trim());
+    if (uri == null || !uri.hasScheme) return false;
+    return launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
   static Future<void> share(
     BuildContext context, {
     required String text,
