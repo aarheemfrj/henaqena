@@ -904,6 +904,14 @@ app.patch('/api/admin/providers/:id', requireAdmin, async (req, res, next) => {
     res.json(provider);
   } catch (error) { next(error); }
 });
+app.patch('/api/admin/providers/:id/content', requireAdmin, async (req, res, next) => {
+  try {
+    const input = z.object({ name: z.string().trim().min(2).max(120).optional(), description: z.string().trim().max(1000).nullable().optional(), phone: z.union([z.string().regex(/^01[0125][0-9]{8}$/), z.literal('')]).optional(), whatsapp: z.union([z.string().regex(/^01[0125][0-9]{8}$/), z.literal('')]).optional(), address: z.string().trim().max(240).nullable().optional(), openingTime: z.string().regex(/^\d{2}:\d{2}$/).nullable().optional(), closingTime: z.string().regex(/^\d{2}:\d{2}$/).nullable().optional(), isVerified: z.boolean().optional() }).parse(req.body);
+    const provider = await prisma.provider.update({ where: { id: String(req.params.id) }, data: { ...input, phone: input.phone === '' ? null : input.phone, whatsapp: input.whatsapp === '' ? null : input.whatsapp } });
+    await audit('provider.content_updated', 'provider', provider.id, { fields: Object.keys(input) });
+    res.json(provider);
+  } catch (error) { next(error); }
+});
 app.patch('/api/admin/reviews/:id', requireAdmin, async (req, res, next) => {
   try {
     const { status, note } = moderationWithNoteSchema.parse(req.body);
@@ -942,6 +950,14 @@ app.patch('/api/admin/listings/:id', requireAdmin, async (req, res, next) => {
     const listing = await prisma.listing.update({ where: { id: String(req.params.id) }, data: { status } });
     await prisma.notification.create({ data: { userId: listing.ownerId, title: status === ListingStatus.ACTIVE ? 'تم اعتماد إعلانك' : 'تحديث على إعلانك', body: status === ListingStatus.ACTIVE ? 'إعلانك أصبح ظاهراً للمستخدمين.' : `سبب القرار: ${note ?? 'يرجى مراجعة بيانات الإعلان.'}` } });
     await audit(`listing.${status.toLowerCase()}`, 'listing', listing.id, { status, note });
+    res.json(listing);
+  } catch (error) { next(error); }
+});
+app.patch('/api/admin/listings/:id/content', requireAdmin, async (req, res, next) => {
+  try {
+    const input = z.object({ title: z.string().trim().min(3).max(120).optional(), description: z.string().trim().max(1200).nullable().optional(), category: z.enum(['للبيع', 'للإيجار', 'وظائف', 'سيارات', 'عقارات']).optional(), price: z.number().positive().max(999999999).optional() }).parse(req.body);
+    const listing = await prisma.listing.update({ where: { id: String(req.params.id) }, data: input });
+    await audit('listing.content_updated', 'listing', listing.id, { fields: Object.keys(input) });
     res.json(listing);
   } catch (error) { next(error); }
 });

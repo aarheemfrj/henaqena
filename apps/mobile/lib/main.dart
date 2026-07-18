@@ -2678,6 +2678,151 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
       : ApiClient().fetchProvider(widget.providerId!).then((value) => value);
   bool? favorite;
 
+  Future<void> _editProvider(ProviderDetails data) async {
+    final name = TextEditingController(text: data.name);
+    final description = TextEditingController(text: data.description);
+    final phone = TextEditingController(text: data.phone);
+    final whatsapp = TextEditingController(text: data.whatsapp);
+    final address = TextEditingController(text: data.address);
+    final opening = TextEditingController(text: data.openingTime);
+    final closing = TextEditingController(text: data.closingTime);
+    var verified = data.isVerified;
+    final save = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('تعديل النشاط إداريًا'),
+          content: SizedBox(
+            width: 420,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: name,
+                    decoration: const InputDecoration(labelText: 'الاسم'),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: description,
+                    maxLines: 3,
+                    decoration: const InputDecoration(labelText: 'الوصف'),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: phone,
+                    keyboardType: TextInputType.phone,
+                    decoration: const InputDecoration(labelText: 'الهاتف'),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: whatsapp,
+                    keyboardType: TextInputType.phone,
+                    decoration: const InputDecoration(labelText: 'واتساب'),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: address,
+                    decoration: const InputDecoration(labelText: 'العنوان'),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: opening,
+                          decoration: const InputDecoration(
+                            labelText: 'يفتح HH:mm',
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextField(
+                          controller: closing,
+                          decoration: const InputDecoration(
+                            labelText: 'يغلق HH:mm',
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('نشاط موثق'),
+                    value: verified,
+                    onChanged: (value) =>
+                        setDialogState(() => verified = value),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('إلغاء'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('حفظ'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (save != true) {
+      for (final controller in [
+        name,
+        description,
+        phone,
+        whatsapp,
+        address,
+        opening,
+        closing,
+      ]) {
+        controller.dispose();
+      }
+      return;
+    }
+    try {
+      await ApiClient().updateAdminProviderContent(data.id, {
+        'name': name.text.trim(),
+        'description': description.text.trim(),
+        'phone': phone.text.trim(),
+        'whatsapp': whatsapp.text.trim(),
+        'address': address.text.trim(),
+        'openingTime': opening.text.trim().isEmpty ? null : opening.text.trim(),
+        'closingTime': closing.text.trim().isEmpty ? null : closing.text.trim(),
+        'isVerified': verified,
+      });
+      _reload();
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('تم حفظ تعديلات النشاط')));
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('راجع البيانات وحاول مرة أخرى')),
+        );
+      }
+    } finally {
+      for (final controller in [
+        name,
+        description,
+        phone,
+        whatsapp,
+        address,
+        opening,
+        closing,
+      ]) {
+        controller.dispose();
+      }
+    }
+  }
+
   void _reload() => setState(() {
     details = widget.providerId == null
         ? Future.value(null)
@@ -2918,6 +3063,14 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                   ),
                 ),
               ),
+              if (data != null && AuthSession.adminToken != null) ...[
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: () => _editProvider(data),
+                  icon: const Icon(Icons.admin_panel_settings_outlined),
+                  label: const Text('تعديل النشاط بصلاحية الإدارة'),
+                ),
+              ],
               const SizedBox(height: 16),
               Row(
                 children: [
@@ -4182,6 +4335,119 @@ class _ListingDetailPageState extends State<ListingDetailPage> {
   bool? favorite;
   bool? interested;
 
+  Future<void> _editListing(Map<String, dynamic> data) async {
+    final title = TextEditingController(text: data['title'] as String?);
+    final description = TextEditingController(
+      text: data['description'] as String?,
+    );
+    final price = TextEditingController(text: '${data['price'] ?? ''}');
+    var category = data['category'] as String? ?? 'للبيع';
+    final save = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('تعديل الإعلان إداريًا'),
+          content: SizedBox(
+            width: 420,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: title,
+                    decoration: const InputDecoration(labelText: 'العنوان'),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: description,
+                    maxLines: 4,
+                    decoration: const InputDecoration(labelText: 'الوصف'),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: price,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'السعر'),
+                  ),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<String>(
+                    initialValue: category,
+                    decoration: const InputDecoration(labelText: 'القسم'),
+                    items: ['للبيع', 'للإيجار', 'وظائف', 'سيارات', 'عقارات']
+                        .map(
+                          (item) =>
+                              DropdownMenuItem(value: item, child: Text(item)),
+                        )
+                        .toList(),
+                    onChanged: (value) {
+                      if (value != null) {
+                        setDialogState(() => category = value);
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('إلغاء'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('حفظ'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (save != true) {
+      title.dispose();
+      description.dispose();
+      price.dispose();
+      return;
+    }
+    final parsedPrice = double.tryParse(price.text.trim());
+    if (title.text.trim().length < 3 ||
+        parsedPrice == null ||
+        parsedPrice <= 0) {
+      title.dispose();
+      description.dispose();
+      price.dispose();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('اكتب عنوانًا وسعرًا صحيحين')),
+        );
+      }
+      return;
+    }
+    try {
+      await api.updateAdminListingContent(widget.listingId, {
+        'title': title.text.trim(),
+        'description': description.text.trim(),
+        'price': parsedPrice,
+        'category': category,
+      });
+      if (mounted) {
+        setState(() => listing = api.fetchListing(widget.listingId));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('تم حفظ تعديلات الإعلان')));
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('راجع البيانات وحاول مرة أخرى')),
+        );
+      }
+    } finally {
+      title.dispose();
+      description.dispose();
+      price.dispose();
+    }
+  }
+
   Future<void> _toggle(String action) async {
     try {
       final result = action == 'favorite'
@@ -4328,6 +4594,12 @@ class _ListingDetailPageState extends State<ListingDetailPage> {
                   ),
                 ],
               ),
+              if (AuthSession.adminToken != null)
+                OutlinedButton.icon(
+                  onPressed: () => _editListing(data),
+                  icon: const Icon(Icons.admin_panel_settings_outlined),
+                  label: const Text('تعديل الإعلان بصلاحية الإدارة'),
+                ),
               Text(
                 '${data['price']} جنيه · ${data['area']?['name'] ?? 'قنا'} · ${data['category'] ?? ''}',
                 style: const TextStyle(color: muted),
@@ -7202,6 +7474,48 @@ class _AdminControlPageState extends State<AdminControlPage> {
                 await _reload();
               },
             ),
+            const Divider(height: 30),
+            const Text(
+              'تعديل المحتوى المنشور',
+              style: TextStyle(
+                color: deepTeal,
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 8),
+            _AdminBrowseSection(
+              title: 'كل الأنشطة',
+              future: providers,
+              filter: (item) => item['status'] == 'APPROVED',
+              itemTitle: (item) => item['name'] as String? ?? 'نشاط',
+              itemSubtitle: (item) => item['area']?['name'] as String? ?? 'قنا',
+              onTap: (item) => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ProviderDetailPage(
+                    providerId: item['id'] as String,
+                    title: item['name'] as String? ?? 'نشاط',
+                    icon: Icons.storefront_outlined,
+                    subtitle: item['area']?['name'] as String? ?? 'قنا',
+                  ),
+                ),
+              ),
+            ),
+            _AdminBrowseSection(
+              title: 'كل الإعلانات المنشورة',
+              future: listings,
+              filter: (item) => item['status'] == 'ACTIVE',
+              itemTitle: (item) => item['title'] as String? ?? 'إعلان',
+              itemSubtitle: (item) => '${item['price']} جنيه',
+              onTap: (item) => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) =>
+                      ListingDetailPage(listingId: item['id'] as String),
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -7356,6 +7670,67 @@ class _AdminQueue extends StatelessWidget {
                     onReject: () => onReject(item),
                     approveTooltip: approveTooltip,
                     rejectTooltip: rejectTooltip,
+                  ),
+              ],
+            );
+          },
+        ),
+      ],
+    ),
+  );
+}
+
+class _AdminBrowseSection extends StatelessWidget {
+  const _AdminBrowseSection({
+    required this.title,
+    required this.future,
+    required this.filter,
+    required this.itemTitle,
+    required this.itemSubtitle,
+    required this.onTap,
+  });
+  final String title;
+  final Future<List<Map<String, dynamic>>> future;
+  final bool Function(Map<String, dynamic>) filter;
+  final String Function(Map<String, dynamic>) itemTitle;
+  final String Function(Map<String, dynamic>) itemSubtitle;
+  final void Function(Map<String, dynamic>) onTap;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 18),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
+        FutureBuilder<List<Map<String, dynamic>>>(
+          future: future,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const LinearProgressIndicator(color: teal);
+            }
+            final items = (snapshot.data ?? const <Map<String, dynamic>>[])
+                .where(filter)
+                .toList();
+            if (snapshot.hasError) {
+              return const Text(
+                'تعذر تحميل المحتوى.',
+                style: TextStyle(color: Colors.redAccent),
+              );
+            }
+            if (items.isEmpty) {
+              return const Text(
+                'لا يوجد محتوى منشور.',
+                style: TextStyle(color: muted),
+              );
+            }
+            return Column(
+              children: [
+                for (final item in items)
+                  _ContributionTile(
+                    title: itemTitle(item),
+                    subtitle: itemSubtitle(item),
+                    onTap: () => onTap(item),
                   ),
               ],
             );

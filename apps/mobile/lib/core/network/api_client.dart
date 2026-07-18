@@ -52,6 +52,8 @@ class ProviderDetails {
     required this.longitude,
     required this.areaName,
     required this.isVerified,
+    required this.openingTime,
+    required this.closingTime,
     required this.services,
     required this.offers,
     required this.viewerFavorite,
@@ -68,6 +70,8 @@ class ProviderDetails {
   final double? longitude;
   final String areaName;
   final bool isVerified;
+  final String? openingTime;
+  final String? closingTime;
   final List<Map<String, dynamic>> services;
   final List<Map<String, dynamic>> offers;
   final bool viewerFavorite;
@@ -95,6 +99,8 @@ class ProviderDetails {
         longitude: (json['longitude'] as num?)?.toDouble(),
         areaName: json['area']?['name'] as String? ?? 'قنا',
         isVerified: json['isVerified'] as bool? ?? false,
+        openingTime: json['openingTime'] as String?,
+        closingTime: json['closingTime'] as String?,
         services: (json['services'] as List<dynamic>? ?? [])
             .map((item) => Map<String, dynamic>.from(item as Map))
             .toList(),
@@ -278,6 +284,20 @@ class ApiClient {
     if (response.statusCode != 200) throw Exception('admin_moderation_error');
   }
 
+  Future<void> updateAdminProviderContent(
+    String id,
+    Map<String, dynamic> data,
+  ) async {
+    final response = await http
+        .patch(
+          Uri.parse('$baseUrl/api/admin/providers/$id/content'),
+          headers: _adminHeaders,
+          body: jsonEncode(data),
+        )
+        .timeout(const Duration(seconds: 8));
+    if (response.statusCode != 200) throw Exception('admin_update_error');
+  }
+
   Future<List<Map<String, dynamic>>> fetchAdminListings() async {
     final response = await http
         .get(Uri.parse('$baseUrl/api/admin/listings'), headers: _adminHeaders)
@@ -304,6 +324,20 @@ class ApiClient {
         )
         .timeout(const Duration(seconds: 8));
     if (response.statusCode != 200) throw Exception('admin_moderation_error');
+  }
+
+  Future<void> updateAdminListingContent(
+    String id,
+    Map<String, dynamic> data,
+  ) async {
+    final response = await http
+        .patch(
+          Uri.parse('$baseUrl/api/admin/listings/$id/content'),
+          headers: _adminHeaders,
+          body: jsonEncode(data),
+        )
+        .timeout(const Duration(seconds: 8));
+    if (response.statusCode != 200) throw Exception('admin_update_error');
   }
 
   Future<List<Map<String, dynamic>>> _fetchAdminQueue(String path) async {
