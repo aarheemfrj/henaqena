@@ -260,9 +260,10 @@ class _HomeShellState extends State<HomeShell> {
 }
 
 class BasePage extends StatelessWidget {
-  const BasePage({super.key, required this.child, this.title, this.onRefresh});
+  const BasePage({super.key, required this.child, this.title, this.header, this.onRefresh});
   final Widget child;
   final String? title;
+  final Widget? header;
   final Future<void> Function()? onRefresh;
   @override
   Widget build(BuildContext context) {
@@ -272,10 +273,10 @@ class BasePage extends StatelessWidget {
       displacement: 24,
       onRefresh: refresh,
       child: ListView(padding: const EdgeInsets.fromLTRB(18, 12, 18, 24), children: [
-        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          if (title != null) Text(title!, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: deepTeal)) else const BrandText(),
+        header ?? Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          if (title == null) const BrandText() else if (title!.isNotEmpty) Text(title!, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: deepTeal)) else const Spacer(),
           Row(children: [
-            IconButton(onPressed: () {}, icon: const Icon(Icons.notifications_none, color: deepTeal)),
+            IconButton(onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NotificationsPage())), icon: const Icon(Icons.notifications_none, color: deepTeal)),
             IconButton(onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AccountPage())), icon: const CircleAvatar(radius: 15, backgroundColor: deepTeal, child: Text('م', style: TextStyle(color: Colors.white, fontSize: 12))))
           ])
         ]),
@@ -291,10 +292,14 @@ class BrandText extends StatelessWidget { const BrandText({super.key}); @overrid
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
   @override
-  Widget build(BuildContext context) => BasePage(child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+  Widget build(BuildContext context) => BasePage(
+    header: Row(children: [
+      Expanded(child: TextField(decoration: const InputDecoration(prefixIcon: Icon(Icons.search, color: teal), hintText: 'بتدور على إيه؟', isDense: true))),
+      IconButton(onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NotificationsPage())), icon: const Icon(Icons.notifications_none, color: deepTeal)),
+      IconButton(onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SettingsPage())), icon: const Icon(Icons.settings_outlined, color: deepTeal)),
+    ]),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
     Row(children: [const Icon(Icons.location_on_outlined, size: 18, color: teal), const SizedBox(width: 5), const Text('قنا كلها', style: TextStyle(color: muted)), const Spacer(), TextButton(onPressed: () {}, child: const Text('تغيير'))]),
-    const SizedBox(height: 6),
-    TextField(decoration: const InputDecoration(prefixIcon: Icon(Icons.search, color: teal), hintText: 'بتدور على إيه؟')),
     const SizedBox(height: 16),
     const HeroBanner(),
     const SizedBox(height: 14),
@@ -497,8 +502,8 @@ class _DirectoryPageState extends State<DirectoryPage> {
   @override
   void initState() { super.initState(); providersFuture = api.fetchProviders(); }
   @override
-  Widget build(BuildContext context) => BasePage(title: 'مين؟', onRefresh: _reload, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-    const Text('اختار الفئة الأقرب لاحتياجك', style: TextStyle(color: muted)),
+  Widget build(BuildContext context) => BasePage(title: '', onRefresh: _reload, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+    const Text('اختار الفئة الأقرب والأنسب ليك', style: TextStyle(color: muted)),
     const SizedBox(height: 10),
     const CategoryRail(items: ['خدمات طبية', 'مطاعم وكافيهات', 'صيانة وفنيين', 'سوبر ماركت', 'تعليم ودروس', 'ترفيه']),
     const SizedBox(height: 16),
