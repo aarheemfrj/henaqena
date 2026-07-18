@@ -70,8 +70,8 @@
 2026-07-18 — Codex — إضافة البحث العربي الشامل بالفئة والمنطقة والوصف مع pagination وdebounce في Flutter — مكتملة — ضمن commit: 6c85333
 2026-07-18 — Codex — تشغيل اختبارات API وFlutter واختبار endpoint البحث وإرسال طلب استعادة كلمة المرور — مكتملة — ضمن commit: 6c85333
 2026-07-18 — Codex — تسجيل متطلبات المالك الخارجية لتفعيل WhatsApp/SMS/Email وGoogle/Apple وFirebase/APNs والخرائط والإنتاج — مكتملة — المرجع: docs/REQUIRED_EXTERNAL_SETUP.md
-2026-07-18 — Codex — بدء المرحلة ٨: تأسيس حسابات فريق الإدارة والأدوار ومراكز لوحة التحكم — مكتملة بعد الاختبار — commit: لاحقاً
-2026-07-18 — Codex — تسجيل المتطلبات الخارجية في docs/REQUIRED_EXTERNAL_SETUP.md — مكتملة — commit: لاحقاً
-2026-07-18 — Codex — إضافة AdminAccount والأدوار OWNER/REVIEWER/CONTENT_EDITOR/MODERATOR إلى PostgreSQL وPrisma — مكتملة — commit: لاحقاً
-2026-07-18 — Codex — إضافة API إدارة فريق الإدارة وصفحة Next.js للحسابات والأدوار — مكتملة — commit: لاحقاً
-2026-07-18 — Codex — إضافة شريط تنقل لمراكز الإدارة واختبار بناء API وNext.js — مكتملة — commit: لاحقاً
+2026-07-18 — Codex — بدء المرحلة ٨: تأسيس حسابات فريق الإدارة والأدوار ومراكز لوحة التحكم — مكتملة بعد الاختبار — commit: d095153
+2026-07-18 — Codex — تسجيل المتطلبات الخارجية في docs/REQUIRED_EXTERNAL_SETUP.md — مكتملة — commit: d095153
+2026-07-18 — Codex — إضافة AdminAccount والأدوار OWNER/REVIEWER/CONTENT_EDITOR/MODERATOR إلى PostgreSQL وPrisma — مكتملة — commit: d095153
+2026-07-18 — Codex — إضافة API إدارة فريق الإدارة وصفحة Next.js للحسابات والأدوار — مكتملة — commit: d095153
+2026-07-18 — Codex — إضافة شريط تنقل لمراكز الإدارة واختبار بناء API وNext.js — مكتملة — commit: d095153
