@@ -30,7 +30,7 @@ class ProviderSummary {
               as String?
         : null,
     subtitle:
-        '${json['area']?['name'] ?? 'قنا'} · ${json['isVerified'] == true ? 'موثق · ' : ''}مفتوح الآن',
+        '${json['area']?['name'] ?? 'قنا'}${json['isVerified'] == true ? ' · موثق' : ''}${(json['rating'] as num? ?? 0) > 0 ? ' · ${json['rating']} ★' : ''}',
   );
 }
 
@@ -502,6 +502,9 @@ class ApiClient {
     String? category,
     String? searchQuery,
     int page = 1,
+    bool verifiedOnly = false,
+    bool openNow = false,
+    String sort = 'name',
   }) async {
     final params = <String, String>{
       ...?(areaId == null ? null : {'areaId': areaId}),
@@ -510,6 +513,9 @@ class ApiClient {
           ? null
           : {'q': searchQuery.trim()}),
       'page': '$page',
+      if (verifiedOnly) 'verified': 'true',
+      if (openNow) 'openNow': 'true',
+      'sort': sort,
     };
     final uri = Uri.parse(
       '$baseUrl/api/providers',

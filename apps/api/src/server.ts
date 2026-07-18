@@ -242,21 +242,37 @@ app.get('/api/providers', async (req, res, next) => {
     const areaId = typeof req.query.areaId === 'string' ? req.query.areaId : undefined;
     const category = typeof req.query.category === 'string' ? req.query.category : undefined;
     const q = typeof req.query.q === 'string' ? req.query.q.trim() : undefined;
+    const verifiedOnly = req.query.verified === 'true';
+    const openNow = req.query.openNow === 'true';
+    const sort = typeof req.query.sort === 'string' ? req.query.sort : 'name';
     const page = Math.max(1, Number(req.query.page ?? 1));
     const pageSize = Math.min(50, Math.max(1, Number(req.query.pageSize ?? 20)));
-    const providers = await prisma.provider.findMany({
+    let providers = await prisma.provider.findMany({
       where: {
         status: ReviewStatus.APPROVED,
+        ...(verifiedOnly ? { isVerified: true } : {}),
         ...(areaId ? { areaId } : {}),
         ...(category ? { categories: { some: { category: { slug: category } } } } : {}),
         ...(q ? { OR: [{ name: { contains: q, mode: 'insensitive' } }, { description: { contains: q, mode: 'insensitive' } }, { address: { contains: q, mode: 'insensitive' } }, { categories: { some: { category: { name: { contains: q, mode: 'insensitive' } } } } }] } : {}),
       },
-      include: { area: true, images: { orderBy: { sortOrder: 'asc' } }, categories: { include: { category: true } } },
-      orderBy: [{ isVerified: 'desc' }, { name: 'asc' }],
+      include: { area: true, images: { orderBy: { sortOrder: 'asc' } }, categories: { include: { category: true } }, reviews: { where: { status: ReviewStatus.APPROVED }, select: { quality: true, commitment: true, value: true } } },
+      orderBy: sort === 'latest' ? { createdAt: 'desc' } : [{ isVerified: 'desc' }, { name: 'asc' }],
       skip: (page - 1) * pageSize,
       take: pageSize,
     });
-    res.json(providers);
+    if (openNow) {
+      const current = new Date();
+      const currentMinutes = current.getHours() * 60 + current.getMinutes();
+      const parseMinutes = (value: string | null) => { if (!value || !/^\d{2}:\d{2}$/.test(value)) return null; const [hours, minutes] = value.split(':').map(Number); return hours * 60 + minutes; };
+      providers = providers.filter((provider) => { const opening = parseMinutes(provider.openingTime); const closing = parseMinutes(provider.closingTime); if (opening === null || closing === null) return false; return closing >= opening ? currentMinutes >= opening && currentMinutes <= closing : currentMinutes >= opening || currentMinutes <= closing; });
+    }
+    const withScores = providers.map((provider) => {
+      const rating = provider.reviews.length === 0 ? 0 : provider.reviews.reduce((sum, review) => sum + (review.quality + review.commitment + review.value) / 3, 0) / provider.reviews.length;
+      const { reviews, ...publicProvider } = provider;
+      return { ...publicProvider, rating: Number(rating.toFixed(1)), reviewCount: reviews.length };
+    });
+    if (sort === 'rating') withScores.sort((left, right) => right.rating - left.rating || left.name.localeCompare(right.name, 'ar'));
+    res.json(withScores);
   } catch (error) {
     next(error);
   }
@@ -709,6 +725,19 @@ app.patch('/api/admin/team/:id', requireAdminRoles(['OWNER']), async (req, res, 
 
 app.get('/api/admin/users', requireAdmin, async (_req, res, next) => {
   try { res.json(await prisma.user.findMany({ select: { id: true, name: true, phone: true, email: true, points: true, level: true, role: true, createdAt: true, _count: { select: { reviews: true, listings: true, providers: true } } }, orderBy: { createdAt: 'desc' }, take: 500 })); } catch (error) { next(error); }
+});
+
+app.get('/api/admin/support-tickets', requireAdmin, async (_req, res, next) => {
+  try { res.json(await prisma.supportTicket.findMany({ include: { user: { select: publicAuthorSelect } }, orderBy: { createdAt: 'desc' }, take: 250 })); } catch (error) { next(error); }
+});
+app.patch('/api/admin/support-tickets/:id', requireAdmin, async (req, res, next) => {
+  try { const { status } = z.object({ status: z.enum([ReviewStatus.APPROVED, ReviewStatus.REJECTED]) }).parse(req.body); res.json(await prisma.supportTicket.update({ where: { id: String(req.params.id) }, data: { status } })); } catch (error) { next(error); }
+});
+app.get('/api/admin/listing-reports', requireAdmin, async (_req, res, next) => {
+  try { res.json(await prisma.listingReport.findMany({ include: { user: { select: publicAuthorSelect }, listing: { select: { id: true, title: true, status: true } } }, orderBy: { createdAt: 'desc' }, take: 250 })); } catch (error) { next(error); }
+});
+app.patch('/api/admin/listing-reports/:id', requireAdmin, async (req, res, next) => {
+  try { const { status } = z.object({ status: z.enum([ReviewStatus.APPROVED, ReviewStatus.REJECTED]) }).parse(req.body); res.json(await prisma.listingReport.update({ where: { id: String(req.params.id) }, data: { status } })); } catch (error) { next(error); }
 });
 
 app.get('/api/admin/audit', requireAdmin, async (req, res, next) => {

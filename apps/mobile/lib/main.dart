@@ -1943,11 +1943,12 @@ class _DirectoryPageState extends State<DirectoryPage> {
   final api = ApiClient();
   final searchController = TextEditingController();
   Timer? searchDebounce;
+  DirectoryFilters filters = const DirectoryFilters();
   @override
   void initState() {
     super.initState();
     searchController.text = widget.initialQuery ?? '';
-    providersFuture = api.fetchProviders(searchQuery: widget.initialQuery);
+    providersFuture = _fetchProviders();
   }
 
   @override
@@ -1961,10 +1962,22 @@ class _DirectoryPageState extends State<DirectoryPage> {
     searchDebounce?.cancel();
     searchDebounce = Timer(const Duration(milliseconds: 350), () {
       if (mounted)
-        setState(
-          () => providersFuture = api.fetchProviders(searchQuery: value),
-        );
+        setState(() => providersFuture = _fetchProviders(searchQuery: value));
     });
+  }
+
+  Future<List<ProviderSummary>> _fetchProviders({String? searchQuery}) {
+    final sort = filters.sort == 'الأعلى تقييمًا'
+        ? 'rating'
+        : filters.sort == 'الأحدث'
+        ? 'latest'
+        : 'name';
+    return api.fetchProviders(
+      searchQuery: searchQuery ?? searchController.text,
+      verifiedOnly: filters.verified,
+      openNow: filters.openNow,
+      sort: sort,
+    );
   }
 
   @override
@@ -2086,7 +2099,7 @@ class _DirectoryPageState extends State<DirectoryPage> {
   );
 
   Future<void> _reload() async {
-    setState(() => providersFuture = api.fetchProviders());
+    setState(() => providersFuture = _fetchProviders());
     await providersFuture;
   }
 
@@ -2107,8 +2120,8 @@ class _DirectoryPageState extends State<DirectoryPage> {
     );
   }
 
-  void _showFilters(BuildContext context) {
-    showModalBottomSheet<void>(
+  Future<void> _showFilters(BuildContext context) async {
+    final selected = await showModalBottomSheet<DirectoryFilters>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
@@ -2117,21 +2130,38 @@ class _DirectoryPageState extends State<DirectoryPage> {
         duration: AppMotion.gentle,
         reverseDuration: AppMotion.quick,
       ),
-      builder: (_) => const _FilterSheet(),
+      builder: (_) => _FilterSheet(initial: filters),
     );
+    if (selected == null || !mounted) return;
+    setState(() {
+      filters = selected;
+      providersFuture = _fetchProviders();
+    });
   }
 }
 
+class DirectoryFilters {
+  const DirectoryFilters({
+    this.sort = 'الافتراضي',
+    this.openNow = false,
+    this.verified = false,
+  });
+  final String sort;
+  final bool openNow;
+  final bool verified;
+}
+
 class _FilterSheet extends StatefulWidget {
-  const _FilterSheet();
+  const _FilterSheet({required this.initial});
+  final DirectoryFilters initial;
   @override
   State<_FilterSheet> createState() => _FilterSheetState();
 }
 
 class _FilterSheetState extends State<_FilterSheet> {
-  String sort = 'الأقرب';
-  bool openNow = false;
-  bool verified = true;
+  late String sort = widget.initial.sort;
+  late bool openNow = widget.initial.openNow;
+  late bool verified = widget.initial.verified;
   @override
   Widget build(BuildContext context) => Directionality(
     textDirection: TextDirection.rtl,
@@ -2181,7 +2211,7 @@ class _FilterSheetState extends State<_FilterSheet> {
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
-              children: ['الأقرب', 'الأعلى تقييمًا', 'الأحدث']
+              children: ['الافتراضي', 'الأعلى تقييمًا', 'الأحدث']
                   .map(
                     (item) => ChoiceChip(
                       label: Text(item),
@@ -2209,7 +2239,14 @@ class _FilterSheetState extends State<_FilterSheet> {
             ),
             const SizedBox(height: 8),
             FilledButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () => Navigator.pop(
+                context,
+                DirectoryFilters(
+                  sort: sort,
+                  openNow: openNow,
+                  verified: verified,
+                ),
+              ),
               style: FilledButton.styleFrom(
                 backgroundColor: teal,
                 minimumSize: const Size.fromHeight(50),
@@ -5332,7 +5369,8 @@ class _AddActivityPageState extends State<AddActivityPage> {
     );
     if (picked != null) {
       setState(() {
-        final value = picked.format(context);
+        final value =
+            '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
         if (isOpening) {
           opening = value;
         } else {
