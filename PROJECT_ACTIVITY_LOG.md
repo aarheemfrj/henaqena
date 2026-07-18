@@ -92,8 +92,8 @@
 2026-07-18 — Codex — إضافة دخول الإدارة بالتوكن، جلسات AdminSession، ودعم صلاحية مدير في API والمنصة — مكتملة — commit: 3386327
 2026-07-18 — Codex — إضافة لوحة إدارة داخل تطبيق Flutter لاعتماد الأنشطة والإعلانات المحلية — مكتملة — commit: 3386327
 2026-07-18 — Codex — توحيد دخول منصة الإدارة مع حساب المدير بالبريد وكلمة المرور المستخدمين في التطبيق — مكتملة بعد الاختبار — commit: e0a96e3
-2026-07-18 — Codex — بدء المرحلة ٩: تقوية الإنتاج والتخزين والنسخ الاحتياطي وReverse Proxy — مكتملة بعد الاختبار — commit: لاحقاً
-2026-07-18 — Codex — إضافة Security Headers وCORS قابل للتقييد و/ready لفحص PostgreSQL — مكتملة — commit: لاحقاً
-2026-07-18 — Codex — إضافة Health Checks إلى Docker Compose وCaddyfile للـ HTTPS وReverse Proxy — مكتملة — commit: لاحقاً
-2026-07-18 — Codex — إضافة backup.sh لنسخ PostgreSQL والاحتفاظ بآخر 14 يومًا — مكتملة — commit: لاحقاً
-2026-07-18 — Codex — اختبار API وNext.js؛ Docker Compose غير متاح كإضافة محلية للتشغيل الفعلي — مكتملة — commit: لاحقاً
+2026-07-18 — Codex — بدء المرحلة ٩: تقوية الإنتاج والتخزين والنسخ الاحتياطي وReverse Proxy — مكتملة بعد الاختبار — commit: a2736cd
+2026-07-18 — Codex — إضافة Security Headers وCORS قابل للتقييد و/ready لفحص PostgreSQL — مكتملة — commit: a2736cd
+2026-07-18 — Codex — إضافة Health Checks إلى Docker Compose وCaddyfile للـ HTTPS وReverse Proxy — مكتملة — commit: a2736cd
+2026-07-18 — Codex — إضافة backup.sh لنسخ PostgreSQL والاحتفاظ بآخر 14 يومًا — مكتملة — commit: a2736cd
+2026-07-18 — Codex — اختبار API وNext.js؛ Docker Compose غير متاح كإضافة محلية للتشغيل الفعلي — مكتملة — commit: a2736cd
