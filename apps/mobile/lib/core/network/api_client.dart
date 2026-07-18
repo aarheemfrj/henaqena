@@ -41,12 +41,30 @@ class ProviderDetails {
     required this.description,
     required this.images,
     required this.reviews,
+    required this.phone,
+    required this.whatsapp,
+    required this.address,
+    required this.latitude,
+    required this.longitude,
+    required this.areaName,
+    required this.isVerified,
+    required this.services,
+    required this.offers,
   });
   final String id;
   final String name;
   final String? description;
   final List<String> images;
   final List<Map<String, dynamic>> reviews;
+  final String? phone;
+  final String? whatsapp;
+  final String? address;
+  final double? latitude;
+  final double? longitude;
+  final String areaName;
+  final bool isVerified;
+  final List<Map<String, dynamic>> services;
+  final List<Map<String, dynamic>> offers;
   factory ProviderDetails.fromJson(Map<String, dynamic> json) =>
       ProviderDetails(
         id: json['id'] as String,
@@ -56,6 +74,19 @@ class ProviderDetails {
             .map((item) => (item as Map<String, dynamic>)['url'] as String)
             .toList(),
         reviews: (json['reviews'] as List<dynamic>? ?? [])
+            .map((item) => Map<String, dynamic>.from(item as Map))
+            .toList(),
+        phone: json['phone'] as String?,
+        whatsapp: json['whatsapp'] as String?,
+        address: json['address'] as String?,
+        latitude: (json['latitude'] as num?)?.toDouble(),
+        longitude: (json['longitude'] as num?)?.toDouble(),
+        areaName: json['area']?['name'] as String? ?? 'قنا',
+        isVerified: json['isVerified'] as bool? ?? false,
+        services: (json['services'] as List<dynamic>? ?? [])
+            .map((item) => Map<String, dynamic>.from(item as Map))
+            .toList(),
+        offers: (json['offers'] as List<dynamic>? ?? [])
             .map((item) => Map<String, dynamic>.from(item as Map))
             .toList(),
       );

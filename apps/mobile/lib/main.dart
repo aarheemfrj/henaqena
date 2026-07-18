@@ -4,6 +4,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'core/auth/auth_session.dart';
+import 'core/platform/app_actions.dart';
 import 'core/theme/app_theme.dart';
 import 'core/network/api_client.dart';
 
@@ -563,6 +564,30 @@ class _SetupFlowState extends State<SetupFlow> {
     'سيارات',
   ];
 
+  Future<void> _useCurrentLocation() async {
+    try {
+      await AppActions.currentPosition();
+      if (!mounted) return;
+      setState(() {
+        areas
+          ..clear()
+          ..add('قنا كلها');
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('تم تحديد موقعك، وهنعرض الأقرب داخل مدينة قنا'),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('فعّل خدمة الموقع واسمح للتطبيق باستخدامها'),
+        ),
+      );
+    }
+  }
+
   void next() {
     if (step < 3) {
       setState(() => step++);
@@ -667,7 +692,7 @@ class _SetupFlowState extends State<SetupFlow> {
       return ListView(
         children: [
           OutlinedButton.icon(
-            onPressed: () {},
+            onPressed: _useCurrentLocation,
             icon: const Icon(Icons.my_location_outlined),
             label: const Text('استخدم موقعي الحالي'),
             style: OutlinedButton.styleFrom(
@@ -1051,14 +1076,70 @@ class BrandText extends StatelessWidget {
   );
 }
 
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
   const HomePage({super.key});
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  String selectedArea = 'قنا كلها';
+
+  void _openDirectory(String query) => Navigator.of(
+    context,
+  ).push(MaterialPageRoute(builder: (_) => DirectoryPage(initialQuery: query)));
+
+  Future<void> _pickArea() async {
+    List<AreaOption> options;
+    try {
+      options = await ApiClient().fetchAreas();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تعذر تحميل المناطق حالياً')),
+      );
+      return;
+    }
+    if (!mounted) return;
+    final picked = await showModalBottomSheet<String>(
+      context: context,
+      useSafeArea: true,
+      builder: (context) => Directionality(
+        textDirection: TextDirection.rtl,
+        child: ListView(
+          shrinkWrap: true,
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          children: [
+            const ListTile(
+              title: Text(
+                'اختار المنطقة',
+                style: TextStyle(color: deepTeal, fontWeight: FontWeight.w700),
+              ),
+            ),
+            for (final area in options)
+              RadioListTile<String>(
+                value: area.name,
+                groupValue: selectedArea,
+                title: Text(area.name),
+                onChanged: (value) => Navigator.pop(context, value),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (picked != null && mounted) setState(() => selectedArea = picked);
+  }
+
   @override
   Widget build(BuildContext context) => BasePage(
     header: Row(
       children: [
         Expanded(
           child: TextField(
+            textInputAction: TextInputAction.search,
+            onSubmitted: (value) {
+              if (value.trim().isNotEmpty) _openDirectory(value.trim());
+            },
             decoration: const InputDecoration(
               prefixIcon: Icon(Icons.search, color: teal),
               hintText: 'بتدور على إيه؟',
@@ -1087,9 +1168,9 @@ class HomePage extends StatelessWidget {
           children: [
             const Icon(Icons.location_on_outlined, size: 18, color: teal),
             const SizedBox(width: 5),
-            const Text('قنا كلها', style: TextStyle(color: muted)),
+            Text(selectedArea, style: const TextStyle(color: muted)),
             const Spacer(),
-            TextButton(onPressed: () {}, child: const Text('تغيير')),
+            TextButton(onPressed: _pickArea, child: const Text('تغيير')),
           ],
         ),
         const SizedBox(height: 16),
@@ -1100,8 +1181,9 @@ class HomePage extends StatelessWidget {
         const SectionTitle(title: 'فئات قريبة منك'),
         const SizedBox(height: 9),
         const SizedBox(height: 2),
-        const CategoryRail(
+        CategoryRail(
           items: ['صيدليات', 'مطاعم', 'فنيين', 'سوبر ماركت', 'تعليم', 'ترفيه'],
+          onSelected: _openDirectory,
         ),
         const SizedBox(height: 20),
         const SectionTitle(title: 'مختارات قنا'),
@@ -1173,6 +1255,47 @@ class SectionTitle extends StatelessWidget {
       ),
       const Text('شوف الكل', style: TextStyle(color: teal, fontSize: 12)),
     ],
+  );
+}
+
+class _StateMessage extends StatelessWidget {
+  const _StateMessage({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    this.actionLabel,
+    this.onAction,
+  });
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 12),
+    child: Column(
+      children: [
+        Icon(icon, size: 38, color: teal),
+        const SizedBox(height: 10),
+        Text(
+          title,
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: deepTeal, fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 5),
+        Text(
+          subtitle,
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: muted),
+        ),
+        if (actionLabel != null && onAction != null) ...[
+          const SizedBox(height: 12),
+          OutlinedButton(onPressed: onAction, child: Text(actionLabel!)),
+        ],
+      ],
+    ),
   );
 }
 
@@ -1445,8 +1568,9 @@ class _PromoCarouselState extends State<PromoCarousel> {
 }
 
 class CategoryRail extends StatelessWidget {
-  const CategoryRail({super.key, required this.items});
+  const CategoryRail({super.key, required this.items, this.onSelected});
   final List<String> items;
+  final ValueChanged<String>? onSelected;
   @override
   Widget build(BuildContext context) => SizedBox(
     height: 42,
@@ -1456,7 +1580,7 @@ class CategoryRail extends StatelessWidget {
       itemCount: items.length,
       separatorBuilder: (_, index) => const SizedBox(width: 8),
       itemBuilder: (_, index) => ActionChip(
-        onPressed: () {},
+        onPressed: onSelected == null ? null : () => onSelected!(items[index]),
         avatar: const Icon(Icons.circle, size: 8, color: gold),
         label: Text(items[index]),
         backgroundColor: Colors.white,
@@ -1534,7 +1658,8 @@ class _MiniItemState extends State<MiniItem> {
 }
 
 class DirectoryPage extends StatefulWidget {
-  const DirectoryPage({super.key});
+  const DirectoryPage({super.key, this.initialQuery});
+  final String? initialQuery;
   @override
   State<DirectoryPage> createState() => _DirectoryPageState();
 }
@@ -1547,7 +1672,8 @@ class _DirectoryPageState extends State<DirectoryPage> {
   @override
   void initState() {
     super.initState();
-    providersFuture = api.fetchProviders();
+    searchController.text = widget.initialQuery ?? '';
+    providersFuture = api.fetchProviders(searchQuery: widget.initialQuery);
   }
 
   @override
@@ -1579,7 +1705,7 @@ class _DirectoryPageState extends State<DirectoryPage> {
           style: TextStyle(color: muted),
         ),
         const SizedBox(height: 10),
-        const CategoryRail(
+        CategoryRail(
           items: [
             'خدمات طبية',
             'مطاعم وكافيهات',
@@ -1588,6 +1714,10 @@ class _DirectoryPageState extends State<DirectoryPage> {
             'تعليم ودروس',
             'ترفيه',
           ],
+          onSelected: (value) {
+            searchController.text = value;
+            _search(value);
+          },
         ),
         const SizedBox(height: 16),
         TextField(
@@ -1608,7 +1738,13 @@ class _DirectoryPageState extends State<DirectoryPage> {
             ),
             const Spacer(),
             OutlinedButton.icon(
-              onPressed: () {},
+              onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'افتح تفاصيل المكان ثم اضغط «الخريطة» للوصول إليه',
+                  ),
+                ),
+              ),
               icon: const Icon(Icons.map_outlined),
               label: const Text('خريطة'),
             ),
@@ -1617,21 +1753,29 @@ class _DirectoryPageState extends State<DirectoryPage> {
         FutureBuilder<List<ProviderSummary>>(
           future: providersFuture,
           builder: (context, snapshot) {
-            final fallback = [
-              const ProviderSummary(
-                id: 'local-electrician',
-                name: 'كهربائي المصباح',
-                subtitle: 'قنا · موثق · 4.8 ★ · مفتوح الآن',
-              ),
-              const ProviderSummary(
-                id: 'local-medical',
-                name: 'مركز الشفاء الطبي',
-                subtitle: 'وسط البلد · 4.6 ★',
-              ),
-            ];
-            final providers = snapshot.hasData && snapshot.data!.isNotEmpty
-                ? snapshot.data!
-                : fallback;
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Padding(
+                padding: EdgeInsets.all(28),
+                child: Center(child: CircularProgressIndicator(color: teal)),
+              );
+            }
+            if (snapshot.hasError) {
+              return _StateMessage(
+                icon: Icons.cloud_off_outlined,
+                title: 'تعذر تحميل الدليل',
+                subtitle: 'تأكد من الاتصال وحاول مرة أخرى.',
+                actionLabel: 'إعادة المحاولة',
+                onAction: _reload,
+              );
+            }
+            final providers = snapshot.data ?? const <ProviderSummary>[];
+            if (providers.isEmpty) {
+              return const _StateMessage(
+                icon: Icons.search_off_outlined,
+                title: 'مفيش نتائج مطابقة',
+                subtitle: 'جرّب اسمًا أو فئة مختلفة.',
+              );
+            }
             return Column(
               children: [
                 if (snapshot.connectionState == ConnectionState.waiting)
@@ -1828,6 +1972,18 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
   late final Future<ProviderDetails?> details = widget.providerId == null
       ? Future.value(null)
       : ApiClient().fetchProvider(widget.providerId!).then((value) => value);
+
+  Future<void> _external(Future<bool> action, String unavailable) async {
+    try {
+      if (await action || !mounted) return;
+    } catch (_) {
+      if (!mounted) return;
+    }
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(unavailable)));
+  }
+
   @override
   Widget build(BuildContext context) => Directionality(
     textDirection: TextDirection.rtl,
@@ -1934,7 +2090,12 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                 children: [
                   Expanded(
                     child: FilledButton.icon(
-                      onPressed: () {},
+                      onPressed: data?.phone == null
+                          ? null
+                          : () => _external(
+                              AppActions.call(data!.phone),
+                              'تعذر فتح الاتصال على هذا الجهاز',
+                            ),
                       icon: const Icon(Icons.phone_outlined),
                       label: const Text('اتصال'),
                     ),
@@ -1942,9 +2103,52 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: OutlinedButton.icon(
-                      onPressed: () {},
+                      onPressed: (data?.whatsapp ?? data?.phone) == null
+                          ? null
+                          : () => _external(
+                              AppActions.whatsapp(
+                                data?.whatsapp ?? data?.phone,
+                                message:
+                                    'مرحبًا، وصلت لنشاط ${data?.name ?? widget.title} من تطبيق هنا قنا.',
+                              ),
+                              'واتساب غير متاح على هذا الجهاز',
+                            ),
                       icon: const Icon(Icons.chat_outlined),
                       label: const Text('واتساب'),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextButton.icon(
+                      onPressed: data?.address == null && data?.latitude == null
+                          ? null
+                          : () => _external(
+                              AppActions.map(
+                                latitude: data?.latitude,
+                                longitude: data?.longitude,
+                                address:
+                                    '${data?.address ?? ''}، ${data?.areaName ?? 'قنا'}، قنا',
+                              ),
+                              'لا توجد بيانات موقع كافية',
+                            ),
+                      icon: const Icon(Icons.map_outlined),
+                      label: const Text('الخريطة'),
+                    ),
+                  ),
+                  Expanded(
+                    child: TextButton.icon(
+                      onPressed: () => AppActions.share(
+                        context,
+                        subject: data?.name ?? widget.title,
+                        text:
+                            '${data?.name ?? widget.title}\n${data?.description ?? ''}\n${data?.address ?? data?.areaName ?? 'قنا'}\nمن تطبيق هنا قنا',
+                      ),
+                      icon: const Icon(Icons.share_outlined),
+                      label: const Text('مشاركة'),
                     ),
                   ),
                 ],
@@ -1957,6 +2161,33 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                     'خدمة موثقة ومعلوماتها محدثة من فريق هنا قنا.',
                 style: const TextStyle(color: muted, height: 1.5),
               ),
+              if (data?.offers.isNotEmpty == true) ...[
+                const SizedBox(height: 18),
+                const SectionTitle(title: 'العروض'),
+                const SizedBox(height: 8),
+                ...data!.offers.map(
+                  (offer) => MiniItem(
+                    icon: Icons.local_offer_outlined,
+                    title: offer['title'] as String? ?? 'عرض',
+                    subtitle:
+                        offer['description'] as String? ?? 'عرض متاح حاليًا',
+                  ),
+                ),
+              ],
+              if (data?.services.isNotEmpty == true) ...[
+                const SizedBox(height: 18),
+                const SectionTitle(title: 'الخدمات والأسعار'),
+                const SizedBox(height: 8),
+                ...data!.services.map(
+                  (service) => MiniItem(
+                    icon: Icons.design_services_outlined,
+                    title: service['name'] as String? ?? 'خدمة',
+                    subtitle: service['price'] == null
+                        ? service['priceNote'] as String? ?? 'اسأل عن السعر'
+                        : '${service['price']} جنيه${service['priceNote'] == null ? '' : ' · ${service['priceNote']}'}',
+                  ),
+                ),
+              ],
               const SizedBox(height: 18),
               const SectionTitle(title: 'التقييمات الموجودة'),
               const SizedBox(height: 8),
