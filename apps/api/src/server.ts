@@ -149,11 +149,12 @@ app.get('/api/providers', async (req, res, next) => {
 const providerCreateSchema = z.object({ name: z.string().trim().min(2).max(120), description: z.string().trim().max(1000).optional(), phone: z.string().regex(/^01[0125][0-9]{8}$/).optional(), whatsapp: z.string().regex(/^01[0125][0-9]{8}$/).optional(), phoneType: z.enum(['BUSINESS', 'PERSONAL']).default('BUSINESS'), address: z.string().trim().max(240).optional(), areaId: z.string().min(1), serviceMode: z.enum(['LOCAL', 'ONLINE']).default('LOCAL'), openingTime: z.string().max(10).optional(), closingTime: z.string().max(10).optional(), categoryIds: z.array(z.string().min(1)).min(1).max(5), images: z.array(z.object({ url: z.string().url(), kind: z.string().max(30).optional() })).min(1).max(10) });
 app.post('/api/providers', async (req, res, next) => {
   try {
+    const session = await sessionFromRequest(req);
+    if (!session) return res.status(401).json({ message: 'سجّل الدخول أولاً لإضافة نشاط' });
     const input = providerCreateSchema.parse(req.body);
-    const ownerId = typeof req.headers['x-user-id'] === 'string' ? req.headers['x-user-id'] : undefined;
     const duplicate = await prisma.provider.findFirst({ where: { areaId: input.areaId, status: { not: ReviewStatus.REJECTED }, OR: [{ name: { equals: input.name, mode: 'insensitive' } }, ...(input.phone ? [{ phone: input.phone }] : [])] } });
     if (duplicate) return res.status(409).json({ message: 'يوجد نشاط مشابه بالفعل في هذه المنطقة' });
-    const provider = await prisma.provider.create({ data: { name: input.name, description: input.description, phone: input.phone, whatsapp: input.whatsapp, phoneType: input.phoneType, address: input.address, areaId: input.areaId, serviceMode: input.serviceMode, openingTime: input.openingTime, closingTime: input.closingTime, ownerId, communityAdded: true, status: ReviewStatus.PENDING, images: { create: input.images.map((image, index) => ({ url: image.url, kind: image.kind ?? 'work', sortOrder: index })) }, categories: { create: input.categoryIds.map((categoryId) => ({ categoryId })) } }, include: { area: true, images: true, categories: { include: { category: true } } } });
+    const provider = await prisma.provider.create({ data: { name: input.name, description: input.description, phone: input.phone, whatsapp: input.whatsapp, phoneType: input.phoneType, address: input.address, areaId: input.areaId, serviceMode: input.serviceMode, openingTime: input.openingTime, closingTime: input.closingTime, ownerId: session.userId, communityAdded: true, status: ReviewStatus.PENDING, images: { create: input.images.map((image, index) => ({ url: image.url, kind: image.kind ?? 'work', sortOrder: index })) }, categories: { create: input.categoryIds.map((categoryId) => ({ categoryId })) } }, include: { area: true, images: true, categories: { include: { category: true } } } });
     res.status(201).json(provider);
   } catch (error) { next(error); }
 });
@@ -161,11 +162,12 @@ app.post('/api/providers', async (req, res, next) => {
 const providerEditSchema = providerCreateSchema.partial().omit({ categoryIds: true, images: true }).extend({ categoryIds: z.array(z.string().min(1)).min(1).max(5).optional(), images: z.array(z.object({ url: z.string().url(), kind: z.string().max(30).optional() })).min(1).max(10).optional() });
 app.patch('/api/providers/:id', async (req, res, next) => {
   try {
+    const session = await sessionFromRequest(req);
+    if (!session) return res.status(401).json({ message: 'سجّل الدخول أولاً لتعديل النشاط' });
     const input = providerEditSchema.parse(req.body);
-    const ownerId = typeof req.headers['x-user-id'] === 'string' ? req.headers['x-user-id'] : undefined;
     const existing = await prisma.provider.findUnique({ where: { id: String(req.params.id) } });
     if (!existing) return res.status(404).json({ message: 'النشاط غير موجود' });
-    if (!ownerId || existing.ownerId !== ownerId) return res.status(403).json({ message: 'لا تملك صلاحية تعديل النشاط' });
+    if (existing.ownerId !== session.userId) return res.status(403).json({ message: 'لا تملك صلاحية تعديل النشاط' });
     const { categoryIds, images, ...fields } = input;
     const provider = await prisma.$transaction(async (tx) => {
       if (images) await tx.providerImage.deleteMany({ where: { providerId: existing.id } });
@@ -178,9 +180,10 @@ app.patch('/api/providers/:id', async (req, res, next) => {
 
 app.post('/api/provider-reports', async (req, res, next) => {
   try {
+    const session = await sessionFromRequest(req);
+    if (!session) return res.status(401).json({ message: 'سجّل الدخول أولاً لإرسال طلب' });
     const input = z.object({ kind: z.enum(['CLAIM', 'REPORT']), name: z.string().trim().min(2).max(120), phone: z.string().regex(/^01[0125][0-9]{8}$/).optional(), note: z.string().trim().max(1000).optional(), providerId: z.string().optional() }).parse(req.body);
-    const reporterId = typeof req.headers['x-user-id'] === 'string' ? req.headers['x-user-id'] : undefined;
-    const report = await prisma.providerReport.create({ data: { ...input, reporterId, status: ReviewStatus.PENDING } });
+    const report = await prisma.providerReport.create({ data: { ...input, reporterId: session.userId, status: ReviewStatus.PENDING } });
     res.status(201).json({ id: report.id, status: report.status, message: input.kind === 'CLAIM' ? 'تم إرسال طلب إثبات ملكية النشاط' : 'تم إرسال بلاغ النشاط للمراجعة' });
   } catch (error) { next(error); }
 });
