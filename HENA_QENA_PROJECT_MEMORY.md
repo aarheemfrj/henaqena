@@ -1675,4 +1675,12 @@ After that, implement the provider-directory data model and admin review workflo
 
 ---
 
-**Last updated:** 2026-07-16
+## 31. Shared Activity Log (2026-07-18)
+
+- Every implementation step must be recorded in `PROJECT_ACTIVITY_LOG.md` with the executor name (`Codex` or `Claude`), status, and commit hash.
+- Before starting parallel work, read the latest log entry and mark the new step as `قيد التنفيذ`.
+- After testing, update the same entry to `مكتملة` or `متوقفة` with a clear reason.
+
+---
+
+**Last updated:** 2026-07-18
