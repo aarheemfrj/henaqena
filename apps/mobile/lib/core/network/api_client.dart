@@ -50,6 +50,7 @@ class ProviderDetails {
     required this.isVerified,
     required this.services,
     required this.offers,
+    required this.viewerFavorite,
   });
   final String id;
   final String name;
@@ -65,6 +66,7 @@ class ProviderDetails {
   final bool isVerified;
   final List<Map<String, dynamic>> services;
   final List<Map<String, dynamic>> offers;
+  final bool viewerFavorite;
   factory ProviderDetails.fromJson(Map<String, dynamic> json) =>
       ProviderDetails(
         id: json['id'] as String,
@@ -89,6 +91,9 @@ class ProviderDetails {
         offers: (json['offers'] as List<dynamic>? ?? [])
             .map((item) => Map<String, dynamic>.from(item as Map))
             .toList(),
+        viewerFavorite:
+            (json['viewer'] as Map<String, dynamic>?)?['favorite'] as bool? ??
+            false,
       );
 }
 
@@ -434,7 +439,7 @@ class ApiClient {
 
   Future<ProviderDetails> fetchProvider(String id) async {
     final response = await http
-        .get(Uri.parse('$baseUrl/api/providers/$id'))
+        .get(Uri.parse('$baseUrl/api/providers/$id'), headers: _jsonHeaders)
         .timeout(const Duration(seconds: 5));
     if (response.statusCode != 200)
       throw Exception('API error ${response.statusCode}');

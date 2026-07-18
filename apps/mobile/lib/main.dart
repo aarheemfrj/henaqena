@@ -1969,9 +1969,97 @@ class ProviderDetailPage extends StatefulWidget {
 }
 
 class _ProviderDetailPageState extends State<ProviderDetailPage> {
-  late final Future<ProviderDetails?> details = widget.providerId == null
+  late Future<ProviderDetails?> details = widget.providerId == null
       ? Future.value(null)
       : ApiClient().fetchProvider(widget.providerId!).then((value) => value);
+  bool? favorite;
+
+  void _reload() => setState(() {
+    details = widget.providerId == null
+        ? Future.value(null)
+        : ApiClient().fetchProvider(widget.providerId!).then((value) => value);
+  });
+
+  Future<void> _toggleFavorite() async {
+    final id = widget.providerId;
+    if (id == null) return;
+    try {
+      final result = await ApiClient().toggleProviderFavorite(id);
+      if (mounted) setState(() => favorite = result['active'] as bool);
+    } catch (error) {
+      if (!mounted) return;
+      if (error.toString().contains('unauthorized')) {
+        await Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const AuthPage()),
+        );
+      } else {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('تعذر حفظ النشاط')));
+      }
+    }
+  }
+
+  Future<void> _helpful(String reviewId) async {
+    try {
+      await ApiClient().toggleReviewHelpful(reviewId);
+      _reload();
+    } catch (error) {
+      if (!mounted) return;
+      if (error.toString().contains('unauthorized')) {
+        await Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const AuthPage()),
+        );
+      }
+    }
+  }
+
+  Future<void> _reply(String reviewId) async {
+    final controller = TextEditingController();
+    final submit = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('اكتب ردك'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLines: 4,
+          decoration: const InputDecoration(hintText: 'رد محترم ومفيد'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('نشر'),
+          ),
+        ],
+      ),
+    );
+    final text = controller.text.trim();
+    controller.dispose();
+    if (submit != true || text.isEmpty) return;
+    try {
+      await ApiClient().replyToReview(reviewId, text);
+      _reload();
+    } catch (error) {
+      if (!mounted) return;
+      if (error.toString().contains('unauthorized')) {
+        await Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const AuthPage()),
+        );
+      } else {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('تعذر نشر الرد')));
+      }
+    }
+  }
 
   Future<void> _external(Future<bool> action, String unavailable) async {
     try {
@@ -1992,15 +2080,18 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
       floatingActionButton: widget.providerId == null
           ? null
           : FloatingActionButton.extended(
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => ReviewPage(
-                    providerId: widget.providerId!,
-                    providerName: widget.title,
+              onPressed: () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ReviewPage(
+                      providerId: widget.providerId!,
+                      providerName: widget.title,
+                    ),
                   ),
-                ),
-              ),
+                );
+                _reload();
+              },
               backgroundColor: teal,
               icon: const Icon(Icons.star_border),
               label: const Text('أضف تقييمك'),
@@ -2009,6 +2100,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
         future: details,
         builder: (context, snapshot) {
           final data = snapshot.data;
+          favorite ??= data?.viewerFavorite ?? false;
           final imageUrls = data?.images ?? const <String>[];
           final reviews = data?.reviews ?? const <Map<String, dynamic>>[];
           return ListView(
@@ -2117,6 +2209,19 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                       label: const Text('واتساب'),
                     ),
                   ),
+                  Expanded(
+                    child: TextButton.icon(
+                      onPressed: widget.providerId == null
+                          ? null
+                          : _toggleFavorite,
+                      icon: Icon(
+                        favorite == true
+                            ? Icons.favorite
+                            : Icons.favorite_border,
+                      ),
+                      label: const Text('حفظ'),
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 8),
@@ -2211,6 +2316,24 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                         (review['commitment'] as int? ?? 0) +
                         (review['value'] as int? ?? 0)) ~/
                     3;
+                final reviewId = review['id'] as String;
+                final replies = (review['replies'] as List<dynamic>? ?? []).map(
+                  (replyValue) {
+                    final reply = replyValue as Map<String, dynamic>;
+                    final replyAuthor =
+                        (reply['author'] as Map<String, dynamic>?)?['name']
+                            as String? ??
+                        'مستخدم هنا قنا';
+                    return CommentReply(
+                      name: replyAuthor,
+                      initial: replyAuthor.isEmpty
+                          ? 'هـ'
+                          : replyAuthor.characters.first,
+                      text: reply['text'] as String? ?? '',
+                      onReply: () => _reply(reviewId),
+                    );
+                  },
+                ).toList();
                 return MotionIn(
                   delay: entry.key * 60,
                   child: CommentBubble(
@@ -2218,6 +2341,11 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                     initial: initials,
                     text: text,
                     rating: score,
+                    helpfulCount:
+                        review['_count']?['helpfulVotes'] as int? ?? 0,
+                    onHelpful: () => _helpful(reviewId),
+                    onReply: () => _reply(reviewId),
+                    replies: replies,
                   ),
                 );
               }),
@@ -2241,12 +2369,18 @@ class CommentBubble extends StatelessWidget {
     required this.initial,
     required this.text,
     required this.rating,
+    required this.helpfulCount,
+    required this.onHelpful,
+    required this.onReply,
     this.replies = const [],
   });
   final String name;
   final String initial;
   final String text;
   final int rating;
+  final int helpfulCount;
+  final VoidCallback onHelpful;
+  final VoidCallback onReply;
   final List<CommentReply> replies;
   @override
   Widget build(BuildContext context) => Padding(
@@ -2305,17 +2439,19 @@ class CommentBubble extends StatelessWidget {
                       const Icon(Icons.star, color: gold, size: 15),
                       const SizedBox(width: 12),
                       TextButton(
-                        onPressed: () {},
+                        onPressed: onHelpful,
                         style: TextButton.styleFrom(
                           padding: EdgeInsets.zero,
                           minimumSize: Size.zero,
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         ),
-                        child: const Text('مفيد'),
+                        child: Text(
+                          helpfulCount == 0 ? 'مفيد' : 'مفيد · $helpfulCount',
+                        ),
                       ),
                       const SizedBox(width: 12),
                       TextButton(
-                        onPressed: () {},
+                        onPressed: onReply,
                         style: TextButton.styleFrom(
                           padding: EdgeInsets.zero,
                           minimumSize: Size.zero,
@@ -2346,10 +2482,12 @@ class CommentReply extends StatelessWidget {
     required this.name,
     required this.initial,
     required this.text,
+    required this.onReply,
   });
   final String name;
   final String initial;
   final String text;
+  final VoidCallback onReply;
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.only(bottom: 8),
@@ -2389,17 +2527,7 @@ class CommentReply extends StatelessWidget {
               Row(
                 children: [
                   TextButton(
-                    onPressed: () {},
-                    style: TextButton.styleFrom(
-                      padding: EdgeInsets.zero,
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    child: const Text('مفيد', style: TextStyle(fontSize: 12)),
-                  ),
-                  const SizedBox(width: 12),
-                  TextButton(
-                    onPressed: () {},
+                    onPressed: onReply,
                     style: TextButton.styleFrom(
                       padding: EdgeInsets.zero,
                       minimumSize: Size.zero,

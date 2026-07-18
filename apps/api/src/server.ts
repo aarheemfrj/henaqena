@@ -312,6 +312,7 @@ app.post('/api/provider-reports', async (req, res, next) => {
 
 app.get('/api/providers/:id', async (req, res, next) => {
   try {
+    const session = await sessionFromRequest(req);
     const provider = await prisma.provider.findUnique({
       where: { id: req.params.id },
       include: {
@@ -325,7 +326,8 @@ app.get('/api/providers/:id', async (req, res, next) => {
       },
     });
     if (!provider) return res.status(404).json({ message: 'Provider not found' });
-    res.json(provider);
+    const favorite = session ? await prisma.providerFavorite.findUnique({ where: { userId_providerId: { userId: session.userId, providerId: provider.id } } }) : null;
+    res.json({ ...provider, viewer: { favorite: Boolean(favorite) } });
   } catch (error) {
     next(error);
   }
