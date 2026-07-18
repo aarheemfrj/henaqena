@@ -27,6 +27,7 @@ const createRateLimiter = (maxRequests: number, windowMs: number) => {
 
 const prisma = new PrismaClient();
 const app = express();
+app.set('trust proxy', 1);
 const port = Number(process.env.PORT ?? 4000);
 const uploadRoot = process.env.UPLOADS_DIR ?? path.join(process.cwd(), 'uploads');
 const publicApiBaseUrl = (process.env.PUBLIC_API_BASE_URL ?? `http://127.0.0.1:${port}`).replace(/\/$/, '');
@@ -44,6 +45,7 @@ const publicAuthorSelect = { id: true, name: true, avatarUrl: true, isProfilePri
 
 const allowedOrigins = (process.env.CORS_ORIGINS ?? '*').split(',').map((origin) => origin.trim()).filter(Boolean);
 app.use(cors({ origin: allowedOrigins.includes('*') ? true : allowedOrigins }));
+app.use((_req, res, next) => { res.set({ 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'strict-origin-when-cross-origin', 'Permissions-Policy': 'geolocation=(self)' }); next(); });
 app.use(express.json({ limit: '16mb' }));
 app.use('/uploads', express.static(uploadRoot, { maxAge: '7d', etag: true }));
 

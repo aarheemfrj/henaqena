@@ -1,0 +1,8 @@
+# استبدل الدومينات قبل التشغيل على VPS.
+henaqena.malsoft.com {
+  reverse_proxy web:3100
+}
+
+api.henaqena.malsoft.com {
+  reverse_proxy api:4000
+}

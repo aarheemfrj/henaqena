@@ -11,6 +11,11 @@ services:
       - "5433:5432"
     volumes:
       - henaqena_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U henaqena -d henaqena"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   api:
     build:
@@ -27,11 +32,16 @@ services:
       UPLOADS_DIR: /data/uploads
     depends_on:
       postgres:
-        condition: service_started
+        condition: service_healthy
     ports:
       - "4000:4000"
     volumes:
       - henaqena_uploads:/data/uploads
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:4000/ready >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
 
   web:
     build:
@@ -48,9 +58,15 @@ services:
       ADMIN_DASHBOARD_PASSWORD: ${ADMIN_DASHBOARD_PASSWORD:?set ADMIN_DASHBOARD_PASSWORD}
       ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET:?set ADMIN_SESSION_SECRET}
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     ports:
       - "3100:3100"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3100/ >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
 
 volumes:
   henaqena_pgdata:
