@@ -2910,74 +2910,22 @@ class _NowPageState extends State<NowPage> {
           MotionIn(
             delay: index * 60,
             child: _AlertCard(
+              id: live[index]['id'] as String,
               title: live[index]['title'] as String,
               subtitle:
                   '${live[index]['body'] ?? 'تحديث محلي'} · ${live[index]['area']?['name'] ?? 'قنا'}',
               icon: Icons.bolt_outlined,
               color: teal,
+              helpfulCount: live[index]['_count']?['helpfulVotes'] as int? ?? 0,
             ),
           ),
       ];
     }
-    if (selected == 'خدمات ومرافق')
-      return const [
-        MotionIn(
-          child: _AlertCard(
-            title: 'انقطاع مياه مؤقت',
-            subtitle: 'الحميدات · منذ ساعتين · تم التأكيد',
-            icon: Icons.water_drop_outlined,
-            color: teal,
-          ),
-        ),
-      ];
-    if (selected == 'طرق ومواصلات')
-      return const [
-        MotionIn(
-          child: _AlertCard(
-            title: 'فتح شارع جديد',
-            subtitle: 'وسط البلد · منذ 30 دقيقة',
-            icon: Icons.traffic_outlined,
-            color: gold,
-          ),
-        ),
-      ];
-    if (selected == 'فعاليات')
-      return const [
-        MotionIn(
-          child: _AlertCard(
-            title: 'معرض منتجات قنا',
-            subtitle: 'فعالية محلية · اليوم',
-            icon: Icons.event_outlined,
-            color: deepTeal,
-          ),
-        ),
-      ];
     return const [
-      MotionIn(
-        child: _AlertCard(
-          title: 'انقطاع مياه مؤقت',
-          subtitle: 'الحميدات · منذ ساعتين · تم التأكيد',
-          icon: Icons.water_drop_outlined,
-          color: teal,
-        ),
-      ),
-      MotionIn(
-        delay: 80,
-        child: _AlertCard(
-          title: 'فتح شارع جديد',
-          subtitle: 'وسط البلد · منذ 30 دقيقة',
-          icon: Icons.traffic_outlined,
-          color: gold,
-        ),
-      ),
-      MotionIn(
-        delay: 160,
-        child: _AlertCard(
-          title: 'معرض منتجات قنا',
-          subtitle: 'فعالية محلية · اليوم',
-          icon: Icons.event_outlined,
-          color: deepTeal,
-        ),
+      _StateMessage(
+        icon: Icons.bolt_outlined,
+        title: 'لا توجد تحديثات حالياً',
+        subtitle: 'هنا هتظهر التحديثات المحلية بعد اعتماد الإدارة.',
       ),
     ];
   }
@@ -3046,17 +2994,48 @@ class _LivePulseState extends State<LivePulse>
   );
 }
 
-class _AlertCard extends StatelessWidget {
+class _AlertCard extends StatefulWidget {
   const _AlertCard({
+    required this.id,
     required this.title,
     required this.subtitle,
     required this.icon,
     required this.color,
+    required this.helpfulCount,
   });
+  final String id;
   final String title;
   final String subtitle;
   final IconData icon;
   final Color color;
+  final int helpfulCount;
+  @override
+  State<_AlertCard> createState() => _AlertCardState();
+}
+
+class _AlertCardState extends State<_AlertCard> {
+  late int helpfulCount = widget.helpfulCount;
+  bool active = false;
+
+  Future<void> _toggleHelpful() async {
+    try {
+      final result = await ApiClient().toggleNowHelpful(widget.id);
+      if (!mounted) return;
+      setState(() {
+        active = result['active'] as bool;
+        helpfulCount = result['count'] as int;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      if (error.toString().contains('unauthorized')) {
+        await Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const AuthPage()),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Card(
     elevation: 0,
@@ -3068,15 +3047,22 @@ class _AlertCard extends StatelessWidget {
     ),
     child: ListTile(
       leading: CircleAvatar(
-        backgroundColor: color.withValues(alpha: .14),
-        child: Icon(icon, color: color),
+        backgroundColor: widget.color.withValues(alpha: .14),
+        child: Icon(widget.icon, color: widget.color),
       ),
-      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
+      title: Text(
+        widget.title,
+        style: const TextStyle(fontWeight: FontWeight.w700),
+      ),
       subtitle: Text(
-        subtitle,
+        widget.subtitle,
         style: const TextStyle(color: muted, fontSize: 12),
       ),
-      trailing: OutlinedButton(onPressed: () {}, child: const Text('مفيد')),
+      trailing: OutlinedButton.icon(
+        onPressed: _toggleHelpful,
+        icon: Icon(active ? Icons.thumb_up : Icons.thumb_up_outlined, size: 16),
+        label: Text(helpfulCount == 0 ? 'مفيد' : '$helpfulCount'),
+      ),
     ),
   );
 }
@@ -4032,7 +4018,10 @@ class AccountPage extends StatelessWidget {
               _AccountTile(
                 icon: Icons.favorite_border,
                 title: 'المفضلة',
-                onTap: () {},
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const FavoritesPage()),
+                ),
               ),
               _AccountTile(
                 icon: Icons.rate_review_outlined,
@@ -4045,7 +4034,10 @@ class AccountPage extends StatelessWidget {
               _AccountTile(
                 icon: Icons.campaign_outlined,
                 title: 'إعلاناتي',
-                onTap: () {},
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const MyListingsPage()),
+                ),
               ),
               const Divider(height: 26),
               _AccountTile(
@@ -4059,7 +4051,10 @@ class AccountPage extends StatelessWidget {
               _AccountTile(
                 icon: Icons.help_outline,
                 title: 'المساعدة والدعم',
-                onTap: () {},
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const SupportPage()),
+                ),
               ),
               _AccountTile(
                 icon: Icons.delete_outline,
@@ -4073,6 +4068,333 @@ class AccountPage extends StatelessWidget {
             ],
           );
         },
+      ),
+    ),
+  );
+}
+
+class FavoritesPage extends StatefulWidget {
+  const FavoritesPage({super.key});
+  @override
+  State<FavoritesPage> createState() => _FavoritesPageState();
+}
+
+class _FavoritesPageState extends State<FavoritesPage> {
+  late Future<Map<String, dynamic>> favorites = ApiClient().fetchFavorites();
+  void _reload() => setState(() => favorites = ApiClient().fetchFavorites());
+
+  @override
+  Widget build(BuildContext context) => Directionality(
+    textDirection: TextDirection.rtl,
+    child: Scaffold(
+      appBar: AppBar(title: const Text('المفضلة')),
+      body: FutureBuilder<Map<String, dynamic>>(
+        future: favorites,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator(color: teal));
+          }
+          if (snapshot.hasError) {
+            return _StateMessage(
+              icon: Icons.lock_outline,
+              title: 'سجّل الدخول لعرض المفضلة',
+              subtitle: 'المفضلة محفوظة على حسابك وتظهر على كل أجهزتك.',
+              actionLabel: 'تسجيل الدخول',
+              onAction: () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const AuthPage()),
+                );
+                _reload();
+              },
+            );
+          }
+          final providers = snapshot.data?['providers'] as List<dynamic>? ?? [];
+          final listings = snapshot.data?['listings'] as List<dynamic>? ?? [];
+          if (providers.isEmpty && listings.isEmpty) {
+            return const _StateMessage(
+              icon: Icons.favorite_border,
+              title: 'المفضلة فاضية',
+              subtitle: 'احفظ الأماكن والإعلانات المهمة وهتلاقيها هنا.',
+            );
+          }
+          return ListView(
+            padding: const EdgeInsets.all(18),
+            children: [
+              if (providers.isNotEmpty) ...[
+                const SectionTitle(title: 'الأماكن والخدمات'),
+                const SizedBox(height: 8),
+                for (final value in providers)
+                  Builder(
+                    builder: (context) {
+                      final provider = value as Map<String, dynamic>;
+                      return MiniItem(
+                        icon: Icons.storefront_outlined,
+                        title: provider['name'] as String? ?? 'نشاط',
+                        subtitle: provider['area']?['name'] as String? ?? 'قنا',
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ProviderDetailPage(
+                              providerId: provider['id'] as String,
+                              title: provider['name'] as String? ?? 'نشاط',
+                              icon: Icons.storefront_outlined,
+                              subtitle:
+                                  provider['area']?['name'] as String? ?? 'قنا',
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                const SizedBox(height: 18),
+              ],
+              if (listings.isNotEmpty) ...[
+                const SectionTitle(title: 'الإعلانات'),
+                const SizedBox(height: 8),
+                for (final value in listings)
+                  Builder(
+                    builder: (context) {
+                      final listing = value as Map<String, dynamic>;
+                      return MiniItem(
+                        icon: Icons.campaign_outlined,
+                        title: listing['title'] as String? ?? 'إعلان',
+                        subtitle:
+                            '${listing['price']} جنيه · ${listing['area']?['name'] ?? 'قنا'}',
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ListingDetailPage(
+                              listingId: listing['id'] as String,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+              ],
+            ],
+          );
+        },
+      ),
+    ),
+  );
+}
+
+class MyListingsPage extends StatefulWidget {
+  const MyListingsPage({super.key});
+  @override
+  State<MyListingsPage> createState() => _MyListingsPageState();
+}
+
+class _MyListingsPageState extends State<MyListingsPage> {
+  final api = ApiClient();
+  late Future<Map<String, dynamic>> contributions = api.fetchContributions();
+  void _reload() => setState(() => contributions = api.fetchContributions());
+
+  String _status(String? value) => switch (value) {
+    'PENDING' => 'قيد المراجعة',
+    'ACTIVE' => 'منشور',
+    'EXPIRED' => 'منتهي',
+    'ARCHIVED' => 'مؤرشف',
+    'REJECTED' => 'مرفوض',
+    _ => 'غير معروف',
+  };
+
+  Future<void> _renew(String id) async {
+    try {
+      await api.renewListing(id);
+      _reload();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('تعذر إعادة نشر الإعلان')));
+      }
+    }
+  }
+
+  Future<void> _delete(String id) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('حذف الإعلان نهائيًا؟'),
+        content: const Text('سيتم حذف الإعلان وصوره ولا يمكن استرجاعه.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('حذف'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await api.deleteListing(id);
+      _reload();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('تعذر حذف الإعلان')));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Directionality(
+    textDirection: TextDirection.rtl,
+    child: Scaffold(
+      appBar: AppBar(title: const Text('إعلاناتي')),
+      body: FutureBuilder<Map<String, dynamic>>(
+        future: contributions,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator(color: teal));
+          }
+          final items = snapshot.data?['listings'] as List<dynamic>? ?? [];
+          if (snapshot.hasError || items.isEmpty) {
+            return const _StateMessage(
+              icon: Icons.campaign_outlined,
+              title: 'مفيش إعلانات على حسابك',
+              subtitle: 'أضف إعلانًا من قسم «عندك؟» وتابع حالته هنا.',
+            );
+          }
+          return ListView.builder(
+            padding: const EdgeInsets.all(18),
+            itemCount: items.length,
+            itemBuilder: (context, index) {
+              final item = items[index] as Map<String, dynamic>;
+              final status = item['status'] as String?;
+              return Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    children: [
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(item['title'] as String? ?? 'إعلان'),
+                        subtitle: Text(
+                          '${item['price']} جنيه · ${_status(status)}',
+                        ),
+                      ),
+                      Row(
+                        children: [
+                          if (status == 'EXPIRED' || status == 'ARCHIVED')
+                            Expanded(
+                              child: FilledButton(
+                                onPressed: () => _renew(item['id'] as String),
+                                child: const Text('إعادة نشر'),
+                              ),
+                            ),
+                          if (status == 'EXPIRED' || status == 'ARCHIVED')
+                            const SizedBox(width: 8),
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () => _delete(item['id'] as String),
+                              child: const Text('حذف نهائي'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      ),
+    ),
+  );
+}
+
+class SupportPage extends StatefulWidget {
+  const SupportPage({super.key});
+  @override
+  State<SupportPage> createState() => _SupportPageState();
+}
+
+class _SupportPageState extends State<SupportPage> {
+  final subject = TextEditingController();
+  final message = TextEditingController();
+  bool submitting = false;
+
+  @override
+  void dispose() {
+    subject.dispose();
+    message.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (subject.text.trim().length < 3 || message.text.trim().length < 5) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('اكتب عنوانًا ورسالة واضحة')),
+      );
+      return;
+    }
+    setState(() => submitting = true);
+    try {
+      await ApiClient().submitSupportTicket(
+        subject: subject.text,
+        message: message.text,
+      );
+      if (!mounted) return;
+      Navigator.pop(context);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('تم إرسال طلب الدعم')));
+    } catch (error) {
+      if (!mounted) return;
+      if (error.toString().contains('unauthorized')) {
+        await Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const AuthPage()),
+        );
+      } else {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('تعذر إرسال الطلب')));
+      }
+    } finally {
+      if (mounted) setState(() => submitting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Directionality(
+    textDirection: TextDirection.rtl,
+    child: Scaffold(
+      appBar: AppBar(title: const Text('المساعدة والدعم')),
+      body: ListView(
+        padding: const EdgeInsets.all(18),
+        children: [
+          const Text(
+            'قول لنا المشكلة أو الاقتراح، وفريق هنا قنا هيراجعه.',
+            style: TextStyle(color: muted),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: subject,
+            decoration: const InputDecoration(labelText: 'عنوان الطلب'),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: message,
+            maxLines: 6,
+            decoration: const InputDecoration(labelText: 'التفاصيل'),
+          ),
+          const SizedBox(height: 18),
+          FilledButton(
+            onPressed: submitting ? null : _submit,
+            child: Text(submitting ? 'جارٍ الإرسال…' : 'إرسال'),
+          ),
+        ],
       ),
     ),
   );

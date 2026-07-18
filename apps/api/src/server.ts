@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { createHash, randomBytes, randomInt, scrypt as scryptCallback } from 'node:crypto';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import cors from 'cors';
@@ -451,6 +451,36 @@ app.get('/api/me/contributions', async (req, res, next) => {
   try { const session = await sessionFromRequest(req); if (!session) return res.status(401).json({ message: 'غير مسجل الدخول' }); const [providers, listings, reviews, reports] = await Promise.all([prisma.provider.findMany({ where: { ownerId: session.userId }, include: { area: true }, orderBy: { createdAt: 'desc' } }), prisma.listing.findMany({ where: { ownerId: session.userId }, include: { area: true, images: true }, orderBy: { createdAt: 'desc' } }), prisma.review.findMany({ where: { authorId: session.userId }, include: { provider: { select: { id: true, name: true } } }, orderBy: { createdAt: 'desc' } }), prisma.providerReport.findMany({ where: { reporterId: session.userId }, include: { provider: { select: { id: true, name: true } } }, orderBy: { createdAt: 'desc' } })]); res.json({ providers, listings, reviews, reports }); } catch (error) { next(error); }
 });
 
+app.patch('/api/me/listings/:id/renew', async (req, res, next) => {
+  try {
+    const session = await sessionFromRequest(req);
+    if (!session) return res.status(401).json({ message: 'غير مسجل الدخول' });
+    const existing = await prisma.listing.findFirst({ where: { id: String(req.params.id), ownerId: session.userId } });
+    if (!existing) return res.status(404).json({ message: 'الإعلان غير موجود' });
+    if (existing.status !== ListingStatus.EXPIRED && existing.status !== ListingStatus.ARCHIVED) return res.status(400).json({ message: 'الإعلان لا يحتاج إعادة نشر' });
+    const listing = await prisma.listing.update({ where: { id: existing.id }, data: { status: ListingStatus.ACTIVE, createdAt: new Date(), expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) } });
+    res.json(listing);
+  } catch (error) { next(error); }
+});
+
+app.delete('/api/me/listings/:id', async (req, res, next) => {
+  try {
+    const session = await sessionFromRequest(req);
+    if (!session) return res.status(401).json({ message: 'غير مسجل الدخول' });
+    const listing = await prisma.listing.findFirst({ where: { id: String(req.params.id), ownerId: session.userId }, include: { images: true } });
+    if (!listing) return res.status(404).json({ message: 'الإعلان غير موجود' });
+    await prisma.listing.delete({ where: { id: listing.id } });
+    await Promise.all(listing.images.map(async (image) => {
+      try {
+        const pathname = new URL(image.url).pathname;
+        if (!pathname.startsWith('/uploads/providers/')) return;
+        await unlink(path.join(uploadRoot, 'providers', path.basename(pathname)));
+      } catch { /* The database record is already removed; missing files are harmless. */ }
+    }));
+    res.json({ deleted: true });
+  } catch (error) { next(error); }
+});
+
 app.post('/api/jobs/expire-listings', requireAdmin, async (_req, res, next) => {
   try { const result = await prisma.listing.updateMany({ where: { status: ListingStatus.ACTIVE, expiresAt: { lt: new Date() } }, data: { status: ListingStatus.EXPIRED } }); res.json({ expired: result.count }); } catch (error) { next(error); }
 });
@@ -511,8 +541,30 @@ app.get('/api/now', async (req, res, next) => {
   try {
     const areaId = typeof req.query.areaId === 'string' ? req.query.areaId : undefined;
     const now = new Date();
-    const updates = await prisma.nowUpdate.findMany({ where: { status: ReviewStatus.APPROVED, startsAt: { lte: now }, ...(areaId ? { OR: [{ areaId: null }, { areaId }] } : {}), AND: [{ OR: [{ endsAt: null }, { endsAt: { gte: now } }] }] }, include: { area: true }, orderBy: { createdAt: 'desc' }, take: 100 });
+    const updates = await prisma.nowUpdate.findMany({ where: { status: ReviewStatus.APPROVED, startsAt: { lte: now }, ...(areaId ? { OR: [{ areaId: null }, { areaId }] } : {}), AND: [{ OR: [{ endsAt: null }, { endsAt: { gte: now } }] }] }, include: { area: true, _count: { select: { helpfulVotes: true } } }, orderBy: { createdAt: 'desc' }, take: 100 });
     res.json(updates);
+  } catch (error) { next(error); }
+});
+app.post('/api/now/:id/helpful', async (req, res, next) => {
+  try {
+    const session = await sessionFromRequest(req);
+    if (!session) return res.status(401).json({ message: 'سجّل الدخول أولاً' });
+    const nowUpdateId = String(req.params.id);
+    const existing = await prisma.nowHelpful.findUnique({ where: { userId_nowUpdateId: { userId: session.userId, nowUpdateId } } });
+    if (existing) await prisma.nowHelpful.delete({ where: { userId_nowUpdateId: { userId: session.userId, nowUpdateId } } });
+    else await prisma.nowHelpful.create({ data: { userId: session.userId, nowUpdateId } });
+    const count = await prisma.nowHelpful.count({ where: { nowUpdateId } });
+    res.json({ active: !existing, count });
+  } catch (error) { next(error); }
+});
+
+app.post('/api/support-tickets', async (req, res, next) => {
+  try {
+    const session = await sessionFromRequest(req);
+    if (!session) return res.status(401).json({ message: 'سجّل الدخول أولاً' });
+    const input = z.object({ subject: z.string().trim().min(3).max(120), message: z.string().trim().min(5).max(2000) }).parse(req.body);
+    const ticket = await prisma.supportTicket.create({ data: { ...input, userId: session.userId } });
+    res.status(201).json({ id: ticket.id, status: ticket.status });
   } catch (error) { next(error); }
 });
 const nowCreateSchema = z.object({ title: z.string().trim().min(2).max(120), body: z.string().trim().max(600).optional(), category: z.string().trim().max(80).default('عام'), areaId: z.string().min(1).nullable().optional(), startsAt: z.coerce.date().optional(), endsAt: z.coerce.date().nullable().optional() });

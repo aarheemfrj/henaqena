@@ -68,6 +68,8 @@ model User {
   listingInterests   ListingInterest[]
   helpfulReviews     ReviewHelpful[]
   listingReports     ListingReport[]
+  nowHelpfulVotes    NowHelpful[]
+  supportTickets     SupportTicket[]
 }
 
 model AdminAccount {
@@ -399,19 +401,43 @@ model PriceGuide {
 }
 
 model NowUpdate {
-  id        String       @id @default(cuid())
-  title     String
-  body      String?
-  category  String       @default("عام")
-  status    ReviewStatus @default(PENDING)
-  areaId    String?
-  startsAt  DateTime     @default(now())
-  endsAt    DateTime?
-  area      Area?        @relation(fields: [areaId], references: [id])
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
+  id           String       @id @default(cuid())
+  title        String
+  body         String?
+  category     String       @default("عام")
+  status       ReviewStatus @default(PENDING)
+  areaId       String?
+  startsAt     DateTime     @default(now())
+  endsAt       DateTime?
+  area         Area?        @relation(fields: [areaId], references: [id])
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  helpfulVotes NowHelpful[]
 
   @@index([status, startsAt, endsAt])
+}
+
+model NowHelpful {
+  userId      String
+  nowUpdateId String
+  createdAt   DateTime  @default(now())
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  nowUpdate   NowUpdate @relation(fields: [nowUpdateId], references: [id], onDelete: Cascade)
+
+  @@id([userId, nowUpdateId])
+  @@index([nowUpdateId])
+}
+
+model SupportTicket {
+  id        String       @id @default(cuid())
+  userId    String
+  subject   String
+  message   String
+  status    ReviewStatus @default(PENDING)
+  createdAt DateTime     @default(now())
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
 }
 
 model Notification {

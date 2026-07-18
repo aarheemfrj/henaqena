@@ -159,6 +159,15 @@ class ApiClient {
         .toList();
   }
 
+  Future<Map<String, dynamic>> toggleNowHelpful(String id) async {
+    final response = await http
+        .post(Uri.parse('$baseUrl/api/now/$id/helpful'), headers: _jsonHeaders)
+        .timeout(const Duration(seconds: 8));
+    if (response.statusCode == 401) throw Exception('unauthorized');
+    if (response.statusCode != 200) throw Exception('now_helpful_error');
+    return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+  }
+
   Map<String, String> get _jsonHeaders => {
     'content-type': 'application/json',
     if (AuthSession.isSignedIn) 'authorization': 'Bearer ${AuthSession.token}',
@@ -579,6 +588,44 @@ class ApiClient {
     if (response.statusCode == 401) throw Exception('unauthorized');
     if (response.statusCode != 200) throw Exception('favorites_error');
     return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+  }
+
+  Future<void> renewListing(String id) async {
+    final response = await http
+        .patch(
+          Uri.parse('$baseUrl/api/me/listings/$id/renew'),
+          headers: _jsonHeaders,
+        )
+        .timeout(const Duration(seconds: 8));
+    if (response.statusCode != 200) throw Exception('renew_error');
+  }
+
+  Future<void> deleteListing(String id) async {
+    final response = await http
+        .delete(
+          Uri.parse('$baseUrl/api/me/listings/$id'),
+          headers: _jsonHeaders,
+        )
+        .timeout(const Duration(seconds: 8));
+    if (response.statusCode != 200) throw Exception('delete_listing_error');
+  }
+
+  Future<void> submitSupportTicket({
+    required String subject,
+    required String message,
+  }) async {
+    final response = await http
+        .post(
+          Uri.parse('$baseUrl/api/support-tickets'),
+          headers: _jsonHeaders,
+          body: jsonEncode({
+            'subject': subject.trim(),
+            'message': message.trim(),
+          }),
+        )
+        .timeout(const Duration(seconds: 8));
+    if (response.statusCode == 401) throw Exception('unauthorized');
+    if (response.statusCode != 201) throw Exception('support_error');
   }
 
   Future<void> submitListing({
