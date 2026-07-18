@@ -35,8 +35,10 @@ const hash = (value: string) => createHash('sha256').update(value).digest('hex')
 const passwordHash = async (password: string) => { const salt = randomBytes(16); const derived = await scrypt(password, salt, 64) as Buffer; return `${salt.toString('hex')}:${derived.toString('hex')}`; };
 const verifyPassword = async (password: string, stored: string) => { const [saltHex, storedHash] = stored.split(':'); const salt = Buffer.from(saltHex, 'hex'); const derived = await scrypt(password, salt, 64) as Buffer; return derived.toString('hex') === storedHash; };
 const issueSession = async (userId: string) => { const token = randomBytes(32).toString('hex'); await prisma.session.create({ data: { userId, tokenHash: hash(token), expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) } }); return token; };
+const issueAdminSession = async (adminId: string) => { const token = randomBytes(32).toString('hex'); await prisma.adminSession.create({ data: { adminId, tokenHash: hash(token), expiresAt: new Date(Date.now() + 12 * 60 * 60 * 1000) } }); return token; };
 const sessionFromRequest = async (req: express.Request) => { const token = typeof req.headers.authorization === 'string' ? req.headers.authorization.replace(/^Bearer\s+/i, '') : ''; if (!token) return null; const session = await prisma.session.findUnique({ where: { tokenHash: hash(token) }, include: { user: true } }); return session && session.expiresAt > new Date() ? session : null; };
-const requireAdmin = (req: express.Request, res: express.Response, next: express.NextFunction) => { const expected = process.env.ADMIN_API_KEY ?? (process.env.NODE_ENV !== 'production' ? 'dev-henaqena-admin' : undefined); const provided = typeof req.headers['x-admin-key'] === 'string' ? req.headers['x-admin-key'] : ''; if (!expected || provided !== expected) return res.status(403).json({ message: 'صلاحيات الإدارة مطلوبة' }); next(); };
+const adminSessionFromRequest = async (req: express.Request) => { const token = typeof req.headers.authorization === 'string' ? req.headers.authorization.replace(/^Bearer\s+/i, '') : ''; if (!token) return null; const session = await prisma.adminSession.findUnique({ where: { tokenHash: hash(token) }, include: { admin: true } }); return session && session.expiresAt > new Date() && session.admin.isActive ? session : null; };
+const requireAdmin = async (req: express.Request, res: express.Response, next: express.NextFunction) => { const expected = process.env.ADMIN_API_KEY ?? (process.env.NODE_ENV !== 'production' ? 'dev-henaqena-admin' : undefined); const provided = typeof req.headers['x-admin-key'] === 'string' ? req.headers['x-admin-key'] : ''; if (expected && provided === expected) return next(); if (await adminSessionFromRequest(req)) return next(); return res.status(403).json({ message: 'صلاحيات الإدارة مطلوبة' }); };
 const audit = (action: string, entity: string, entityId: string, metadata?: Record<string, unknown>) => prisma.auditLog.create({ data: { action, entity, entityId, metadata: metadata as any } });
 const publicAuthorSelect = { id: true, name: true, avatarUrl: true, isProfilePrivate: true, points: true, level: true } as const;
 
@@ -189,6 +191,16 @@ app.post('/api/auth/password-reset/confirm', verificationLimiter, async (req, re
     await prisma.$transaction([prisma.verificationCode.update({ where: { id: record.id }, data: { consumedAt: new Date() } }), prisma.user.update({ where: { id: user.id }, data: { passwordHash: await passwordHash(input.newPassword) } }), prisma.session.deleteMany({ where: { userId: user.id } })]);
     res.json({ reset: true });
   } catch (error) { next(error); }
+});
+
+app.post('/api/admin/auth/login', authLimiter, async (req, res, next) => {
+  try { const input = z.object({ email: z.string().email(), password: z.string().min(1) }).parse(req.body); const admin = await prisma.adminAccount.findUnique({ where: { email: input.email.toLowerCase() } }); if (!admin || !admin.isActive || !(await verifyPassword(input.password, admin.passwordHash))) return res.status(401).json({ message: 'بيانات مدير الإدارة غير صحيحة' }); const token = await issueAdminSession(admin.id); await prisma.adminAccount.update({ where: { id: admin.id }, data: { lastLoginAt: new Date() } }); res.json({ token, admin: { id: admin.id, name: admin.name, email: admin.email, role: admin.role } }); } catch (error) { next(error); }
+});
+app.post('/api/admin/auth/logout', async (req, res, next) => {
+  try { const token = typeof req.headers.authorization === 'string' ? req.headers.authorization.replace(/^Bearer\s+/i, '') : ''; if (token) await prisma.adminSession.deleteMany({ where: { tokenHash: hash(token) } }); res.json({ loggedOut: true }); } catch (error) { next(error); }
+});
+app.get('/api/admin/auth/me', async (req, res, next) => {
+  try { const session = await adminSessionFromRequest(req); if (!session) return res.status(401).json({ message: 'جلسة الإدارة منتهية' }); res.json({ id: session.admin.id, name: session.admin.name, email: session.admin.email, role: session.admin.role }); } catch (error) { next(error); }
 });
 
 app.get('/api/areas', async (_req, res, next) => {

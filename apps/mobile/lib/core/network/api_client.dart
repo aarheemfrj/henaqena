@@ -127,6 +127,90 @@ class ApiClient {
     'content-type': 'application/json',
     if (AuthSession.isSignedIn) 'authorization': 'Bearer ${AuthSession.token}',
   };
+  Map<String, String> get _adminHeaders => {
+    'content-type': 'application/json',
+    if (AuthSession.adminToken != null)
+      'authorization': 'Bearer ${AuthSession.adminToken}',
+  };
+
+  Future<void> adminLogin({
+    required String email,
+    required String password,
+  }) async {
+    final response = await http
+        .post(
+          Uri.parse('$baseUrl/api/admin/auth/login'),
+          headers: _jsonHeaders,
+          body: jsonEncode({'email': email, 'password': password}),
+        )
+        .timeout(const Duration(seconds: 8));
+    if (response.statusCode != 200) throw Exception('admin_login_error');
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    final admin = body['admin'] as Map<String, dynamic>;
+    await AuthSession.saveAdmin(
+      newToken: body['token'] as String,
+      userName: admin['name'] as String,
+      role: admin['role'] as String,
+    );
+  }
+
+  Future<void> adminLogout() async {
+    await http
+        .post(
+          Uri.parse('$baseUrl/api/admin/auth/logout'),
+          headers: _adminHeaders,
+        )
+        .timeout(const Duration(seconds: 5));
+    await AuthSession.clearAdmin();
+  }
+
+  Future<List<Map<String, dynamic>>> fetchAdminProviders() async {
+    final response = await http
+        .get(Uri.parse('$baseUrl/api/admin/providers'), headers: _adminHeaders)
+        .timeout(const Duration(seconds: 8));
+    if (response.statusCode != 200) throw Exception('admin_error');
+    return (jsonDecode(response.body) as List<dynamic>)
+        .map((item) => Map<String, dynamic>.from(item as Map))
+        .toList();
+  }
+
+  Future<void> moderateAdminProvider({
+    required String id,
+    required String status,
+  }) async {
+    final response = await http
+        .patch(
+          Uri.parse('$baseUrl/api/admin/providers/$id'),
+          headers: _adminHeaders,
+          body: jsonEncode({'status': status}),
+        )
+        .timeout(const Duration(seconds: 8));
+    if (response.statusCode != 200) throw Exception('admin_moderation_error');
+  }
+
+  Future<List<Map<String, dynamic>>> fetchAdminListings() async {
+    final response = await http
+        .get(Uri.parse('$baseUrl/api/admin/listings'), headers: _adminHeaders)
+        .timeout(const Duration(seconds: 8));
+    if (response.statusCode != 200) throw Exception('admin_error');
+    return (jsonDecode(response.body) as List<dynamic>)
+        .map((item) => Map<String, dynamic>.from(item as Map))
+        .toList();
+  }
+
+  Future<void> moderateAdminListing({
+    required String id,
+    required String status,
+  }) async {
+    final response = await http
+        .patch(
+          Uri.parse('$baseUrl/api/admin/listings/$id'),
+          headers: _adminHeaders,
+          body: jsonEncode({'status': status}),
+        )
+        .timeout(const Duration(seconds: 8));
+    if (response.statusCode != 200) throw Exception('admin_moderation_error');
+  }
 
   Future<void> register({
     required String name,

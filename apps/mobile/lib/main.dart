@@ -4124,6 +4124,57 @@ class _SettingsPageState extends State<SettingsPage> {
   bool allNotifications = true;
   bool areaOnly = false;
   bool privateProfile = false;
+  Future<void> _adminLogin() async {
+    final email = TextEditingController();
+    final password = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('دخول الإدارة'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: email,
+              keyboardType: TextInputType.emailAddress,
+              decoration: const InputDecoration(labelText: 'البريد الإداري'),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: password,
+              obscureText: true,
+              decoration: const InputDecoration(labelText: 'كلمة المرور'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('دخول'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await api.adminLogin(email: email.text.trim(), password: password.text);
+      if (mounted)
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const AdminControlPage()),
+        );
+    } catch (_) {
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('بيانات الإدارة غير صحيحة')),
+        );
+    }
+  }
+
   Future<void> _logoutAll() async {
     try {
       await api.logoutAll();
@@ -4315,6 +4366,21 @@ class _SettingsPageState extends State<SettingsPage> {
             title: 'تسجيل الخروج من كل الأجهزة',
             onTap: _logoutAll,
           ),
+          _AccountTile(
+            icon: Icons.admin_panel_settings_outlined,
+            title: AuthSession.adminToken == null
+                ? 'دخول الإدارة'
+                : 'لوحة الإدارة',
+            subtitle: AuthSession.adminToken == null
+                ? 'للمدير وفريق المراجعة'
+                : 'صلاحية ${AuthSession.adminRole ?? 'إدارة'}',
+            onTap: AuthSession.adminToken == null
+                ? _adminLogin
+                : () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const AdminControlPage()),
+                  ),
+          ),
           const Divider(height: 26),
           const Text(
             'الإشعارات',
@@ -4377,6 +4443,166 @@ class _SettingsPageState extends State<SettingsPage> {
             leading: Icon(Icons.language, color: teal),
             title: Text('اللغة'),
             subtitle: Text('العربية', style: TextStyle(color: muted)),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class AdminControlPage extends StatefulWidget {
+  const AdminControlPage({super.key});
+  @override
+  State<AdminControlPage> createState() => _AdminControlPageState();
+}
+
+class _AdminControlPageState extends State<AdminControlPage> {
+  final api = ApiClient();
+  late Future<List<Map<String, dynamic>>> providers = api.fetchAdminProviders();
+  late Future<List<Map<String, dynamic>>> listings = api.fetchAdminListings();
+  Future<void> _reload() async => setState(() {
+    providers = api.fetchAdminProviders();
+    listings = api.fetchAdminListings();
+  });
+  Future<void> _logout() async {
+    await api.adminLogout();
+    if (mounted) Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) => Directionality(
+    textDirection: TextDirection.rtl,
+    child: Scaffold(
+      appBar: AppBar(
+        title: const Text('لوحة الإدارة'),
+        actions: [
+          IconButton(onPressed: _reload, icon: const Icon(Icons.refresh)),
+          IconButton(onPressed: _logout, icon: const Icon(Icons.logout)),
+        ],
+      ),
+      body: RefreshIndicator(
+        onRefresh: _reload,
+        color: teal,
+        child: ListView(
+          padding: const EdgeInsets.all(18),
+          children: [
+            Text(
+              'مرحباً ${AuthSession.adminName ?? ''}',
+              style: const TextStyle(
+                color: deepTeal,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'طلبات الأنشطة',
+              style: TextStyle(color: deepTeal, fontWeight: FontWeight.w700),
+            ),
+            FutureBuilder<List<Map<String, dynamic>>>(
+              future: providers,
+              builder: (context, snapshot) {
+                final items = (snapshot.data ?? const <Map<String, dynamic>>[])
+                    .where((item) => item['status'] == 'PENDING')
+                    .toList();
+                return Column(
+                  children: [
+                    for (final item in items)
+                      _AdminApprovalTile(
+                        title: item['name'] as String,
+                        subtitle: item['area']?['name'] as String? ?? 'قنا',
+                        onApprove: () async {
+                          await api.moderateAdminProvider(
+                            id: item['id'] as String,
+                            status: 'APPROVED',
+                          );
+                          await _reload();
+                        },
+                        onReject: () async {
+                          await api.moderateAdminProvider(
+                            id: item['id'] as String,
+                            status: 'REJECTED',
+                          );
+                          await _reload();
+                        },
+                      ),
+                  ],
+                );
+              },
+            ),
+            const SizedBox(height: 18),
+            const Text(
+              'طلبات الإعلانات المحلية',
+              style: TextStyle(color: deepTeal, fontWeight: FontWeight.w700),
+            ),
+            FutureBuilder<List<Map<String, dynamic>>>(
+              future: listings,
+              builder: (context, snapshot) {
+                final items = (snapshot.data ?? const <Map<String, dynamic>>[])
+                    .where((item) => item['status'] == 'PENDING')
+                    .toList();
+                return Column(
+                  children: [
+                    for (final item in items)
+                      _AdminApprovalTile(
+                        title: item['title'] as String,
+                        subtitle:
+                            '${item['price']} جنيه · ${item['area']?['name'] ?? 'قنا'}',
+                        onApprove: () async {
+                          await api.moderateAdminListing(
+                            id: item['id'] as String,
+                            status: 'ACTIVE',
+                          );
+                          await _reload();
+                        },
+                        onReject: () async {
+                          await api.moderateAdminListing(
+                            id: item['id'] as String,
+                            status: 'REJECTED',
+                          );
+                          await _reload();
+                        },
+                      ),
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class _AdminApprovalTile extends StatelessWidget {
+  const _AdminApprovalTile({
+    required this.title,
+    required this.subtitle,
+    required this.onApprove,
+    required this.onReject,
+  });
+  final String title;
+  final String subtitle;
+  final Future<void> Function() onApprove;
+  final Future<void> Function() onReject;
+  @override
+  Widget build(BuildContext context) => Card(
+    elevation: 0,
+    margin: const EdgeInsets.only(top: 8),
+    child: ListTile(
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
+      subtitle: Text(subtitle),
+      trailing: Wrap(
+        spacing: 4,
+        children: [
+          IconButton(
+            onPressed: onApprove,
+            color: teal,
+            icon: const Icon(Icons.check_circle_outline),
+          ),
+          IconButton(
+            onPressed: onReject,
+            color: Colors.redAccent,
+            icon: const Icon(Icons.cancel_outlined),
           ),
         ],
       ),

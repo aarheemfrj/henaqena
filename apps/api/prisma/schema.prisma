@@ -75,6 +75,17 @@ model AdminAccount {
   lastLoginAt  DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
+  sessions     AdminSession[]
+}
+
+model AdminSession {
+  id        String       @id @default(cuid())
+  tokenHash String       @unique
+  adminId   String
+  expiresAt DateTime
+  createdAt DateTime     @default(now())
+  admin     AdminAccount @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  @@index([adminId, expiresAt])
 }
 
 model Session {
