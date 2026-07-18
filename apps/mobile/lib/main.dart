@@ -1689,104 +1689,153 @@ class _HomePageState extends State<HomePage> {
   }
 
   @override
-  Widget build(BuildContext context) => BasePage(
-    onRefresh: _reload,
-    header: Row(
-      children: [
-        Expanded(
-          child: TextField(
-            textInputAction: TextInputAction.search,
-            onSubmitted: (value) {
-              if (value.trim().isNotEmpty) _openDirectory(value.trim());
-            },
-            decoration: const InputDecoration(
-              prefixIcon: Icon(Icons.search, color: teal),
-              hintText: 'بتدور على إيه؟',
-              isDense: true,
-            ),
+  Widget build(BuildContext context) {
+    final palette = AppThemeController.current;
+    return BasePage(
+      onRefresh: _reload,
+      header: Container(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(26),
+          gradient: LinearGradient(
+            begin: Alignment.topRight,
+            end: Alignment.bottomLeft,
+            colors: [palette.deep, palette.primary],
           ),
-        ),
-        IconButton(
-          onPressed: () => Navigator.of(
-            context,
-          ).push(MaterialPageRoute(builder: (_) => const NotificationsPage())),
-          icon: const Icon(Icons.notifications_none, color: deepTeal),
-        ),
-        IconButton(
-          onPressed: () => Navigator.of(
-            context,
-          ).push(MaterialPageRoute(builder: (_) => const SettingsPage())),
-          icon: const Icon(Icons.settings_outlined, color: deepTeal),
-        ),
-      ],
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          children: [
-            const Icon(Icons.location_on_outlined, size: 18, color: teal),
-            const SizedBox(width: 5),
-            Text(selectedArea, style: const TextStyle(color: muted)),
-            const Spacer(),
-            TextButton(onPressed: _pickArea, child: const Text('تغيير')),
+          boxShadow: [
+            BoxShadow(
+              color: palette.deep.withValues(alpha: .2),
+              blurRadius: 24,
+              offset: const Offset(0, 12),
+            ),
           ],
         ),
-        const SizedBox(height: 16),
-        const HeroBanner(),
-        const SizedBox(height: 14),
-        PromoCarousel(areaId: selectedAreaId),
-        const SizedBox(height: 20),
-        const SectionTitle(title: 'فئات قريبة منك'),
-        const SizedBox(height: 9),
-        const SizedBox(height: 2),
-        CategoryRail(items: categoryItems, onSelected: _openDirectory),
-        const SizedBox(height: 20),
-        const SectionTitle(title: 'مختارات قنا'),
-        const SizedBox(height: 9),
-        FutureBuilder<List<ProviderSummary>>(
-          future: featured,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const LinearProgressIndicator(color: teal);
-            }
-            final items = snapshot.data ?? const <ProviderSummary>[];
-            if (snapshot.hasError || items.isEmpty) {
-              return const _StateMessage(
-                icon: Icons.storefront_outlined,
-                title: 'لا توجد مختارات منشورة حالياً',
-                subtitle: 'المختارات تظهر من الأنشطة المعتمدة في الدليل.',
-              );
-            }
-            return Column(
+        child: Column(
+          children: [
+            Row(
               children: [
-                for (var index = 0; index < items.take(4).length; index++)
-                  MotionIn(
-                    delay: index * 50,
-                    child: MiniItem(
-                      icon: Icons.storefront_outlined,
-                      title: items[index].name,
-                      subtitle: items[index].subtitle,
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => ProviderDetailPage(
-                            providerId: items[index].id,
-                            title: items[index].name,
-                            icon: Icons.storefront_outlined,
-                            subtitle: items[index].subtitle,
+                IconButton.filledTonal(
+                  onPressed: _pickArea,
+                  style: IconButton.styleFrom(
+                    backgroundColor: Colors.white.withValues(alpha: .14),
+                    foregroundColor: Colors.white,
+                  ),
+                  icon: const Icon(Icons.location_on_outlined),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: InkWell(
+                    onTap: _pickArea,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'منطقتك',
+                          style: TextStyle(color: Colors.white70, fontSize: 11),
+                        ),
+                        Text(
+                          selectedArea,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const NotificationsPage(),
+                    ),
+                  ),
+                  color: Colors.white,
+                  icon: const Icon(Icons.notifications_none),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const AccountPage()),
+                  ),
+                  color: Colors.white,
+                  icon: const Icon(Icons.person_outline),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              textInputAction: TextInputAction.search,
+              onSubmitted: (value) {
+                if (value.trim().isNotEmpty) _openDirectory(value.trim());
+              },
+              decoration: InputDecoration(
+                prefixIcon: Icon(Icons.search, color: palette.primary),
+                hintText: 'بتدور على خدمة أو مكان؟',
+                isDense: true,
+                fillColor: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const HeroBanner(),
+          const SizedBox(height: 14),
+          PromoCarousel(areaId: selectedAreaId),
+          const SizedBox(height: 20),
+          const SectionTitle(title: 'فئات قريبة منك'),
+          const SizedBox(height: 9),
+          const SizedBox(height: 2),
+          CategoryRail(items: categoryItems, onSelected: _openDirectory),
+          const SizedBox(height: 20),
+          const SectionTitle(title: 'مختارات قنا'),
+          const SizedBox(height: 9),
+          FutureBuilder<List<ProviderSummary>>(
+            future: featured,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const LinearProgressIndicator(color: teal);
+              }
+              final items = snapshot.data ?? const <ProviderSummary>[];
+              if (snapshot.hasError || items.isEmpty) {
+                return const _StateMessage(
+                  icon: Icons.storefront_outlined,
+                  title: 'لا توجد مختارات منشورة حالياً',
+                  subtitle: 'المختارات تظهر من الأنشطة المعتمدة في الدليل.',
+                );
+              }
+              return Column(
+                children: [
+                  for (var index = 0; index < items.take(4).length; index++)
+                    MotionIn(
+                      delay: index * 50,
+                      child: MiniItem(
+                        icon: Icons.storefront_outlined,
+                        title: items[index].name,
+                        subtitle: items[index].subtitle,
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ProviderDetailPage(
+                              providerId: items[index].id,
+                              title: items[index].name,
+                              icon: Icons.storefront_outlined,
+                              subtitle: items[index].subtitle,
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-              ],
-            );
-          },
-        ),
-      ],
-    ),
-  );
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class SectionTitle extends StatelessWidget {
@@ -5254,50 +5303,62 @@ class _AccountPageState extends State<AccountPage> {
           return ListView(
             padding: const EdgeInsets.all(18),
             children: [
-              Card(
-                elevation: 0,
-                color: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(18),
+              Container(
+                padding: const EdgeInsets.fromLTRB(14, 22, 14, 14),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(26),
+                  gradient: LinearGradient(
+                    colors: [
+                      AppThemeController.current.deep,
+                      AppThemeController.current.primary,
+                    ],
+                  ),
                 ),
-                child: ListTile(
-                  onTap: () async {
-                    await Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => EditProfilePage(profile: profile),
+                child: Material(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(19),
+                  clipBehavior: Clip.antiAlias,
+                  child: ListTile(
+                    onTap: () async {
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => EditProfilePage(profile: profile),
+                        ),
+                      );
+                      if (mounted) setState(() {});
+                    },
+                    contentPadding: const EdgeInsets.all(14),
+                    leading: CircleAvatar(
+                      radius: 25,
+                      backgroundColor: AppThemeController.current.primary,
+                      backgroundImage: profile?['avatarUrl'] == null
+                          ? null
+                          : NetworkImage(profile!['avatarUrl'] as String),
+                      child: profile?['avatarUrl'] == null
+                          ? Text(
+                              profileName.isEmpty
+                                  ? 'هـ'
+                                  : profileName.characters.first,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                              ),
+                            )
+                          : null,
+                    ),
+                    title: Text(
+                      profileName,
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    subtitle: Text(
+                      '$levelLabel · $points نقطة',
+                      style: TextStyle(
+                        color: AppThemeController.current.primary,
                       ),
-                    );
-                    if (mounted) setState(() {});
-                  },
-                  contentPadding: EdgeInsets.all(14),
-                  leading: CircleAvatar(
-                    radius: 25,
-                    backgroundColor: deepTeal,
-                    backgroundImage: profile?['avatarUrl'] == null
-                        ? null
-                        : NetworkImage(profile!['avatarUrl'] as String),
-                    child: profile?['avatarUrl'] == null
-                        ? Text(
-                            profileName.isEmpty
-                                ? 'هـ'
-                                : profileName.characters.first,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 18,
-                            ),
-                          )
-                        : null,
+                    ),
+                    trailing: const Icon(Icons.chevron_left),
                   ),
-                  title: Text(
-                    profileName,
-                    style: TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                  subtitle: Text(
-                    '$levelLabel · $points نقطة',
-                    style: TextStyle(color: teal),
-                  ),
-                  trailing: Icon(Icons.chevron_left),
                 ),
               ),
               const SizedBox(height: 10),

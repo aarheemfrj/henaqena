@@ -1,3 +1,17 @@
-export default function AccountPage() {
-  return <section><span className="eyebrow">الحساب</span><h1 className="pageTitle">حسابي</h1><p className="pageLead">تسجيل الدخول الموحد بين التطبيق والمنصة سيكون المرحلة التالية بعد إكمال واجهات المراجعة.</p><div className="section surface empty">مركز الحساب قيد الربط مع نظام الجلسات الحالي.</div></section>;
+import Link from 'next/link';
+import { apiGet } from '@/lib/api';
+import { getUserApiToken } from '@/lib/user-session';
+import { loginUser, logoutUser, registerUser } from './actions';
+
+type User = { id: string; name: string; phone?: string | null; email?: string | null; points: number; level: string };
+type Contributions = { providers: unknown[]; listings: unknown[]; reviews: unknown[]; reports: unknown[] };
+
+export const dynamic = 'force-dynamic';
+
+export default async function AccountPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+  const token = await getUserApiToken();
+  const [user, contributions] = token ? await Promise.all([apiGet<User>('/api/me', { user: true }).catch(() => null), apiGet<Contributions>('/api/me/contributions', { user: true }).catch(() => null)]) : [null, null];
+  const query = await searchParams;
+  if (user) return <section><div className="sectionHead"><div><span className="eyebrow">الحساب المتصل</span><h1 className="pageTitle">يا مرحب، {user.name}</h1></div><form action={logoutUser}><button className="secondaryButton" type="submit">تسجيل الخروج</button></form></div><p className="pageLead">نفس حساب تطبيق هنا قنا ونفس المساهمات المحفوظة على الخادم.</p><div className="adminLayout">{[{label:'النقاط',value:user.points},{label:'الأنشطة',value:contributions?.providers.length ?? 0},{label:'الإعلانات',value:contributions?.listings.length ?? 0},{label:'التقييمات',value:contributions?.reviews.length ?? 0}].map(item => <article className="surface stat" key={item.label}><small>{item.label}</small><strong>{item.value}</strong><span>بيانات مباشرة</span></article>)}</div><div className="section surface accountSummary"><p><strong>الهاتف:</strong> {user.phone || 'غير مضاف'}</p><p><strong>البريد:</strong> {user.email || 'غير مضاف'}</p><p><strong>الدرجة:</strong> {user.level}</p><Link className="primaryLink" href="/add-activity">إضافة نشاط جديد</Link></div></section>;
+  return <section><span className="eyebrow">الحساب</span><h1 className="pageTitle">حسابي</h1><p className="pageLead">ادخل بنفس حساب التطبيق أو أنشئ حساباً جديداً؛ الجلسة محفوظة في Cookie آمنة لا يقرأها المتصفح.</p>{query.error && <p className="formError">راجع البيانات؛ تعذر إكمال العملية.</p>}<div className="authColumns"><form action={loginUser} className="surface authCard"><h2>تسجيل الدخول</h2><label className="fieldLabel" htmlFor="identifier">البريد أو رقم الهاتف</label><input className="textInput" id="identifier" name="identifier" required/><label className="fieldLabel" htmlFor="login-password">كلمة المرور</label><input className="textInput" id="login-password" name="password" type="password" required/><button className="primaryButton">دخول</button></form><form action={registerUser} className="surface authCard"><h2>حساب جديد</h2><label className="fieldLabel" htmlFor="name">الاسم الحقيقي</label><input className="textInput" id="name" name="name" required/><label className="fieldLabel" htmlFor="phone">رقم الهاتف المصري</label><input className="textInput" id="phone" name="phone" inputMode="tel" required/><label className="fieldLabel" htmlFor="email">البريد (اختياري)</label><input className="textInput" id="email" name="email" type="email"/><label className="fieldLabel" htmlFor="register-password">كلمة المرور</label><input className="textInput" id="register-password" name="password" type="password" minLength={8} required/><button className="primaryButton">إنشاء الحساب</button></form></div></section>;
 }
