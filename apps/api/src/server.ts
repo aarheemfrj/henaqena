@@ -249,7 +249,7 @@ app.post('/api/reviews', async (req, res, next) => {
     const session = await sessionFromRequest(req);
     if (!session) return res.status(401).json({ message: 'غير مسجل الدخول' });
     const input = reviewSchema.parse(req.body);
-    const review = await prisma.review.create({ data: { ...input, authorId: session.userId, status: ReviewStatus.PENDING } });
+    const review = await prisma.review.create({ data: { ...input, authorId: session.userId, status: ReviewStatus.APPROVED } });
     res.status(201).json(review);
   } catch (error) {
     next(error);
@@ -269,13 +269,15 @@ app.post('/api/reviews/:id/replies', async (req, res, next) => {
 // Admin read/moderation endpoints. Authentication is added in the next security step.
 app.get('/api/admin/overview', requireAdmin, async (_req, res, next) => {
   try {
-    const [providers, pending, listings, reviews] = await Promise.all([
+    const [providers, unreadReviews, unreadReplies, listingsPending, listings, reviews] = await Promise.all([
       prisma.provider.count({ where: { status: ReviewStatus.APPROVED } }),
-      Promise.all([prisma.review.count({ where: { status: ReviewStatus.PENDING } }), prisma.listing.count({ where: { status: ListingStatus.PENDING } })]).then(([reviewsPending, listingsPending]) => reviewsPending + listingsPending),
+      prisma.review.count({ where: { moderatedAt: null } }),
+      prisma.reviewReply.count({ where: { moderatedAt: null } }),
+      prisma.listing.count({ where: { status: ListingStatus.PENDING } }),
       prisma.ad.count({ where: { status: ReviewStatus.APPROVED } }),
       prisma.review.count({ where: { createdAt: { gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) } } }),
     ]);
-    res.json({ providers, pending, listings, reviews });
+    res.json({ providers, pending: unreadReviews + unreadReplies + listingsPending, reviewActivity: unreadReviews + unreadReplies, listings, reviews });
   } catch (error) { next(error); }
 });
 
@@ -283,8 +285,31 @@ app.get('/api/admin/reviews', requireAdmin, async (req, res, next) => {
   try {
     const status = typeof req.query.status === 'string' && Object.values(ReviewStatus).includes(req.query.status as ReviewStatus)
       ? req.query.status as ReviewStatus : undefined;
-    const reviews = await prisma.review.findMany({ where: status ? { status } : {}, include: { author: true, provider: true }, orderBy: { createdAt: 'desc' }, take: 100 });
+    const unreadOnly = req.query.unread === 'true';
+    const reviews = await prisma.review.findMany({ where: { ...(status ? { status } : {}), ...(unreadOnly ? { moderatedAt: null } : {}) }, include: { author: true, provider: true }, orderBy: { createdAt: 'desc' }, take: 100 });
     res.json(reviews);
+  } catch (error) { next(error); }
+});
+
+app.get('/api/admin/replies', requireAdmin, async (req, res, next) => {
+  try {
+    const unreadOnly = req.query.unread === 'true';
+    const replies = await prisma.reviewReply.findMany({ where: unreadOnly ? { moderatedAt: null } : {}, include: { author: true, review: { include: { author: true, provider: true } } }, orderBy: { createdAt: 'desc' }, take: 100 });
+    res.json(replies);
+  } catch (error) { next(error); }
+});
+
+app.patch('/api/admin/reviews/:id/read', requireAdmin, async (req, res, next) => {
+  try {
+    const review = await prisma.review.update({ where: { id: String(req.params.id) }, data: { moderatedAt: new Date() } });
+    res.json(review);
+  } catch (error) { next(error); }
+});
+
+app.patch('/api/admin/replies/:id/read', requireAdmin, async (req, res, next) => {
+  try {
+    const reply = await prisma.reviewReply.update({ where: { id: String(req.params.id) }, data: { moderatedAt: new Date() } });
+    res.json(reply);
   } catch (error) { next(error); }
 });
 
@@ -327,7 +352,7 @@ app.patch('/api/admin/providers/:id', requireAdmin, async (req, res, next) => {
 app.patch('/api/admin/reviews/:id', requireAdmin, async (req, res, next) => {
   try {
     const { status, note } = moderationWithNoteSchema.parse(req.body);
-    const review = await prisma.review.update({ where: { id: String(req.params.id) }, data: { status } });
+    const review = await prisma.review.update({ where: { id: String(req.params.id) }, data: { status, moderatedAt: new Date() } });
     const reviewOwner = await prisma.review.findUnique({ where: { id: review.id }, include: { author: true } });
     if (reviewOwner) await prisma.notification.create({ data: { userId: reviewOwner.authorId, title: status === ReviewStatus.APPROVED ? 'تم اعتماد تقييمك' : 'لم يتم اعتماد تقييمك', body: status === ReviewStatus.APPROVED ? 'شكراً لمساهمتك في تحسين هنا قنا.' : `سبب الرفض: ${note ?? 'يرجى مراجعة محتوى التقييم.'}` } });
     await audit(`review.${status.toLowerCase()}`, 'review', review.id, { status, note });

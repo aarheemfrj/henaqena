@@ -206,20 +206,24 @@ model Review {
   value        Int
   comment      String?
   status       ReviewStatus @default(PENDING)
+  moderatedAt  DateTime?
   provider     Provider     @relation(fields: [providerId], references: [id], onDelete: Cascade)
   author       User         @relation(fields: [authorId], references: [id])
   replies      ReviewReply[]
   createdAt    DateTime     @default(now())
+  @@index([moderatedAt])
 }
 
 model ReviewReply {
-  id        String   @id @default(cuid())
-  reviewId  String
-  authorId  String
-  text      String
-  review    Review   @relation(fields: [reviewId], references: [id], onDelete: Cascade)
-  author    User     @relation(fields: [authorId], references: [id])
-  createdAt DateTime @default(now())
+  id          String    @id @default(cuid())
+  reviewId    String
+  authorId    String
+  text        String
+  moderatedAt DateTime?
+  review      Review    @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  author      User      @relation(fields: [authorId], references: [id])
+  createdAt   DateTime  @default(now())
+  @@index([moderatedAt])
 }
 
 model Ad {
