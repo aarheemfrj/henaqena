@@ -85,7 +85,8 @@ HenaQena/
 ├── apps/
 │   ├── api/              # خادم النوى (Node.js + Express + Prisma)
 │   ├── web/              # منصة الويب والإدارة (Next.js — قيد البناء)
-│   ├── admin/            # نموذج إدارة مؤقت (سيتم استبداله بـ Next.js)
+│   ├── admin/            # نموذج إدارة مؤقت قديم
+│   ├── web/              # منصة الويب ولوحة الإدارة (Next.js)
 │   └── mobile/           # تطبيق الجوال (Flutter)
 ├── infra/                # ملفات البنية التحتية (Docker, etc.)
 └── HENA_QENA_PROJECT_MEMORY.md  # توثيق المشروع والمعايير
@@ -99,7 +100,8 @@ HenaQena/
 
 ```env
 # قاعدة البيانات
-DATABASE_URL="postgresql://henaqena:henaqena@localhost:5433/henaqena?schema=public"
+# Postgres.app على macOS (قاعدة مستقلة باسم henaqena)
+DATABASE_URL="postgresql://YOUR_MAC_USER@127.0.0.1:5432/henaqena?schema=public"
 
 # الخادم
 PORT=4000
