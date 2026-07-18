@@ -97,3 +97,7 @@
 2026-07-18 — Codex — إضافة Health Checks إلى Docker Compose وCaddyfile للـ HTTPS وReverse Proxy — مكتملة — commit: a2736cd
 2026-07-18 — Codex — إضافة backup.sh لنسخ PostgreSQL والاحتفاظ بآخر 14 يومًا — مكتملة — commit: a2736cd
 2026-07-18 — Codex — اختبار API وNext.js؛ Docker Compose غير متاح كإضافة محلية للتشغيل الفعلي — مكتملة — commit: a2736cd
+2026-07-18 — Codex — تنفيذ مرحلة الجودة والإطلاق: صفحات قانونية وقائمة تحقق المتاجر والاختبارات — قيد التنفيذ — commit: لاحقاً
+2026-07-18 — Codex — إضافة صفحات الخصوصية وشروط الاستخدام وحذف الحساب وربطها بتذييل المنصة — مكتملة — commit: لاحقاً
+2026-07-18 — Codex — إضافة RELEASE_CHECKLIST.md لمتطلبات TestFlight وGoogle Play والإنتاج — مكتملة — commit: لاحقاً
+2026-07-18 — Codex — تشغيل اختبارات API وبناء API وNext.js بنجاح — مكتملة — commit: لاحقاً

@@ -21,6 +21,7 @@ export function PlatformShell({ children }: { children: ReactNode }) {
       <div className="topActions"><button className="iconButton" aria-label="بحث">⌕</button><button className="iconButton" aria-label="الإشعارات">♧</button><Link className="accountButton" href="/account">حسابي</Link></div>
     </header>
     <main className="pageTransition">{children}</main>
+    <footer className="siteFooter"><Link href="/privacy">الخصوصية</Link><Link href="/terms">شروط الاستخدام</Link><Link href="/delete-account">حذف الحساب</Link></footer>
     <Link className="quickAdd" href="/add-activity" aria-label="إضافة نشاط"><b>+</b><span>أضف نشاط</span></Link>
     <nav className="mobileNav" aria-label="الأقسام الرئيسية">{navigation.map((item) => <Link key={item.href} href={item.href} className={pathname === item.href ? 'mobileActive' : 'mobileLink'}><span>{item.icon}</span><small>{item.label}</small></Link>)}</nav>
   </div>;

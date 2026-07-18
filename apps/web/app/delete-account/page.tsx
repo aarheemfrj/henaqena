@@ -1,0 +1,2 @@
+export const metadata = { title: 'حذف الحساب — هنا قنا' };
+export default function DeleteAccountPage() { return <article className="surface legalPage"><span className="eyebrow">إدارة الحساب</span><h1 className="pageTitle">حذف الحساب</h1><p>يمكن للمستخدم المسجل حذف حسابه من داخل التطبيق عبر الإعدادات ثم «حذف الحساب نهائيًا».</p><p>يحذف النظام بيانات الحساب التشغيلية والجلسات والإعلانات المرتبطة به. قد تحتفظ المنصة بسجل نصي محدود لأغراض المراجعة ومنع إساءة الاستخدام.</p><p>إذا تعذر الدخول، تواصل مع الدعم من القناة الرسمية مع توضيح رقم الهاتف المرتبط بالحساب.</p></article>; }
