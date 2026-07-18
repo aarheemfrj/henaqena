@@ -88,33 +88,36 @@ class ApiClient {
   final String baseUrl;
 
   Future<List<Map<String, dynamic>>> fetchAds({String? areaId}) async {
-    final uri = Uri.parse('$baseUrl/api/ads').replace(queryParameters: {
-      if (areaId != null) 'areaId': areaId,
-    });
+    final uri = Uri.parse(
+      '$baseUrl/api/ads',
+    ).replace(queryParameters: {if (areaId != null) 'areaId': areaId});
     final response = await http.get(uri).timeout(const Duration(seconds: 5));
-    if (response.statusCode != 200) throw Exception('API error ${response.statusCode}');
+    if (response.statusCode != 200)
+      throw Exception('API error ${response.statusCode}');
     return (jsonDecode(response.body) as List<dynamic>)
         .map((item) => Map<String, dynamic>.from(item as Map))
         .toList();
   }
 
   Future<List<Map<String, dynamic>>> fetchPrices({String? areaId}) async {
-    final uri = Uri.parse('$baseUrl/api/prices').replace(queryParameters: {
-      if (areaId != null) 'areaId': areaId,
-    });
+    final uri = Uri.parse(
+      '$baseUrl/api/prices',
+    ).replace(queryParameters: {if (areaId != null) 'areaId': areaId});
     final response = await http.get(uri).timeout(const Duration(seconds: 5));
-    if (response.statusCode != 200) throw Exception('API error ${response.statusCode}');
+    if (response.statusCode != 200)
+      throw Exception('API error ${response.statusCode}');
     return (jsonDecode(response.body) as List<dynamic>)
         .map((item) => Map<String, dynamic>.from(item as Map))
         .toList();
   }
 
   Future<List<Map<String, dynamic>>> fetchNow({String? areaId}) async {
-    final uri = Uri.parse('$baseUrl/api/now').replace(queryParameters: {
-      if (areaId != null) 'areaId': areaId,
-    });
+    final uri = Uri.parse(
+      '$baseUrl/api/now',
+    ).replace(queryParameters: {if (areaId != null) 'areaId': areaId});
     final response = await http.get(uri).timeout(const Duration(seconds: 5));
-    if (response.statusCode != 200) throw Exception('API error ${response.statusCode}');
+    if (response.statusCode != 200)
+      throw Exception('API error ${response.statusCode}');
     return (jsonDecode(response.body) as List<dynamic>)
         .map((item) => Map<String, dynamic>.from(item as Map))
         .toList();
@@ -155,6 +158,41 @@ class ApiClient {
         )
         .timeout(const Duration(seconds: 8));
     await _saveAuthenticatedSession(response);
+  }
+
+  Future<void> requestPasswordReset({
+    required String identifier,
+    required String channel,
+  }) async {
+    final response = await http
+        .post(
+          Uri.parse('$baseUrl/api/auth/password-reset/request'),
+          headers: _jsonHeaders,
+          body: jsonEncode({'identifier': identifier, 'channel': channel}),
+        )
+        .timeout(const Duration(seconds: 8));
+    if (response.statusCode != 200) throw Exception('reset_request_error');
+  }
+
+  Future<void> confirmPasswordReset({
+    required String identifier,
+    required String channel,
+    required String code,
+    required String newPassword,
+  }) async {
+    final response = await http
+        .post(
+          Uri.parse('$baseUrl/api/auth/password-reset/confirm'),
+          headers: _jsonHeaders,
+          body: jsonEncode({
+            'identifier': identifier,
+            'channel': channel,
+            'code': code,
+            'newPassword': newPassword,
+          }),
+        )
+        .timeout(const Duration(seconds: 8));
+    if (response.statusCode != 200) throw Exception('reset_confirm_error');
   }
 
   Future<void> _saveAuthenticatedSession(http.Response response) async {
@@ -256,14 +294,20 @@ class ApiClient {
   Future<List<ProviderSummary>> fetchProviders({
     String? areaId,
     String? category,
+    String? searchQuery,
+    int page = 1,
   }) async {
-    final query = <String, String>{
+    final params = <String, String>{
       ...?(areaId == null ? null : {'areaId': areaId}),
       ...?(category == null ? null : {'category': category}),
+      ...?(searchQuery == null || searchQuery.trim().isEmpty
+          ? null
+          : {'q': searchQuery.trim()}),
+      'page': '$page',
     };
     final uri = Uri.parse(
       '$baseUrl/api/providers',
-    ).replace(queryParameters: query);
+    ).replace(queryParameters: params);
     final response = await http.get(uri).timeout(const Duration(seconds: 3));
     if (response.statusCode != 200)
       throw Exception('API error ${response.statusCode}');
@@ -310,8 +354,27 @@ class ApiClient {
     if (response.statusCode != 201) throw Exception('review_error');
   }
 
-  Future<void> submitListing({required String title, required double price, required String areaId, required List<String> images, String? description}) async {
-    final response = await http.post(Uri.parse('$baseUrl/api/listings'), headers: _jsonHeaders, body: jsonEncode({'title': title, 'price': price, 'areaId': areaId, 'images': images, if (description != null && description.trim().isNotEmpty) 'description': description.trim()})).timeout(const Duration(seconds: 8));
+  Future<void> submitListing({
+    required String title,
+    required double price,
+    required String areaId,
+    required List<String> images,
+    String? description,
+  }) async {
+    final response = await http
+        .post(
+          Uri.parse('$baseUrl/api/listings'),
+          headers: _jsonHeaders,
+          body: jsonEncode({
+            'title': title,
+            'price': price,
+            'areaId': areaId,
+            'images': images,
+            if (description != null && description.trim().isNotEmpty)
+              'description': description.trim(),
+          }),
+        )
+        .timeout(const Duration(seconds: 8));
     if (response.statusCode == 401) throw Exception('unauthorized');
     if (response.statusCode != 201) throw Exception('listing_error');
   }
@@ -345,6 +408,49 @@ class ApiClient {
     if (response.statusCode != 200) throw Exception('preferences_error');
   }
 
+  Future<void> logout() async {
+    await http
+        .post(Uri.parse('$baseUrl/api/auth/logout'), headers: _jsonHeaders)
+        .timeout(const Duration(seconds: 5));
+    await AuthSession.clear();
+  }
+
+  Future<void> logoutAll() async {
+    final response = await http
+        .post(Uri.parse('$baseUrl/api/auth/logout-all'), headers: _jsonHeaders)
+        .timeout(const Duration(seconds: 5));
+    if (response.statusCode == 401) throw Exception('unauthorized');
+    await AuthSession.clear();
+  }
+
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final response = await http
+        .patch(
+          Uri.parse('$baseUrl/api/me/password'),
+          headers: _jsonHeaders,
+          body: jsonEncode({
+            'currentPassword': currentPassword,
+            'newPassword': newPassword,
+          }),
+        )
+        .timeout(const Duration(seconds: 8));
+    if (response.statusCode == 400) throw Exception('invalid_password');
+    if (response.statusCode == 401) throw Exception('unauthorized');
+    if (response.statusCode != 200) throw Exception('password_error');
+  }
+
+  Future<void> deleteAccount() async {
+    final response = await http
+        .delete(Uri.parse('$baseUrl/api/me'), headers: _jsonHeaders)
+        .timeout(const Duration(seconds: 8));
+    if (response.statusCode == 401) throw Exception('unauthorized');
+    if (response.statusCode != 200) throw Exception('delete_account_error');
+    await AuthSession.clear();
+  }
+
   Future<List<Map<String, dynamic>>> fetchNotifications() async {
     final response = await http
         .get(Uri.parse('$baseUrl/api/notifications'), headers: _jsonHeaders)
@@ -354,5 +460,23 @@ class ApiClient {
     return (jsonDecode(response.body) as List<dynamic>)
         .map((item) => Map<String, dynamic>.from(item as Map))
         .toList();
+  }
+
+  Future<void> markNotificationRead(String id) async {
+    await http
+        .patch(
+          Uri.parse('$baseUrl/api/notifications/$id/read'),
+          headers: _jsonHeaders,
+        )
+        .timeout(const Duration(seconds: 5));
+  }
+
+  Future<void> markAllNotificationsRead() async {
+    await http
+        .post(
+          Uri.parse('$baseUrl/api/notifications/read-all'),
+          headers: _jsonHeaders,
+        )
+        .timeout(const Duration(seconds: 5));
   }
 }

@@ -62,12 +62,58 @@ app.patch('/api/me/preferences', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+app.post('/api/auth/logout', async (req, res, next) => {
+  try {
+    const token = typeof req.headers.authorization === 'string' ? req.headers.authorization.replace(/^Bearer\s+/i, '') : '';
+    if (token) await prisma.session.deleteMany({ where: { tokenHash: hash(token) } });
+    res.json({ loggedOut: true });
+  } catch (error) { next(error); }
+});
+
+app.post('/api/auth/logout-all', async (req, res, next) => {
+  try { const session = await sessionFromRequest(req); if (!session) return res.status(401).json({ message: 'غير مسجل الدخول' }); await prisma.session.deleteMany({ where: { userId: session.userId } }); res.json({ loggedOut: true }); } catch (error) { next(error); }
+});
+
+app.patch('/api/me/password', async (req, res, next) => {
+  try {
+    const session = await sessionFromRequest(req); if (!session) return res.status(401).json({ message: 'غير مسجل الدخول' });
+    const input = z.object({ currentPassword: z.string().min(1), newPassword: z.string().min(8).max(128) }).parse(req.body);
+    if (!session.user.passwordHash || !(await verifyPassword(input.currentPassword, session.user.passwordHash))) return res.status(400).json({ message: 'كلمة المرور الحالية غير صحيحة' });
+    await prisma.user.update({ where: { id: session.userId }, data: { passwordHash: await passwordHash(input.newPassword) } });
+    await prisma.session.deleteMany({ where: { userId: session.userId, NOT: { id: session.id } } });
+    res.json({ changed: true });
+  } catch (error) { next(error); }
+});
+
+app.delete('/api/me', async (req, res, next) => {
+  try {
+    const session = await sessionFromRequest(req); if (!session) return res.status(401).json({ message: 'غير مسجل الدخول' });
+    await prisma.$transaction(async (tx) => {
+      await tx.reviewReply.deleteMany({ where: { authorId: session.userId } });
+      await tx.review.deleteMany({ where: { authorId: session.userId } });
+      const listings = await tx.listing.findMany({ where: { ownerId: session.userId }, select: { id: true } });
+      if (listings.length) { await tx.listingImage.deleteMany({ where: { listingId: { in: listings.map((item) => item.id) } } }); await tx.listing.deleteMany({ where: { ownerId: session.userId } }); }
+      await tx.provider.updateMany({ where: { ownerId: session.userId }, data: { ownerId: null } });
+      await tx.notification.deleteMany({ where: { userId: session.userId } });
+      await tx.verificationCode.deleteMany({ where: { userId: session.userId } });
+      await tx.session.deleteMany({ where: { userId: session.userId } });
+      await tx.auditLog.updateMany({ where: { actorId: session.userId }, data: { actorId: null } });
+      await tx.user.delete({ where: { id: session.userId } });
+    });
+    res.json({ deleted: true });
+  } catch (error) { next(error); }
+});
+
 app.get('/api/notifications', async (req, res, next) => {
   try { const session = await sessionFromRequest(req); if (!session) return res.status(401).json({ message: 'غير مسجل الدخول' }); const notifications = await prisma.notification.findMany({ where: { userId: session.userId }, orderBy: { createdAt: 'desc' }, take: 50 }); res.json(notifications); } catch (error) { next(error); }
 });
 
 app.patch('/api/notifications/:id/read', async (req, res, next) => {
   try { const session = await sessionFromRequest(req); if (!session) return res.status(401).json({ message: 'غير مسجل الدخول' }); const notification = await prisma.notification.updateMany({ where: { id: req.params.id, userId: session.userId }, data: { readAt: new Date() } }); res.json({ updated: notification.count === 1 }); } catch (error) { next(error); }
+});
+
+app.post('/api/notifications/read-all', async (req, res, next) => {
+  try { const session = await sessionFromRequest(req); if (!session) return res.status(401).json({ message: 'غير مسجل الدخول' }); const result = await prisma.notification.updateMany({ where: { userId: session.userId, readAt: null }, data: { readAt: new Date() } }); res.json({ updated: result.count }); } catch (error) { next(error); }
 });
 
 const registerSchema = z.object({ name: z.string().trim().min(2).max(80), phone: z.string().regex(/^01[0125][0-9]{8}$/), email: z.string().email().optional(), password: z.string().min(8).max(128) });
@@ -119,6 +165,28 @@ app.post('/api/auth/verification/confirm', verificationLimiter, async (req, res,
   } catch (error) { next(error); }
 });
 
+app.post('/api/auth/password-reset/request', verificationLimiter, async (req, res, next) => {
+  try {
+    const input = z.object({ identifier: z.string().trim().min(3), channel: z.enum(['whatsapp', 'sms', 'email']) }).parse(req.body);
+    const user = input.channel === 'email' ? await prisma.user.findUnique({ where: { email: input.identifier } }) : await prisma.user.findUnique({ where: { phone: input.identifier } });
+    // Always return the same response to avoid leaking whether an account exists.
+    if (user) { const code = String(randomInt(100000, 1000000)); await prisma.verificationCode.create({ data: { userId: user.id, channel: `reset_${input.channel}`, target: input.identifier, codeHash: hash(code), expiresAt: new Date(Date.now() + 10 * 60 * 1000) } }); if (process.env.NODE_ENV !== 'production') console.log(`[password-reset:${input.channel}] ${input.identifier}: ${code}`); }
+    res.json({ sent: true, channel: input.channel });
+  } catch (error) { next(error); }
+});
+
+app.post('/api/auth/password-reset/confirm', verificationLimiter, async (req, res, next) => {
+  try {
+    const input = z.object({ identifier: z.string().trim().min(3), channel: z.enum(['whatsapp', 'sms', 'email']), code: z.string().regex(/^\d{6}$/), newPassword: z.string().min(8).max(128) }).parse(req.body);
+    const user = input.channel === 'email' ? await prisma.user.findUnique({ where: { email: input.identifier } }) : await prisma.user.findUnique({ where: { phone: input.identifier } });
+    if (!user) return res.status(400).json({ message: 'رمز التأكيد غير صحيح أو منتهي' });
+    const record = await prisma.verificationCode.findFirst({ where: { userId: user.id, channel: `reset_${input.channel}`, codeHash: hash(input.code), consumedAt: null, expiresAt: { gt: new Date() } }, orderBy: { createdAt: 'desc' } });
+    if (!record) return res.status(400).json({ message: 'رمز التأكيد غير صحيح أو منتهي' });
+    await prisma.$transaction([prisma.verificationCode.update({ where: { id: record.id }, data: { consumedAt: new Date() } }), prisma.user.update({ where: { id: user.id }, data: { passwordHash: await passwordHash(input.newPassword) } }), prisma.session.deleteMany({ where: { userId: user.id } })]);
+    res.json({ reset: true });
+  } catch (error) { next(error); }
+});
+
 app.get('/api/areas', async (_req, res, next) => {
   try {
     const areas = await prisma.area.findMany({ where: { isActive: true }, orderBy: { name: 'asc' } });
@@ -136,14 +204,20 @@ app.get('/api/providers', async (req, res, next) => {
   try {
     const areaId = typeof req.query.areaId === 'string' ? req.query.areaId : undefined;
     const category = typeof req.query.category === 'string' ? req.query.category : undefined;
+    const q = typeof req.query.q === 'string' ? req.query.q.trim() : undefined;
+    const page = Math.max(1, Number(req.query.page ?? 1));
+    const pageSize = Math.min(50, Math.max(1, Number(req.query.pageSize ?? 20)));
     const providers = await prisma.provider.findMany({
       where: {
         status: ReviewStatus.APPROVED,
         ...(areaId ? { areaId } : {}),
         ...(category ? { categories: { some: { category: { slug: category } } } } : {}),
+        ...(q ? { OR: [{ name: { contains: q, mode: 'insensitive' } }, { description: { contains: q, mode: 'insensitive' } }, { address: { contains: q, mode: 'insensitive' } }, { categories: { some: { category: { name: { contains: q, mode: 'insensitive' } } } } }] } : {}),
       },
       include: { area: true, images: { orderBy: { sortOrder: 'asc' } }, categories: { include: { category: true } } },
       orderBy: [{ isVerified: 'desc' }, { name: 'asc' }],
+      skip: (page - 1) * pageSize,
+      take: pageSize,
     });
     res.json(providers);
   } catch (error) {

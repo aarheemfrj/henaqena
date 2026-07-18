@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -1207,17 +1208,24 @@ class _PromoCarouselState extends State<PromoCarousel> {
   @override
   void initState() {
     super.initState();
-    ApiClient().fetchAds().then((ads) {
-      if (!mounted || ads.isEmpty) return;
-      setState(() {
-        promos = ads.map((ad) => (
-          ad['name'] as String,
-          (ad['description'] as String?) ?? 'إعلان مميز من هنا قنا',
-          Icons.campaign_outlined,
-          gold,
-        )).toList();
-      });
-    }).catchError((_) {});
+    ApiClient()
+        .fetchAds()
+        .then((ads) {
+          if (!mounted || ads.isEmpty) return;
+          setState(() {
+            promos = ads
+                .map(
+                  (ad) => (
+                    ad['name'] as String,
+                    (ad['description'] as String?) ?? 'إعلان مميز من هنا قنا',
+                    Icons.campaign_outlined,
+                    gold,
+                  ),
+                )
+                .toList();
+          });
+        })
+        .catchError((_) {});
   }
 
   @override
@@ -1414,10 +1422,29 @@ class DirectoryPage extends StatefulWidget {
 class _DirectoryPageState extends State<DirectoryPage> {
   late Future<List<ProviderSummary>> providersFuture;
   final api = ApiClient();
+  final searchController = TextEditingController();
+  Timer? searchDebounce;
   @override
   void initState() {
     super.initState();
     providersFuture = api.fetchProviders();
+  }
+
+  @override
+  void dispose() {
+    searchDebounce?.cancel();
+    searchController.dispose();
+    super.dispose();
+  }
+
+  void _search(String value) {
+    searchDebounce?.cancel();
+    searchDebounce = Timer(const Duration(milliseconds: 350), () {
+      if (mounted)
+        setState(
+          () => providersFuture = api.fetchProviders(searchQuery: value),
+        );
+    });
   }
 
   @override
@@ -1443,7 +1470,9 @@ class _DirectoryPageState extends State<DirectoryPage> {
           ],
         ),
         const SizedBox(height: 16),
-        const TextField(
+        TextField(
+          controller: searchController,
+          onChanged: _search,
           decoration: InputDecoration(
             prefixIcon: Icon(Icons.search, color: teal),
             hintText: 'اكتب اسم الخدمة أو المكان',
@@ -2223,6 +2252,7 @@ class _PricesPageState extends State<PricesPage> {
     super.initState();
     pricesFuture = ApiClient().fetchPrices();
   }
+
   @override
   Widget build(BuildContext context) => BasePage(
     title: 'بكام؟',
@@ -2288,10 +2318,30 @@ class _PricesPageState extends State<PricesPage> {
                   key: const ValueKey('prices'),
                   future: pricesFuture,
                   builder: (context, snapshot) {
-                    final items = snapshot.data ?? const <Map<String, dynamic>>[];
-                    if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-                    if (items.isEmpty) return const MiniItem(icon: Icons.sell_outlined, title: 'لا توجد أسعار منشورة بعد', subtitle: 'سيظهر هنا دليل الأسعار بعد اعتماده من الإدارة');
-                    return Column(children: [for (final item in items) MotionIn(child: MiniItem(icon: Icons.sell_outlined, title: item['name'] as String, subtitle: 'من ${item['minPrice']} إلى ${item['maxPrice']} جنيه${item['unit'] == null ? '' : ' · ${item['unit']}'}'))]);
+                    final items =
+                        snapshot.data ?? const <Map<String, dynamic>>[];
+                    if (snapshot.connectionState == ConnectionState.waiting)
+                      return const Center(child: CircularProgressIndicator());
+                    if (items.isEmpty)
+                      return const MiniItem(
+                        icon: Icons.sell_outlined,
+                        title: 'لا توجد أسعار منشورة بعد',
+                        subtitle:
+                            'سيظهر هنا دليل الأسعار بعد اعتماده من الإدارة',
+                      );
+                    return Column(
+                      children: [
+                        for (final item in items)
+                          MotionIn(
+                            child: MiniItem(
+                              icon: Icons.sell_outlined,
+                              title: item['name'] as String,
+                              subtitle:
+                                  'من ${item['minPrice']} إلى ${item['maxPrice']} جنيه${item['unit'] == null ? '' : ' · ${item['unit']}'}',
+                            ),
+                          ),
+                      ],
+                    );
                   },
                 ),
         ),
@@ -2313,10 +2363,14 @@ class _NowPageState extends State<NowPage> {
   @override
   void initState() {
     super.initState();
-    ApiClient().fetchNow().then((items) {
-      if (mounted) setState(() => nowItems = items);
-    }).catchError((_) {});
+    ApiClient()
+        .fetchNow()
+        .then((items) {
+          if (mounted) setState(() => nowItems = items);
+        })
+        .catchError((_) {});
   }
+
   @override
   Widget build(BuildContext context) => BasePage(
     title: 'دلوقتي',
@@ -2368,9 +2422,23 @@ class _NowPageState extends State<NowPage> {
   );
 
   List<Widget> _items() {
-    final live = nowItems.where((item) => selected == 'الكل' || item['category'] == selected).toList();
+    final live = nowItems
+        .where((item) => selected == 'الكل' || item['category'] == selected)
+        .toList();
     if (live.isNotEmpty) {
-      return [for (var index = 0; index < live.length; index++) MotionIn(delay: index * 60, child: _AlertCard(title: live[index]['title'] as String, subtitle: '${live[index]['body'] ?? 'تحديث محلي'} · ${live[index]['area']?['name'] ?? 'قنا'}', icon: Icons.bolt_outlined, color: teal))];
+      return [
+        for (var index = 0; index < live.length; index++)
+          MotionIn(
+            delay: index * 60,
+            child: _AlertCard(
+              title: live[index]['title'] as String,
+              subtitle:
+                  '${live[index]['body'] ?? 'تحديث محلي'} · ${live[index]['area']?['name'] ?? 'قنا'}',
+              icon: Icons.bolt_outlined,
+              color: teal,
+            ),
+          ),
+      ];
     }
     if (selected == 'خدمات ومرافق')
       return const [
@@ -2801,8 +2869,62 @@ class _CreateListingPageState extends State<CreateListingPage> {
     super.dispose();
   }
 
-  Future<void> _pickImages() async { final picked = await ImagePicker().pickMultiImage(imageQuality: 75, maxWidth: 1200); if (!mounted || picked.isEmpty) return; setState(() => selectedImages..clear()..addAll(picked.take(5))); }
-  Future<void> next() async { if (step < 2) { setState(() => step++); return; } if (title.text.trim().length < 3 || double.tryParse(price.text.trim()) == null || selectedImages.isEmpty) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('أكمل العنوان والسعر وأضف صورة واحدة على الأقل'))); return; } try { final area = (await api.fetchAreas()).first; final uploaded = await api.uploadProviderImages(selectedImages); await api.submitListing(title: title.text.trim(), price: double.parse(price.text.trim()), areaId: area.id, images: uploaded.map((image) => image['url'] as String).toList(), description: description.text); if (!mounted) return; Navigator.pop(context); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم إرسال الإعلان للمراجعة'))); } catch (error) { if (!mounted) return; ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString().contains('unauthorized') ? 'سجّل الدخول أولاً لإضافة إعلان' : 'تعذر إرسال الإعلان حالياً'))); } }
+  Future<void> _pickImages() async {
+    final picked = await ImagePicker().pickMultiImage(
+      imageQuality: 75,
+      maxWidth: 1200,
+    );
+    if (!mounted || picked.isEmpty) return;
+    setState(
+      () => selectedImages
+        ..clear()
+        ..addAll(picked.take(5)),
+    );
+  }
+
+  Future<void> next() async {
+    if (step < 2) {
+      setState(() => step++);
+      return;
+    }
+    if (title.text.trim().length < 3 ||
+        double.tryParse(price.text.trim()) == null ||
+        selectedImages.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('أكمل العنوان والسعر وأضف صورة واحدة على الأقل'),
+        ),
+      );
+      return;
+    }
+    try {
+      final area = (await api.fetchAreas()).first;
+      final uploaded = await api.uploadProviderImages(selectedImages);
+      await api.submitListing(
+        title: title.text.trim(),
+        price: double.parse(price.text.trim()),
+        areaId: area.id,
+        images: uploaded.map((image) => image['url'] as String).toList(),
+        description: description.text,
+      );
+      if (!mounted) return;
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تم إرسال الإعلان للمراجعة')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            error.toString().contains('unauthorized')
+                ? 'سجّل الدخول أولاً لإضافة إعلان'
+                : 'تعذر إرسال الإعلان حالياً',
+          ),
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) => Directionality(
@@ -2922,7 +3044,23 @@ class _CreateListingPageState extends State<CreateListingPage> {
             label: Text('إضافة صور (${selectedImages.length}/5)'),
           ),
           if (selectedImages.isNotEmpty)
-            SizedBox(height: 80, child: ListView.separated(scrollDirection: Axis.horizontal, itemCount: selectedImages.length, separatorBuilder: (_, index) => const SizedBox(width: 8), itemBuilder: (_, index) => ClipRRect(borderRadius: BorderRadius.circular(12), child: Image.file(File(selectedImages[index].path), width: 80, height: 80, fit: BoxFit.cover)))),
+            SizedBox(
+              height: 80,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: selectedImages.length,
+                separatorBuilder: (_, index) => const SizedBox(width: 8),
+                itemBuilder: (_, index) => ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.file(
+                    File(selectedImages[index].path),
+                    width: 80,
+                    height: 80,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+            ),
           const SizedBox(height: 12),
           TextField(
             controller: description,
@@ -3162,86 +3300,94 @@ class AccountPage extends StatelessWidget {
         future: ApiClient().fetchMe(),
         builder: (context, snapshot) {
           final profile = snapshot.data;
-          final profileName = profile?['name'] as String? ?? AuthSession.name ?? 'حسابي';
+          final profileName =
+              profile?['name'] as String? ?? AuthSession.name ?? 'حسابي';
           final points = profile?['points'] as int? ?? 0;
           final level = profile?['level'] as String? ?? 'QENAWY';
-          final levelLabel = level == 'QENAWY_ASIL' ? 'قناوي أصيل' : level == 'QENAWY_RAYEQ' ? 'قناوي رايق' : 'قناوي';
+          final levelLabel = level == 'QENAWY_ASIL'
+              ? 'قناوي أصيل'
+              : level == 'QENAWY_RAYEQ'
+              ? 'قناوي رايق'
+              : 'قناوي';
           return ListView(
-        padding: const EdgeInsets.all(18),
-        children: [
-          Card(
-            elevation: 0,
-            color: Colors.white,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(18),
-            ),
-              child: ListTile(
-              contentPadding: EdgeInsets.all(14),
-              leading: CircleAvatar(
-                radius: 25,
-                backgroundColor: deepTeal,
-                child: Text(
-                  profileName.isEmpty ? 'هـ' : profileName.characters.first,
-                  style: TextStyle(color: Colors.white, fontSize: 18),
+            padding: const EdgeInsets.all(18),
+            children: [
+              Card(
+                elevation: 0,
+                color: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: ListTile(
+                  contentPadding: EdgeInsets.all(14),
+                  leading: CircleAvatar(
+                    radius: 25,
+                    backgroundColor: deepTeal,
+                    child: Text(
+                      profileName.isEmpty ? 'هـ' : profileName.characters.first,
+                      style: TextStyle(color: Colors.white, fontSize: 18),
+                    ),
+                  ),
+                  title: Text(
+                    profileName,
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  subtitle: Text(
+                    '$levelLabel · $points نقطة',
+                    style: TextStyle(color: teal),
+                  ),
+                  trailing: Icon(Icons.chevron_left),
                 ),
               ),
-              title: Text(
-                profileName,
-                style: TextStyle(fontWeight: FontWeight.w700),
+              const SizedBox(height: 10),
+              _AccountTile(
+                icon: Icons.notifications_none,
+                title: 'الإشعارات',
+                subtitle: '3 إشعارات جديدة',
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const NotificationsPage()),
+                ),
               ),
-              subtitle: Text(
-                '$levelLabel · $points نقطة',
-                style: TextStyle(color: teal),
+              _AccountTile(
+                icon: Icons.favorite_border,
+                title: 'المفضلة',
+                onTap: () {},
               ),
-              trailing: Icon(Icons.chevron_left),
-            ),
-          ),
-          const SizedBox(height: 10),
-          _AccountTile(
-            icon: Icons.notifications_none,
-            title: 'الإشعارات',
-            subtitle: '3 إشعارات جديدة',
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const NotificationsPage()),
-            ),
-          ),
-          _AccountTile(
-            icon: Icons.favorite_border,
-            title: 'المفضلة',
-            onTap: () {},
-          ),
-          _AccountTile(
-            icon: Icons.rate_review_outlined,
-            title: 'تقييماتي ومساهماتي',
-            onTap: () {},
-          ),
-          _AccountTile(
-            icon: Icons.campaign_outlined,
-            title: 'إعلاناتي',
-            onTap: () {},
-          ),
-          const Divider(height: 26),
-          _AccountTile(
-            icon: Icons.settings_outlined,
-            title: 'الإعدادات',
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const SettingsPage()),
-            ),
-          ),
-          _AccountTile(
-            icon: Icons.help_outline,
-            title: 'المساعدة والدعم',
-            onTap: () {},
-          ),
-          _AccountTile(
-            icon: Icons.delete_outline,
-            title: 'حذف الحساب',
-            onTap: () {},
-            destructive: true,
-          ),
-          ],
+              _AccountTile(
+                icon: Icons.rate_review_outlined,
+                title: 'تقييماتي ومساهماتي',
+                onTap: () {},
+              ),
+              _AccountTile(
+                icon: Icons.campaign_outlined,
+                title: 'إعلاناتي',
+                onTap: () {},
+              ),
+              const Divider(height: 26),
+              _AccountTile(
+                icon: Icons.settings_outlined,
+                title: 'الإعدادات',
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const SettingsPage()),
+                ),
+              ),
+              _AccountTile(
+                icon: Icons.help_outline,
+                title: 'المساعدة والدعم',
+                onTap: () {},
+              ),
+              _AccountTile(
+                icon: Icons.delete_outline,
+                title: 'حذف الحساب',
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const SettingsPage()),
+                ),
+                destructive: true,
+              ),
+            ],
           );
         },
       ),
@@ -3286,8 +3432,10 @@ class NotificationsPage extends StatefulWidget {
 
 class _NotificationsPageState extends State<NotificationsPage> {
   final api = ApiClient();
-  late Future<List<Map<String, dynamic>>> notifications = api.fetchNotifications();
-  Future<void> _reload() async => setState(() => notifications = api.fetchNotifications());
+  late Future<List<Map<String, dynamic>>> notifications = api
+      .fetchNotifications();
+  Future<void> _reload() async =>
+      setState(() => notifications = api.fetchNotifications());
   @override
   Widget build(BuildContext context) => Directionality(
     textDirection: TextDirection.rtl,
@@ -3295,15 +3443,77 @@ class _NotificationsPageState extends State<NotificationsPage> {
       appBar: AppBar(
         title: const Text('الإشعارات'),
         actions: [
-          TextButton(onPressed: _reload, child: const Text('تحديث')),
+          TextButton(
+            onPressed: () async {
+              await api.markAllNotificationsRead();
+              await _reload();
+            },
+            child: const Text('تحديد الكل'),
+          ),
         ],
       ),
-      body: FutureBuilder<List<Map<String, dynamic>>>(future: notifications, builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator(color: teal));
-        final items = snapshot.data ?? const <Map<String, dynamic>>[];
-        if (items.isEmpty) return RefreshIndicator(onRefresh: _reload, color: teal, child: ListView(children: const [Padding(padding: EdgeInsets.all(40), child: Text('مفيش إشعارات جديدة دلوقتي.', textAlign: TextAlign.center, style: TextStyle(color: muted)))]));
-        return RefreshIndicator(onRefresh: _reload, color: teal, child: ListView(padding: const EdgeInsets.all(18), children: [const Text('الإشعارات', style: TextStyle(color: deepTeal, fontWeight: FontWeight.w700)), const SizedBox(height: 8), ...items.asMap().entries.map((entry) { final item = entry.value; return MotionIn(delay: entry.key * 50, child: _NotificationCard(icon: Icons.notifications_none, title: item['title'] as String? ?? 'تحديث جديد', subtitle: item['body'] as String? ?? '', unread: item['readAt'] == null)); })]));
-      }),
+      body: FutureBuilder<List<Map<String, dynamic>>>(
+        future: notifications,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting)
+            return const Center(child: CircularProgressIndicator(color: teal));
+          final items = snapshot.data ?? const <Map<String, dynamic>>[];
+          if (items.isEmpty)
+            return RefreshIndicator(
+              onRefresh: _reload,
+              color: teal,
+              child: ListView(
+                children: const [
+                  Padding(
+                    padding: EdgeInsets.all(40),
+                    child: Text(
+                      'مفيش إشعارات جديدة دلوقتي.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: muted),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          return RefreshIndicator(
+            onRefresh: _reload,
+            color: teal,
+            child: ListView(
+              padding: const EdgeInsets.all(18),
+              children: [
+                const Text(
+                  'الإشعارات',
+                  style: TextStyle(
+                    color: deepTeal,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ...items.asMap().entries.map((entry) {
+                  final item = entry.value;
+                  return MotionIn(
+                    delay: entry.key * 50,
+                    child: GestureDetector(
+                      onTap: () async {
+                        if (item['readAt'] == null) {
+                          await api.markNotificationRead(item['id'] as String);
+                          await _reload();
+                        }
+                      },
+                      child: _NotificationCard(
+                        icon: Icons.notifications_none,
+                        title: item['title'] as String? ?? 'تحديث جديد',
+                        subtitle: item['body'] as String? ?? '',
+                        unread: item['readAt'] == null,
+                      ),
+                    ),
+                  );
+                }),
+              ],
+            ),
+          );
+        },
+      ),
     ),
   );
 }
@@ -3914,13 +4124,130 @@ class _SettingsPageState extends State<SettingsPage> {
   bool allNotifications = true;
   bool areaOnly = false;
   bool privateProfile = false;
-  Future<void> _savePreferences() async {
+  Future<void> _logoutAll() async {
     try {
-      await api.updatePreferences(profilePrivate: privateProfile, notificationScope: areaOnly ? 'area' : 'all', notificationDigest: !allNotifications);
+      await api.logoutAll();
+      if (mounted)
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+          (_) => false,
+        );
     } catch (_) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر حفظ الإعدادات حالياً')));
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تعذر تسجيل الخروج حالياً')),
+        );
     }
   }
+
+  Future<void> _deleteAccount() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('حذف الحساب؟'),
+        content: const Text(
+          'سيتم حذف بيانات الحساب والإعلانات المرتبطة به نهائياً.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('حذف'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await api.deleteAccount();
+      if (mounted)
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+          (_) => false,
+        );
+    } catch (_) {
+      if (mounted)
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('تعذر حذف الحساب حالياً')));
+    }
+  }
+
+  Future<void> _changePassword() async {
+    final current = TextEditingController();
+    final next = TextEditingController();
+    final submit = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('تغيير كلمة المرور'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: current,
+              obscureText: true,
+              decoration: const InputDecoration(
+                labelText: 'كلمة المرور الحالية',
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: next,
+              obscureText: true,
+              decoration: const InputDecoration(
+                labelText: 'كلمة المرور الجديدة',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('حفظ'),
+          ),
+        ],
+      ),
+    );
+    if (submit != true) return;
+    try {
+      await api.changePassword(
+        currentPassword: current.text,
+        newPassword: next.text,
+      );
+      if (mounted)
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('تم تغيير كلمة المرور')));
+    } catch (_) {
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تأكد من كلمة المرور الجديدة والحالية')),
+        );
+    }
+  }
+
+  Future<void> _savePreferences() async {
+    try {
+      await api.updatePreferences(
+        profilePrivate: privateProfile,
+        notificationScope: areaOnly ? 'area' : 'all',
+        notificationDigest: !allNotifications,
+      );
+    } catch (_) {
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تعذر حفظ الإعدادات حالياً')),
+        );
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Directionality(
     textDirection: TextDirection.rtl,
@@ -3978,6 +4305,16 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ),
           ),
+          _AccountTile(
+            icon: Icons.password_outlined,
+            title: 'تغيير كلمة المرور',
+            onTap: _changePassword,
+          ),
+          _AccountTile(
+            icon: Icons.logout,
+            title: 'تسجيل الخروج من كل الأجهزة',
+            onTap: _logoutAll,
+          ),
           const Divider(height: 26),
           const Text(
             'الإشعارات',
@@ -3987,14 +4324,20 @@ class _SettingsPageState extends State<SettingsPage> {
             contentPadding: EdgeInsets.zero,
             title: const Text('كل الإشعارات'),
             value: allNotifications,
-            onChanged: (value) { setState(() => allNotifications = value); _savePreferences(); },
+            onChanged: (value) {
+              setState(() => allNotifications = value);
+              _savePreferences();
+            },
             activeThumbColor: teal,
           ),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             title: const Text('إشعارات منطقتي فقط'),
             value: areaOnly,
-            onChanged: (value) { setState(() => areaOnly = value); _savePreferences(); },
+            onChanged: (value) {
+              setState(() => areaOnly = value);
+              _savePreferences();
+            },
             activeThumbColor: teal,
           ),
           const Divider(height: 26),
@@ -4010,7 +4353,10 @@ class _SettingsPageState extends State<SettingsPage> {
               style: TextStyle(color: muted, fontSize: 12),
             ),
             value: privateProfile,
-            onChanged: (value) { setState(() => privateProfile = value); _savePreferences(); },
+            onChanged: (value) {
+              setState(() => privateProfile = value);
+              _savePreferences();
+            },
             activeThumbColor: teal,
           ),
           const Divider(height: 26),
@@ -4019,6 +4365,12 @@ class _SettingsPageState extends State<SettingsPage> {
             leading: Icon(Icons.location_on_outlined, color: teal),
             title: Text('المناطق المختارة'),
             subtitle: Text('قنا كلها', style: TextStyle(color: muted)),
+          ),
+          _AccountTile(
+            icon: Icons.delete_forever_outlined,
+            title: 'حذف الحساب نهائياً',
+            onTap: _deleteAccount,
+            destructive: true,
           ),
           const ListTile(
             contentPadding: EdgeInsets.zero,
