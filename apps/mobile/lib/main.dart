@@ -722,8 +722,9 @@ class _ContributionsPageState extends State<ContributionsPage> {
       body: FutureBuilder<Map<String, dynamic>>(
         future: contributions,
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting)
+          if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator(color: teal));
+          }
           if (snapshot.hasError) {
             return _StateMessage(
               icon: Icons.lock_outline,
@@ -2354,8 +2355,9 @@ class _DirectoryPageState extends State<DirectoryPage> {
   void _search(String value) {
     searchDebounce?.cancel();
     searchDebounce = Timer(const Duration(milliseconds: 350), () {
-      if (mounted)
+      if (mounted) {
         setState(() => providersFuture = _fetchProviders(searchQuery: value));
+      }
     });
   }
 
@@ -2942,7 +2944,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                     context,
                     MaterialPageRoute(builder: (_) => const AuthPage()),
                   );
-                  if (!AuthSession.isSignedIn || !mounted) return;
+                  if (!AuthSession.isSignedIn || !context.mounted) return;
                 }
                 await Navigator.push(
                   context,
@@ -3844,15 +3846,17 @@ class _PricesPageState extends State<PricesPage> {
                   builder: (context, snapshot) {
                     final items =
                         snapshot.data ?? const <Map<String, dynamic>>[];
-                    if (snapshot.connectionState == ConnectionState.waiting)
+                    if (snapshot.connectionState == ConnectionState.waiting) {
                       return const Center(child: CircularProgressIndicator());
-                    if (items.isEmpty)
+                    }
+                    if (items.isEmpty) {
                       return const MiniItem(
                         icon: Icons.sell_outlined,
                         title: 'لا توجد أسعار منشورة بعد',
                         subtitle:
                             'سيظهر هنا دليل الأسعار بعد اعتماده من الإدارة',
                       );
+                    }
                     return Column(
                       children: [
                         for (final item in items)
@@ -4834,7 +4838,7 @@ class _CreateListingPageState extends State<CreateListingPage> {
     ),
   );
   Widget _body() {
-    if (step == 0)
+    if (step == 0) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -4917,7 +4921,8 @@ class _CreateListingPageState extends State<CreateListingPage> {
           ),
         ],
       );
-    if (step == 1)
+    }
+    if (step == 1) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -4969,6 +4974,7 @@ class _CreateListingPageState extends State<CreateListingPage> {
           ),
         ],
       );
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -5855,10 +5861,11 @@ class _NotificationsPageState extends State<NotificationsPage> {
       body: FutureBuilder<List<Map<String, dynamic>>>(
         future: notifications,
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting)
+          if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator(color: teal));
+          }
           final items = snapshot.data ?? const <Map<String, dynamic>>[];
-          if (items.isEmpty)
+          if (items.isEmpty) {
             return RefreshIndicator(
               onRefresh: _reload,
               color: teal,
@@ -5875,6 +5882,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
                 ],
               ),
             );
+          }
           return RefreshIndicator(
             onRefresh: _reload,
             color: teal,
@@ -6860,32 +6868,36 @@ class _SettingsPageState extends State<SettingsPage> {
     if (ok != true) return;
     try {
       await api.adminLogin(email: email.text.trim(), password: password.text);
-      if (mounted)
+      if (mounted) {
         Navigator.push(
           context,
           MaterialPageRoute(builder: (_) => const AdminControlPage()),
         );
+      }
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('بيانات الإدارة غير صحيحة')),
         );
+      }
     }
   }
 
   Future<void> _logoutAll() async {
     try {
       await api.logoutAll();
-      if (mounted)
+      if (mounted) {
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (_) => const WelcomeScreen()),
           (_) => false,
         );
+      }
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('تعذر تسجيل الخروج حالياً')),
         );
+      }
     }
   }
 
@@ -6912,16 +6924,18 @@ class _SettingsPageState extends State<SettingsPage> {
     if (confirmed != true) return;
     try {
       await api.deleteAccount();
-      if (mounted)
+      if (mounted) {
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (_) => const WelcomeScreen()),
           (_) => false,
         );
+      }
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text('تعذر حذف الحساب حالياً')));
+      }
     }
   }
 
@@ -6970,15 +6984,17 @@ class _SettingsPageState extends State<SettingsPage> {
         currentPassword: current.text,
         newPassword: next.text,
       );
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text('تم تغيير كلمة المرور')));
+      }
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('تأكد من كلمة المرور الجديدة والحالية')),
         );
+      }
     }
   }
 
@@ -6995,10 +7011,11 @@ class _SettingsPageState extends State<SettingsPage> {
         gender: gender,
       );
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('تعذر حفظ الإعدادات حالياً')),
         );
+      }
     }
   }
 
@@ -7189,16 +7206,9 @@ class _SettingsPageState extends State<SettingsPage> {
           _AccountTile(
             icon: Icons.tune_outlined,
             title: 'بيانات الترشيحات',
-            subtitle:
-                [
-                  if (ageRange != null) ageRange!,
-                  if (gender != null) gender!,
-                ].isEmpty
+            subtitle: [?ageRange, ?gender].isEmpty
                 ? 'لم تحدد السن أو النوع'
-                : [
-                    if (ageRange != null) ageRange!,
-                    if (gender != null) gender!,
-                  ].join(' · '),
+                : [?ageRange, ?gender].join(' · '),
             onTap: () => _requireAccount(_pickDemographics),
           ),
           _AccountTile(

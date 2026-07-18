@@ -149,12 +149,13 @@ class ApiClient {
   Future<List<Map<String, dynamic>>> fetchAds({String? areaId}) async {
     final uri = Uri.parse(
       '$baseUrl/api/ads',
-    ).replace(queryParameters: {if (areaId != null) 'areaId': areaId});
+    ).replace(queryParameters: {'areaId': ?areaId});
     final response = await http
         .get(uri, headers: _jsonHeaders)
         .timeout(const Duration(seconds: 5));
-    if (response.statusCode != 200)
+    if (response.statusCode != 200) {
       throw Exception('API error ${response.statusCode}');
+    }
     return (jsonDecode(response.body) as List<dynamic>).map((item) {
       final ad = Map<String, dynamic>.from(item as Map);
       ad['imageUrl'] = _absoluteUrl(baseUrl, ad['imageUrl'] as String?);
@@ -174,10 +175,11 @@ class ApiClient {
   Future<List<Map<String, dynamic>>> fetchPrices({String? areaId}) async {
     final uri = Uri.parse(
       '$baseUrl/api/prices',
-    ).replace(queryParameters: {if (areaId != null) 'areaId': areaId});
+    ).replace(queryParameters: {'areaId': ?areaId});
     final response = await http.get(uri).timeout(const Duration(seconds: 5));
-    if (response.statusCode != 200)
+    if (response.statusCode != 200) {
       throw Exception('API error ${response.statusCode}');
+    }
     return (jsonDecode(response.body) as List<dynamic>)
         .map((item) => Map<String, dynamic>.from(item as Map))
         .toList();
@@ -186,7 +188,7 @@ class ApiClient {
   Future<List<Map<String, dynamic>>> fetchOffers({String? areaId}) async {
     final uri = Uri.parse(
       '$baseUrl/api/offers',
-    ).replace(queryParameters: {if (areaId != null) 'areaId': areaId});
+    ).replace(queryParameters: {'areaId': ?areaId});
     final response = await http.get(uri).timeout(const Duration(seconds: 5));
     if (response.statusCode != 200) throw Exception('offers_error');
     return (jsonDecode(response.body) as List<dynamic>)
@@ -197,10 +199,11 @@ class ApiClient {
   Future<List<Map<String, dynamic>>> fetchNow({String? areaId}) async {
     final uri = Uri.parse(
       '$baseUrl/api/now',
-    ).replace(queryParameters: {if (areaId != null) 'areaId': areaId});
+    ).replace(queryParameters: {'areaId': ?areaId});
     final response = await http.get(uri).timeout(const Duration(seconds: 5));
-    if (response.statusCode != 200)
+    if (response.statusCode != 200) {
       throw Exception('API error ${response.statusCode}');
+    }
     return (jsonDecode(response.body) as List<dynamic>)
         .map((item) => Map<String, dynamic>.from(item as Map))
         .toList();
@@ -463,8 +466,9 @@ class ApiClient {
         )
         .timeout(const Duration(seconds: 8));
     if (response.statusCode == 401) throw Exception('unauthorized');
-    if (response.statusCode != 200)
+    if (response.statusCode != 200) {
       throw Exception('verification_request_error');
+    }
     return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
   }
 
@@ -476,8 +480,9 @@ class ApiClient {
           body: jsonEncode({'channel': channel, 'code': code.trim()}),
         )
         .timeout(const Duration(seconds: 8));
-    if (response.statusCode != 200)
+    if (response.statusCode != 200) {
       throw Exception('verification_confirm_error');
+    }
   }
 
   Future<void> confirmPasswordReset({
@@ -526,8 +531,9 @@ class ApiClient {
     final response = await http
         .get(Uri.parse('$baseUrl/api/categories'))
         .timeout(const Duration(seconds: 3));
-    if (response.statusCode != 200)
+    if (response.statusCode != 200) {
       throw Exception('API error ${response.statusCode}');
+    }
     return (jsonDecode(response.body) as List<dynamic>)
         .map((item) => CategoryOption.fromJson(item as Map<String, dynamic>))
         .toList();
@@ -537,8 +543,9 @@ class ApiClient {
     final response = await http
         .get(Uri.parse('$baseUrl/api/areas'))
         .timeout(const Duration(seconds: 3));
-    if (response.statusCode != 200)
+    if (response.statusCode != 200) {
       throw Exception('API error ${response.statusCode}');
+    }
     return (jsonDecode(response.body) as List<dynamic>)
         .map((item) => AreaOption.fromJson(item as Map<String, dynamic>))
         .toList();
@@ -554,8 +561,9 @@ class ApiClient {
         .timeout(const Duration(seconds: 8));
     if (response.statusCode == 409) throw Exception('duplicate');
     if (response.statusCode == 401) throw Exception('unauthorized');
-    if (response.statusCode != 201)
+    if (response.statusCode != 201) {
       throw Exception('API error ${response.statusCode}');
+    }
   }
 
   Future<List<Map<String, dynamic>>> uploadProviderImages(
@@ -623,7 +631,7 @@ class ApiClient {
           body: jsonEncode({
             'name': name.trim(),
             'email': email?.trim() ?? '',
-            if (avatarUrl != null) 'avatarUrl': avatarUrl,
+            'avatarUrl': ?avatarUrl,
           }),
         )
         .timeout(const Duration(seconds: 8));
@@ -641,8 +649,9 @@ class ApiClient {
         )
         .timeout(const Duration(seconds: 8));
     if (response.statusCode == 401) throw Exception('unauthorized');
-    if (response.statusCode != 201)
+    if (response.statusCode != 201) {
       throw Exception('API error ${response.statusCode}');
+    }
   }
 
   Future<List<ProviderSummary>> fetchProviders({
@@ -669,8 +678,9 @@ class ApiClient {
       '$baseUrl/api/providers',
     ).replace(queryParameters: params);
     final response = await http.get(uri).timeout(const Duration(seconds: 3));
-    if (response.statusCode != 200)
+    if (response.statusCode != 200) {
       throw Exception('API error ${response.statusCode}');
+    }
     final data = jsonDecode(response.body) as List<dynamic>;
     return data
         .map(
@@ -684,8 +694,9 @@ class ApiClient {
     final response = await http
         .get(Uri.parse('$baseUrl/api/providers/$id'), headers: _jsonHeaders)
         .timeout(const Duration(seconds: 5));
-    if (response.statusCode != 200)
+    if (response.statusCode != 200) {
       throw Exception('API error ${response.statusCode}');
+    }
     return ProviderDetails.fromJson(
       jsonDecode(response.body) as Map<String, dynamic>,
       baseUrl,
@@ -785,7 +796,7 @@ class ApiClient {
   }) async {
     final uri = Uri.parse('$baseUrl/api/listings').replace(
       queryParameters: {
-        if (areaId != null) 'areaId': areaId,
+        'areaId': ?areaId,
         if (category != null && category.isNotEmpty) 'category': category,
         if (query != null && query.trim().isNotEmpty) 'q': query.trim(),
       },
