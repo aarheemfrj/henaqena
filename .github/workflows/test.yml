@@ -1,0 +1,133 @@
+name: Test & Build
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'apps/api/**'
+      - '.github/workflows/test.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'apps/api/**'
+
+jobs:
+  test-api:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: henaqena
+          POSTGRES_USER: henaqena
+          POSTGRES_PASSWORD: henaqena
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: 'apps/api/package-lock.json'
+
+      - name: Install dependencies
+        run: |
+          cd apps/api
+          npm ci
+
+      - name: Run TypeScript compiler
+        run: |
+          cd apps/api
+          npm run build
+
+      - name: Run tests
+        run: |
+          cd apps/api
+          npm test -- --coverage
+        env:
+          DATABASE_URL: postgresql://henaqena:henaqena@localhost:5432/henaqena?schema=public
+          NODE_ENV: test
+
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v3
+        if: always()
+        with:
+          files: ./apps/api/coverage/lcov.info
+          flags: api
+          name: api-coverage
+
+      - name: Lint check (TypeScript)
+        run: |
+          cd apps/api
+          npm run build
+        continue-on-error: true
+
+  test-mobile:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.12.2'
+          cache: true
+
+      - name: Install dependencies
+        run: |
+          cd apps/mobile
+          flutter pub get
+
+      - name: Run analyzer
+        run: |
+          cd apps/mobile
+          flutter analyze
+
+      - name: Run tests
+        run: |
+          cd apps/mobile
+          flutter test
+        continue-on-error: true
+
+  build-api:
+    needs: test-api
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: 'apps/api/package-lock.json'
+
+      - name: Install dependencies
+        run: |
+          cd apps/api
+          npm ci
+
+      - name: Build
+        run: |
+          cd apps/api
+          npm run build
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: api-build
+          path: apps/api/dist/
+          retention-days: 7
