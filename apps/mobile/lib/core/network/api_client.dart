@@ -87,6 +87,39 @@ class ApiClient {
           );
   final String baseUrl;
 
+  Future<List<Map<String, dynamic>>> fetchAds({String? areaId}) async {
+    final uri = Uri.parse('$baseUrl/api/ads').replace(queryParameters: {
+      if (areaId != null) 'areaId': areaId,
+    });
+    final response = await http.get(uri).timeout(const Duration(seconds: 5));
+    if (response.statusCode != 200) throw Exception('API error ${response.statusCode}');
+    return (jsonDecode(response.body) as List<dynamic>)
+        .map((item) => Map<String, dynamic>.from(item as Map))
+        .toList();
+  }
+
+  Future<List<Map<String, dynamic>>> fetchPrices({String? areaId}) async {
+    final uri = Uri.parse('$baseUrl/api/prices').replace(queryParameters: {
+      if (areaId != null) 'areaId': areaId,
+    });
+    final response = await http.get(uri).timeout(const Duration(seconds: 5));
+    if (response.statusCode != 200) throw Exception('API error ${response.statusCode}');
+    return (jsonDecode(response.body) as List<dynamic>)
+        .map((item) => Map<String, dynamic>.from(item as Map))
+        .toList();
+  }
+
+  Future<List<Map<String, dynamic>>> fetchNow({String? areaId}) async {
+    final uri = Uri.parse('$baseUrl/api/now').replace(queryParameters: {
+      if (areaId != null) 'areaId': areaId,
+    });
+    final response = await http.get(uri).timeout(const Duration(seconds: 5));
+    if (response.statusCode != 200) throw Exception('API error ${response.statusCode}');
+    return (jsonDecode(response.body) as List<dynamic>)
+        .map((item) => Map<String, dynamic>.from(item as Map))
+        .toList();
+  }
+
   Map<String, String> get _jsonHeaders => {
     'content-type': 'application/json',
     if (AuthSession.isSignedIn) 'authorization': 'Bearer ${AuthSession.token}',

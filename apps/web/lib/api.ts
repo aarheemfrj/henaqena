@@ -32,6 +32,12 @@ export async function apiPatch<T>(path: string, body: Record<string, unknown>): 
   return response.json() as Promise<T>;
 }
 
+export async function apiPost<T>(path: string, body: Record<string, unknown>): Promise<T> {
+  const response = await fetch(`${apiBaseUrl}${path}`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-admin-key': process.env.ADMIN_API_KEY ?? 'dev-henaqena-admin' }, body: JSON.stringify(body), cache: 'no-store' });
+  if (!response.ok) throw new Error(`API request failed: ${response.status}`);
+  return response.json() as Promise<T>;
+}
+
 export function getApiBaseUrl() {
   return apiBaseUrl;
 }

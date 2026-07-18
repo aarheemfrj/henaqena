@@ -1188,7 +1188,7 @@ class PromoCarousel extends StatefulWidget {
 class _PromoCarouselState extends State<PromoCarousel> {
   final controller = PageController(viewportFraction: .94);
   int active = 0;
-  final promos = const [
+  List<(String, String, IconData, Color)> promos = [
     ('إعلان مميز', 'خصم خاص لأهل قنا اليوم', Icons.campaign_outlined, gold),
     (
       'قنا كلها هنا',
@@ -1203,6 +1203,22 @@ class _PromoCarouselState extends State<PromoCarousel> {
       deepTeal,
     ),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    ApiClient().fetchAds().then((ads) {
+      if (!mounted || ads.isEmpty) return;
+      setState(() {
+        promos = ads.map((ad) => (
+          ad['name'] as String,
+          (ad['description'] as String?) ?? 'إعلان مميز من هنا قنا',
+          Icons.campaign_outlined,
+          gold,
+        )).toList();
+      });
+    }).catchError((_) {});
+  }
 
   @override
   void dispose() {
@@ -2200,6 +2216,13 @@ class PricesPage extends StatefulWidget {
 
 class _PricesPageState extends State<PricesPage> {
   String selected = 'offers';
+  late Future<List<Map<String, dynamic>>> pricesFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    pricesFuture = ApiClient().fetchPrices();
+  }
   @override
   Widget build(BuildContext context) => BasePage(
     title: 'بكام؟',
@@ -2261,26 +2284,15 @@ class _PricesPageState extends State<PricesPage> {
                     ),
                   ],
                 )
-              : const Column(
-                  key: ValueKey('prices'),
-                  children: [
-                    MotionIn(
-                      child: MiniItem(
-                        icon: Icons.shopping_basket_outlined,
-                        title: 'زيت عباد الشمس — 1 لتر',
-                        subtitle:
-                            'السعر المعتاد 72 جنيه · من 68 إلى 77 · منذ يومين',
-                      ),
-                    ),
-                    MotionIn(
-                      delay: 60,
-                      child: MiniItem(
-                        icon: Icons.home_repair_service_outlined,
-                        title: 'تركيب تكييف',
-                        subtitle: 'من 800 إلى 1,200 جنيه · سعر تقريبي',
-                      ),
-                    ),
-                  ],
+              : FutureBuilder<List<Map<String, dynamic>>>(
+                  key: const ValueKey('prices'),
+                  future: pricesFuture,
+                  builder: (context, snapshot) {
+                    final items = snapshot.data ?? const <Map<String, dynamic>>[];
+                    if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+                    if (items.isEmpty) return const MiniItem(icon: Icons.sell_outlined, title: 'لا توجد أسعار منشورة بعد', subtitle: 'سيظهر هنا دليل الأسعار بعد اعتماده من الإدارة');
+                    return Column(children: [for (final item in items) MotionIn(child: MiniItem(icon: Icons.sell_outlined, title: item['name'] as String, subtitle: 'من ${item['minPrice']} إلى ${item['maxPrice']} جنيه${item['unit'] == null ? '' : ' · ${item['unit']}'}'))]);
+                  },
                 ),
         ),
       ],
@@ -2296,6 +2308,15 @@ class NowPage extends StatefulWidget {
 
 class _NowPageState extends State<NowPage> {
   String selected = 'الكل';
+  List<Map<String, dynamic>> nowItems = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    ApiClient().fetchNow().then((items) {
+      if (mounted) setState(() => nowItems = items);
+    }).catchError((_) {});
+  }
   @override
   Widget build(BuildContext context) => BasePage(
     title: 'دلوقتي',
@@ -2347,6 +2368,10 @@ class _NowPageState extends State<NowPage> {
   );
 
   List<Widget> _items() {
+    final live = nowItems.where((item) => selected == 'الكل' || item['category'] == selected).toList();
+    if (live.isNotEmpty) {
+      return [for (var index = 0; index < live.length; index++) MotionIn(delay: index * 60, child: _AlertCard(title: live[index]['title'] as String, subtitle: '${live[index]['body'] ?? 'تحديث محلي'} · ${live[index]['area']?['name'] ?? 'قنا'}', icon: Icons.bolt_outlined, color: teal))];
+    }
     if (selected == 'خدمات ومرافق')
       return const [
         MotionIn(

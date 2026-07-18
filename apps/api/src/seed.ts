@@ -31,6 +31,10 @@ async function main() {
     if (existing) continue;
     await prisma.provider.create({ data: { name: provider.name, description: provider.description, areaId: provider.areaId, ownerId: seedUser.id, status: ReviewStatus.APPROVED, isVerified: true, images: { create: [{ url: '/assets/brand/temp-logo-mark.svg', sortOrder: 0, kind: 'temporary' }] }, categories: { create: { categoryId: provider.categoryId } } } });
   }
+  const existingPrice = await prisma.priceGuide.findFirst({ where: { name: 'زيت عباد الشمس — 1 لتر' } });
+  if (!existingPrice) await prisma.priceGuide.create({ data: { name: 'زيت عباد الشمس — 1 لتر', category: 'سوبر ماركت', minPrice: 68, maxPrice: 77, unit: 'للعبوة', sourceNote: 'متوسط رصد مجتمعي', areaId: mainArea.id, status: ReviewStatus.APPROVED } });
+  const existingUpdate = await prisma.nowUpdate.findFirst({ where: { title: 'تحديثات قنا اليومية' } });
+  if (!existingUpdate) await prisma.nowUpdate.create({ data: { title: 'تحديثات قنا اليومية', body: 'تابع الأخبار والخدمات المحلية الجديدة من حولك.', category: 'عام', areaId: mainArea.id, status: ReviewStatus.APPROVED } });
   console.log(`Seeded ${areaRecords.length} areas, ${categoryRecords.length} categories, and ${providers.length} demo providers.`);
 }
 

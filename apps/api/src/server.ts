@@ -268,15 +268,52 @@ app.get('/api/ads', async (req, res, next) => {
 });
 
 const adCreateSchema = z.object({ name: z.string().trim().min(2).max(120), imageUrl: z.string().url(), description: z.string().trim().max(600).optional(), targetUrl: z.string().url().optional(), weight: z.number().int().min(1).max(100).default(100), areaId: z.string().min(1).nullable().optional(), startsAt: z.coerce.date(), endsAt: z.coerce.date() });
-app.post('/api/ads', async (req, res, next) => {
+app.post('/api/ads', requireAdmin, async (req, res, next) => {
   try {
-    const session = await sessionFromRequest(req);
-    if (!session) return res.status(401).json({ message: 'سجّل الدخول أولاً لإرسال إعلان' });
     const input = adCreateSchema.parse(req.body);
     if (input.endsAt <= input.startsAt) return res.status(400).json({ message: 'تاريخ الانتهاء يجب أن يكون بعد البداية' });
     const ad = await prisma.ad.create({ data: { ...input, areaId: input.areaId ?? null, status: ReviewStatus.PENDING } });
     res.status(201).json(ad);
   } catch (error) { next(error); }
+});
+
+app.get('/api/prices', async (req, res, next) => {
+  try {
+    const areaId = typeof req.query.areaId === 'string' ? req.query.areaId : undefined;
+    const category = typeof req.query.category === 'string' ? req.query.category : undefined;
+    const prices = await prisma.priceGuide.findMany({ where: { status: ReviewStatus.APPROVED, ...(category ? { category } : {}), ...(areaId ? { OR: [{ areaId: null }, { areaId }] } : {}) }, include: { area: true }, orderBy: { updatedAt: 'desc' }, take: 100 });
+    res.json(prices);
+  } catch (error) { next(error); }
+});
+
+const priceCreateSchema = z.object({ name: z.string().trim().min(2).max(120), category: z.string().trim().max(80).optional(), minPrice: z.number().nonnegative().max(999999999), maxPrice: z.number().nonnegative().max(999999999), unit: z.string().trim().max(40).optional(), sourceNote: z.string().trim().max(300).optional(), areaId: z.string().min(1).nullable().optional() }).refine((value) => value.maxPrice >= value.minPrice, { message: 'الحد الأقصى يجب أن يكون أكبر من أو يساوي الحد الأدنى' });
+app.get('/api/admin/prices', requireAdmin, async (_req, res, next) => {
+  try { res.json(await prisma.priceGuide.findMany({ include: { area: true }, orderBy: { updatedAt: 'desc' } })); } catch (error) { next(error); }
+});
+app.post('/api/admin/prices', requireAdmin, async (req, res, next) => {
+  try { const input = priceCreateSchema.parse(req.body); const price = await prisma.priceGuide.create({ data: { ...input, areaId: input.areaId ?? null, minPrice: input.minPrice, maxPrice: input.maxPrice, status: ReviewStatus.APPROVED } }); res.status(201).json(price); } catch (error) { next(error); }
+});
+app.patch('/api/admin/prices/:id', requireAdmin, async (req, res, next) => {
+  try { const input = z.object({ status: moderationSchema.shape.status }).parse(req.body); res.json(await prisma.priceGuide.update({ where: { id: String(req.params.id) }, data: { status: input.status } })); } catch (error) { next(error); }
+});
+
+app.get('/api/now', async (req, res, next) => {
+  try {
+    const areaId = typeof req.query.areaId === 'string' ? req.query.areaId : undefined;
+    const now = new Date();
+    const updates = await prisma.nowUpdate.findMany({ where: { status: ReviewStatus.APPROVED, startsAt: { lte: now }, ...(areaId ? { OR: [{ areaId: null }, { areaId }] } : {}), AND: [{ OR: [{ endsAt: null }, { endsAt: { gte: now } }] }] }, include: { area: true }, orderBy: { createdAt: 'desc' }, take: 100 });
+    res.json(updates);
+  } catch (error) { next(error); }
+});
+const nowCreateSchema = z.object({ title: z.string().trim().min(2).max(120), body: z.string().trim().max(600).optional(), category: z.string().trim().max(80).default('عام'), areaId: z.string().min(1).nullable().optional(), startsAt: z.coerce.date().optional(), endsAt: z.coerce.date().nullable().optional() });
+app.get('/api/admin/now', requireAdmin, async (_req, res, next) => {
+  try { res.json(await prisma.nowUpdate.findMany({ include: { area: true }, orderBy: { createdAt: 'desc' } })); } catch (error) { next(error); }
+});
+app.post('/api/admin/now', requireAdmin, async (req, res, next) => {
+  try { const input = nowCreateSchema.parse(req.body); const update = await prisma.nowUpdate.create({ data: { ...input, areaId: input.areaId ?? null, startsAt: input.startsAt ?? new Date(), status: ReviewStatus.APPROVED } }); res.status(201).json(update); } catch (error) { next(error); }
+});
+app.patch('/api/admin/now/:id', requireAdmin, async (req, res, next) => {
+  try { const input = z.object({ status: moderationSchema.shape.status }).parse(req.body); res.json(await prisma.nowUpdate.update({ where: { id: String(req.params.id) }, data: { status: input.status } })); } catch (error) { next(error); }
 });
 
 const reviewSchema = z.object({ providerId: z.string().min(1), quality: z.number().int().min(1).max(5), commitment: z.number().int().min(1).max(5), value: z.number().int().min(1).max(5), comment: z.string().trim().max(1000).optional() });
