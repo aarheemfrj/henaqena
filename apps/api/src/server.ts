@@ -34,6 +34,7 @@ const issueSession = async (userId: string) => { const token = randomBytes(32).t
 const sessionFromRequest = async (req: express.Request) => { const token = typeof req.headers.authorization === 'string' ? req.headers.authorization.replace(/^Bearer\s+/i, '') : ''; if (!token) return null; const session = await prisma.session.findUnique({ where: { tokenHash: hash(token) }, include: { user: true } }); return session && session.expiresAt > new Date() ? session : null; };
 const requireAdmin = (req: express.Request, res: express.Response, next: express.NextFunction) => { const expected = process.env.ADMIN_API_KEY ?? (process.env.NODE_ENV !== 'production' ? 'dev-henaqena-admin' : undefined); const provided = typeof req.headers['x-admin-key'] === 'string' ? req.headers['x-admin-key'] : ''; if (!expected || provided !== expected) return res.status(403).json({ message: 'صلاحيات الإدارة مطلوبة' }); next(); };
 const audit = (action: string, entity: string, entityId: string, metadata?: Record<string, unknown>) => prisma.auditLog.create({ data: { action, entity, entityId, metadata: metadata as any } });
+const publicAuthorSelect = { id: true, name: true, avatarUrl: true, isProfilePrivate: true, points: true, level: true } as const;
 
 app.use(cors());
 app.use(express.json({ limit: '2mb' }));
@@ -192,7 +193,7 @@ app.get('/api/providers/:id', async (req, res, next) => {
         area: true,
         images: { orderBy: { sortOrder: 'asc' } },
         categories: { include: { category: true } },
-        reviews: { where: { status: ReviewStatus.APPROVED }, include: { author: true, replies: { include: { author: true } } }, orderBy: { createdAt: 'desc' } },
+        reviews: { where: { status: ReviewStatus.APPROVED }, include: { author: { select: publicAuthorSelect }, replies: { include: { author: { select: publicAuthorSelect } } } }, orderBy: { createdAt: 'desc' } },
       },
     });
     if (!provider) return res.status(404).json({ message: 'Provider not found' });
@@ -261,7 +262,7 @@ app.post('/api/reviews/:id/replies', async (req, res, next) => {
     const session = await sessionFromRequest(req);
     if (!session) return res.status(401).json({ message: 'غير مسجل الدخول' });
     const input = z.object({ text: z.string().trim().min(1).max(1000) }).parse(req.body);
-    const reply = await prisma.reviewReply.create({ data: { reviewId: req.params.id, authorId: session.userId, text: input.text }, include: { author: true } });
+    const reply = await prisma.reviewReply.create({ data: { reviewId: req.params.id, authorId: session.userId, text: input.text }, include: { author: { select: publicAuthorSelect } } });
     res.status(201).json(reply);
   } catch (error) { next(error); }
 });
@@ -286,7 +287,7 @@ app.get('/api/admin/reviews', requireAdmin, async (req, res, next) => {
     const status = typeof req.query.status === 'string' && Object.values(ReviewStatus).includes(req.query.status as ReviewStatus)
       ? req.query.status as ReviewStatus : undefined;
     const unreadOnly = req.query.unread === 'true';
-    const reviews = await prisma.review.findMany({ where: { ...(status ? { status } : {}), ...(unreadOnly ? { moderatedAt: null } : {}) }, include: { author: true, provider: true }, orderBy: { createdAt: 'desc' }, take: 100 });
+    const reviews = await prisma.review.findMany({ where: { ...(status ? { status } : {}), ...(unreadOnly ? { moderatedAt: null } : {}) }, include: { author: { select: publicAuthorSelect }, provider: true }, orderBy: { createdAt: 'desc' }, take: 100 });
     res.json(reviews);
   } catch (error) { next(error); }
 });
@@ -294,7 +295,7 @@ app.get('/api/admin/reviews', requireAdmin, async (req, res, next) => {
 app.get('/api/admin/replies', requireAdmin, async (req, res, next) => {
   try {
     const unreadOnly = req.query.unread === 'true';
-    const replies = await prisma.reviewReply.findMany({ where: unreadOnly ? { moderatedAt: null } : {}, include: { author: true, review: { include: { author: true, provider: true } } }, orderBy: { createdAt: 'desc' }, take: 100 });
+    const replies = await prisma.reviewReply.findMany({ where: unreadOnly ? { moderatedAt: null } : {}, include: { author: { select: publicAuthorSelect }, review: { include: { author: { select: publicAuthorSelect }, provider: true } } }, orderBy: { createdAt: 'desc' }, take: 100 });
     res.json(replies);
   } catch (error) { next(error); }
 });
@@ -353,8 +354,7 @@ app.patch('/api/admin/reviews/:id', requireAdmin, async (req, res, next) => {
   try {
     const { status, note } = moderationWithNoteSchema.parse(req.body);
     const review = await prisma.review.update({ where: { id: String(req.params.id) }, data: { status, moderatedAt: new Date() } });
-    const reviewOwner = await prisma.review.findUnique({ where: { id: review.id }, include: { author: true } });
-    if (reviewOwner) await prisma.notification.create({ data: { userId: reviewOwner.authorId, title: status === ReviewStatus.APPROVED ? 'تم اعتماد تقييمك' : 'لم يتم اعتماد تقييمك', body: status === ReviewStatus.APPROVED ? 'شكراً لمساهمتك في تحسين هنا قنا.' : `سبب الرفض: ${note ?? 'يرجى مراجعة محتوى التقييم.'}` } });
+    await prisma.notification.create({ data: { userId: review.authorId, title: status === ReviewStatus.APPROVED ? 'تم اعتماد تقييمك' : 'لم يتم اعتماد تقييمك', body: status === ReviewStatus.APPROVED ? 'شكراً لمساهمتك في تحسين هنا قنا.' : `سبب الرفض: ${note ?? 'يرجى مراجعة محتوى التقييم.'}` } });
     await audit(`review.${status.toLowerCase()}`, 'review', review.id, { status, note });
     res.json(review);
   } catch (error) { next(error); }
