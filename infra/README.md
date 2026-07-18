@@ -1,10 +1,8 @@
-# Hena Qena local infrastructure
+# تشغيل هنا قنا عبر Docker
 
-هذه قاعدة بيانات مستقلة تمامًا عن أي PostgreSQL آخر على الجهاز:
+1. انسخ `.env.example` إلى `.env` داخل مجلد `infra` وضع قيمًا قوية.
+2. شغّل `docker compose up -d --build`.
+3. المنصة تعمل على `3100`، والـ API على `4000`، وقاعدة البيانات داخل شبكة Docker.
+4. افحص الجاهزية من `/ready`.
 
-- Database: `henaqena`
-- User: `henaqena`
-- Host port: `5433`
-- Container: `henaqena-postgres`
-
-قاعدة بيانات مشروع الستور تظل على منفذها الحالي `5432` ولا يتم تعديلها أو استخدامها.
+في الإنتاج يجب وضع Reverse Proxy وHTTPS أمام المنفذين، وعدم نشر PostgreSQL للعامة. التخزين الحالي للصور Volume دائم؛ يُستبدل بـ Object Storage قبل التوسع.

@@ -12,5 +12,46 @@ services:
     volumes:
       - henaqena_pgdata:/var/lib/postgresql/data
 
+  api:
+    build:
+      context: ../apps/api
+    container_name: henaqena-api
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://henaqena:henaqena@postgres:5432/henaqena?schema=public
+      PORT: 4000
+      ADMIN_API_KEY: ${ADMIN_API_KEY:?set ADMIN_API_KEY}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://127.0.0.1:3100}
+      PUBLIC_API_BASE_URL: ${PUBLIC_API_BASE_URL:-http://127.0.0.1:4000}
+      UPLOADS_DIR: /data/uploads
+    depends_on:
+      postgres:
+        condition: service_started
+    ports:
+      - "4000:4000"
+    volumes:
+      - henaqena_uploads:/data/uploads
+
+  web:
+    build:
+      context: ../apps/web
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://127.0.0.1:4000}
+    container_name: henaqena-web
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3100
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://127.0.0.1:4000}
+      ADMIN_API_KEY: ${ADMIN_API_KEY:?set ADMIN_API_KEY}
+      ADMIN_DASHBOARD_PASSWORD: ${ADMIN_DASHBOARD_PASSWORD:?set ADMIN_DASHBOARD_PASSWORD}
+      ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET:?set ADMIN_SESSION_SECRET}
+    depends_on:
+      - api
+    ports:
+      - "3100:3100"
+
 volumes:
   henaqena_pgdata:
+  henaqena_uploads:

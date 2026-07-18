@@ -40,7 +40,8 @@ const requireAdmin = (req: express.Request, res: express.Response, next: express
 const audit = (action: string, entity: string, entityId: string, metadata?: Record<string, unknown>) => prisma.auditLog.create({ data: { action, entity, entityId, metadata: metadata as any } });
 const publicAuthorSelect = { id: true, name: true, avatarUrl: true, isProfilePrivate: true, points: true, level: true } as const;
 
-app.use(cors());
+const allowedOrigins = (process.env.CORS_ORIGINS ?? '*').split(',').map((origin) => origin.trim()).filter(Boolean);
+app.use(cors({ origin: allowedOrigins.includes('*') ? true : allowedOrigins }));
 app.use(express.json({ limit: '16mb' }));
 app.use('/uploads', express.static(uploadRoot, { maxAge: '7d', etag: true }));
 
@@ -48,6 +49,9 @@ const authLimiter = createRateLimiter(5, 15 * 60 * 1000); // 5 attempts per 15 m
 const verificationLimiter = createRateLimiter(10, 60 * 60 * 1000); // 10 attempts per hour
 
 app.get('/health', (_req, res) => res.json({ ok: true, service: 'hena-qena-api' }));
+app.get('/ready', async (_req, res) => {
+  try { await prisma.$queryRaw`SELECT 1`; res.json({ ok: true, database: 'ready' }); } catch { res.status(503).json({ ok: false, database: 'unavailable' }); }
+});
 
 app.get('/api/me', async (req, res, next) => {
   try { const session = await sessionFromRequest(req); if (!session) return res.status(401).json({ message: 'غير مسجل الدخول' }); const { passwordHash, ...user } = session.user; res.json(user); } catch (error) { next(error); }
