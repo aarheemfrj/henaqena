@@ -571,7 +571,13 @@ class ProviderDetailPage extends StatelessWidget {
     textDirection: TextDirection.rtl,
     child: Scaffold(
       appBar: AppBar(title: const Text('تفاصيل المكان')),
-      body: ListView(padding: const EdgeInsets.fromLTRB(18, 8, 18, 30), children: [
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ReviewPage(providerName: title))),
+        backgroundColor: teal,
+        icon: const Icon(Icons.star_border),
+        label: const Text('أضف تقييمك'),
+      ),
+      body: ListView(padding: const EdgeInsets.fromLTRB(18, 8, 18, 90), children: [
         const MediaGallery(imageCount: 4),
         const SizedBox(height: 14),
         TweenAnimationBuilder<double>(
@@ -603,7 +609,6 @@ class ProviderDetailPage extends StatelessWidget {
         const SizedBox(height: 8),
         const CommentBubble(name: 'أحمد محمد', initial: 'أ', text: 'خدمة ممتازة والتعامل محترم.', rating: 5, replies: [CommentReply(name: 'مريم علي', initial: 'م', text: 'أتفق معاك، تجربتي كانت كويسة برضه.')]),
         const CommentBubble(name: 'مريم علي', initial: 'م', text: 'سعر مناسب وملتزمين بالموعد.', rating: 4),
-        FilledButton.icon(onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ReviewPage(providerName: title))), icon: const Icon(Icons.star_border), label: const Text('أضف تقييمك'), style: FilledButton.styleFrom(backgroundColor: teal, minimumSize: const Size.fromHeight(48), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)))),
       ]),
     ),
   );
@@ -625,8 +630,8 @@ class CommentBubble extends StatelessWidget {
         Row(children: [Expanded(child: Text(name, style: const TextStyle(color: deepTeal, fontWeight: FontWeight.w700))), Text('منذ يوم', style: const TextStyle(color: muted, fontSize: 11))]),
         const SizedBox(height: 5),
         Text(text, style: const TextStyle(color: ink, height: 1.4)),
-        const SizedBox(height: 5),
-        Row(children: [Text('$rating', style: const TextStyle(color: teal, fontWeight: FontWeight.w700)), const Icon(Icons.star, color: gold, size: 15), const SizedBox(width: 12), TextButton(onPressed: () {}, style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: Size.zero), child: const Text('مفيد')), const SizedBox(width: 12), TextButton(onPressed: () {}, style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: Size.zero), child: const Text('رد'))]),
+        const SizedBox(height: 2),
+        Row(children: [Text('$rating', style: const TextStyle(color: teal, fontWeight: FontWeight.w700)), const Icon(Icons.star, color: gold, size: 15), const SizedBox(width: 12), TextButton(onPressed: () {}, style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap), child: const Text('مفيد')), const SizedBox(width: 12), TextButton(onPressed: () {}, style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap), child: const Text('رد'))]),
       ])),
     ]),
     if (replies.isNotEmpty) Padding(padding: const EdgeInsetsDirectional.only(start: 42, top: 8), child: Column(children: replies)),
@@ -639,7 +644,7 @@ class CommentReply extends StatelessWidget {
   final String initial;
   final String text;
   @override
-  Widget build(BuildContext context) => Padding(padding: const EdgeInsets.only(bottom: 8), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [CircleAvatar(radius: 15, backgroundColor: const Color(0xFFE8F5F2), child: Text(initial, style: const TextStyle(color: deepTeal, fontSize: 12, fontWeight: FontWeight.w700))), const SizedBox(width: 8), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(name, style: const TextStyle(color: deepTeal, fontSize: 13, fontWeight: FontWeight.w700)), const SizedBox(height: 2), Text(text, style: const TextStyle(color: ink, fontSize: 13, height: 1.3)), Row(children: [TextButton(onPressed: () {}, style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: Size.zero), child: const Text('مفيد', style: TextStyle(fontSize: 12))), TextButton(onPressed: () {}, style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: Size.zero), child: const Text('رد', style: TextStyle(fontSize: 12)))])]))]));
+  Widget build(BuildContext context) => Padding(padding: const EdgeInsets.only(bottom: 8), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [CircleAvatar(radius: 15, backgroundColor: const Color(0xFFE8F5F2), child: Text(initial, style: const TextStyle(color: deepTeal, fontSize: 12, fontWeight: FontWeight.w700))), const SizedBox(width: 8), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(name, style: const TextStyle(color: deepTeal, fontSize: 13, fontWeight: FontWeight.w700)), const SizedBox(height: 2), Text(text, style: const TextStyle(color: ink, fontSize: 13, height: 1.3)), Row(children: [TextButton(onPressed: () {}, style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap), child: const Text('مفيد', style: TextStyle(fontSize: 12))), const SizedBox(width: 12), TextButton(onPressed: () {}, style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap), child: const Text('رد', style: TextStyle(fontSize: 12)))])]))]));
 }
 
 class ReviewPage extends StatefulWidget {
@@ -832,9 +837,9 @@ class _MediaGalleryState extends State<MediaGallery> with SingleTickerProviderSt
       final midpoint = dots.length ~/ 2;
       return Row(mainAxisAlignment: MainAxisAlignment.center, children: [
         ...dots.take(midpoint),
-        const SizedBox(width: 4),
-        AnimatedSwitcher(duration: AppMotion.standard, transitionBuilder: (child, animation) => FadeTransition(opacity: animation, child: ScaleTransition(scale: animation, child: child)), child: showSwipeHint ? Transform.translate(key: const ValueKey('swipe-hint'), offset: Offset(-4 * hintController.value, 0), child: const Icon(Icons.swipe, color: teal, size: 17)) : const SizedBox(key: ValueKey('swipe-hidden'), width: 17, height: 17)),
-        const SizedBox(width: 4),
+        AnimatedContainer(duration: AppMotion.quick, width: showSwipeHint ? 4 : 0),
+        AnimatedSwitcher(duration: AppMotion.standard, transitionBuilder: (child, animation) => FadeTransition(opacity: animation, child: ScaleTransition(scale: animation, child: child)), child: showSwipeHint ? Transform.translate(key: const ValueKey('swipe-hint'), offset: Offset(-4 * hintController.value, 0), child: const Icon(Icons.swipe, color: teal, size: 17)) : const SizedBox.shrink(key: ValueKey('swipe-hidden'))),
+        AnimatedContainer(duration: AppMotion.quick, width: showSwipeHint ? 4 : 0),
         ...dots.skip(midpoint),
       ]);
     }),
