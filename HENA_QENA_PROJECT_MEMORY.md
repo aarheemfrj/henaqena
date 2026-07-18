@@ -1689,6 +1689,11 @@ After that, implement the provider-directory data model and admin review workflo
 - `apps/web` is the intended Next.js app location; migration should be incremental and must reuse the existing PostgreSQL/Prisma model.
 - The current Express API may remain as a compatibility layer while web routes are migrated; do not delete it during the migration.
 
+## 33. Page Transition Motion References (2026-07-18)
+
+- When the owner says «موشن جرافيك تنقل الصفحات», use the Pinterest references documented in `docs/MOTION_REFERENCES.md`.
+- These are visual references only; implementation must remain original and respect Hena Qena's teal/gold identity.
+
 ---
 
 **Last updated:** 2026-07-18
