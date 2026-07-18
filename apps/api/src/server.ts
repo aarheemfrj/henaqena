@@ -494,6 +494,10 @@ app.get('/api/admin/audit', requireAdmin, async (req, res, next) => {
     res.json(logs);
   } catch (error) { next(error); }
 });
+app.get('/api/admin/services', requireAdmin, async (_req, res, next) => { try { res.json(await prisma.providerService.findMany({ include: { provider: { select: { id: true, name: true } } }, orderBy: { createdAt: 'desc' }, take: 250 })); } catch (error) { next(error); } });
+app.get('/api/admin/offers', requireAdmin, async (_req, res, next) => { try { res.json(await prisma.providerOffer.findMany({ include: { provider: { select: { id: true, name: true } } }, orderBy: { createdAt: 'desc' }, take: 250 })); } catch (error) { next(error); } });
+app.patch('/api/admin/services/:id', requireAdmin, async (req, res, next) => { try { const { status } = moderationSchema.parse(req.body); const item = await prisma.providerService.update({ where: { id: String(req.params.id) }, data: { status } }); await audit(`service.${status.toLowerCase()}`, 'providerService', item.id, { status }); res.json(item); } catch (error) { next(error); } });
+app.patch('/api/admin/offers/:id', requireAdmin, async (req, res, next) => { try { const { status } = moderationSchema.parse(req.body); const item = await prisma.providerOffer.update({ where: { id: String(req.params.id) }, data: { status } }); await audit(`offer.${status.toLowerCase()}`, 'providerOffer', item.id, { status }); res.json(item); } catch (error) { next(error); } });
 
 const parseCsvLine = (line: string) => line.split(',').map((value) => value.trim().replace(/^"|"$/g, ''));
 app.post('/api/admin/import/providers', requireAdmin, async (req, res, next) => {

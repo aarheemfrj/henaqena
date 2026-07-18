@@ -101,3 +101,6 @@ export async function importProviders(formData: FormData) {
   const file = formData.get('file'); if (!(file instanceof File)) return;
   const csv = await file.text(); await apiPost('/api/admin/import/providers', { csv }); revalidatePath('/admin/providers'); revalidatePath('/admin/import');
 }
+
+export async function moderateService(formData: FormData) { if (!await hasAdminSession()) redirect('/admin/login'); const id = String(formData.get('id') ?? ''); const status = String(formData.get('status') ?? ''); if (!id || !['APPROVED', 'REJECTED'].includes(status)) return; await apiPatch(`/api/admin/services/${id}`, { status }); revalidatePath('/admin/services'); }
+export async function moderateOffer(formData: FormData) { if (!await hasAdminSession()) redirect('/admin/login'); const id = String(formData.get('id') ?? ''); const status = String(formData.get('status') ?? ''); if (!id || !['APPROVED', 'REJECTED'].includes(status)) return; await apiPatch(`/api/admin/offers/${id}`, { status }); revalidatePath('/admin/services'); }
