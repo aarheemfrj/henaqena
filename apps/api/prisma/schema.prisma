@@ -35,46 +35,51 @@ enum AdminRole {
 }
 
 model User {
-  id              String         @id @default(cuid())
-  name            String
-  phone           String?        @unique
-  email           String?        @unique
-  avatarUrl       String?
-  isProfilePrivate Boolean        @default(false)
-  points          Int            @default(0)
-  level           UserLevel      @default(QENAWY)
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
-  passwordHash    String?
-  phoneVerifiedAt DateTime?
-  emailVerifiedAt DateTime?
-  authProvider    String?
-  preferredAreaIds String[] @default([])
-  interests       String[] @default([])
-  notificationScope String @default("all")
-  notificationDigest Boolean @default(false)
-  role            String   @default("USER")
-  providers       Provider[]
-  listings        Listing[]
-  reviews         Review[]
-  replies         ReviewReply[]
-  notifications   Notification[]
-  sessions        Session[]
-  verificationCodes VerificationCode[]
-  auditLogs       AuditLog[]
-  providerReports ProviderReport[] @relation("reportedBy")
+  id                 String             @id @default(cuid())
+  name               String
+  phone              String?            @unique
+  email              String?            @unique
+  avatarUrl          String?
+  isProfilePrivate   Boolean            @default(false)
+  points             Int                @default(0)
+  level              UserLevel          @default(QENAWY)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  passwordHash       String?
+  phoneVerifiedAt    DateTime?
+  emailVerifiedAt    DateTime?
+  authProvider       String?
+  preferredAreaIds   String[]           @default([])
+  interests          String[]           @default([])
+  notificationScope  String             @default("all")
+  notificationDigest Boolean            @default(false)
+  role               String             @default("USER")
+  providers          Provider[]
+  listings           Listing[]
+  reviews            Review[]
+  replies            ReviewReply[]
+  notifications      Notification[]
+  sessions           Session[]
+  verificationCodes  VerificationCode[]
+  auditLogs          AuditLog[]
+  providerReports    ProviderReport[]   @relation("reportedBy")
+  providerFavorites  ProviderFavorite[]
+  listingFavorites   ListingFavorite[]
+  listingInterests   ListingInterest[]
+  helpfulReviews     ReviewHelpful[]
+  listingReports     ListingReport[]
 }
 
 model AdminAccount {
-  id           String    @id @default(cuid())
+  id           String         @id @default(cuid())
   name         String
-  email        String    @unique
+  email        String         @unique
   passwordHash String
-  role         AdminRole @default(REVIEWER)
-  isActive     Boolean   @default(true)
+  role         AdminRole      @default(REVIEWER)
+  isActive     Boolean        @default(true)
   lastLoginAt  DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
   sessions     AdminSession[]
 }
 
@@ -85,6 +90,7 @@ model AdminSession {
   expiresAt DateTime
   createdAt DateTime     @default(now())
   admin     AdminAccount @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
   @@index([adminId, expiresAt])
 }
 
@@ -95,19 +101,21 @@ model Session {
   expiresAt DateTime
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([userId])
 }
 
 model VerificationCode {
-  id         String   @id @default(cuid())
+  id         String    @id @default(cuid())
   userId     String
   channel    String
   target     String
   codeHash   String
   expiresAt  DateTime
   consumedAt DateTime?
-  createdAt  DateTime @default(now())
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime  @default(now())
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([userId, channel])
 }
 
@@ -120,66 +128,69 @@ model AuditLog {
   metadata  Json?
   createdAt DateTime @default(now())
   actor     User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
   @@index([entity, entityId])
   @@index([createdAt])
 }
 
 model Area {
-  id        String     @id @default(cuid())
-  name      String
-  city      String     @default("قنا")
-  isActive  Boolean    @default(true)
-  providers Provider[]
-  listings  Listing[]
-  ads       Ad[]
+  id          String       @id @default(cuid())
+  name        String
+  city        String       @default("قنا")
+  isActive    Boolean      @default(true)
+  providers   Provider[]
+  listings    Listing[]
+  ads         Ad[]
   priceGuides PriceGuide[]
-  nowUpdates NowUpdate[]
-  createdAt DateTime   @default(now())
+  nowUpdates  NowUpdate[]
+  createdAt   DateTime     @default(now())
 }
 
 model Provider {
-  id          String          @id @default(cuid())
-  name        String
-  description String?
-  phone       String?
-  whatsapp    String?
-  address     String?
-  latitude    Float?
-  longitude   Float?
-  serviceMode String         @default("LOCAL")
-  phoneType   String         @default("BUSINESS")
-  openingTime String?
-  closingTime String?
-  communityAdded Boolean      @default(true)
-  submissionKind String        @default("COMMUNITY")
-  isVerified  Boolean         @default(false)
-  status      ReviewStatus    @default(PENDING)
-  ownerId     String?
-  areaId      String
-  owner       User?           @relation(fields: [ownerId], references: [id])
-  area        Area            @relation(fields: [areaId], references: [id])
-  images      ProviderImage[]
-  reviews     Review[]
-  categories  ProviderCategory[]
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
-  reports     ProviderReport[] @relation("providerReports")
-  services    ProviderService[]
-  offers      ProviderOffer[]
+  id             String             @id @default(cuid())
+  name           String
+  description    String?
+  phone          String?
+  whatsapp       String?
+  address        String?
+  latitude       Float?
+  longitude      Float?
+  serviceMode    String             @default("LOCAL")
+  phoneType      String             @default("BUSINESS")
+  openingTime    String?
+  closingTime    String?
+  communityAdded Boolean            @default(true)
+  submissionKind String             @default("COMMUNITY")
+  isVerified     Boolean            @default(false)
+  status         ReviewStatus       @default(PENDING)
+  ownerId        String?
+  areaId         String
+  owner          User?              @relation(fields: [ownerId], references: [id])
+  area           Area               @relation(fields: [areaId], references: [id])
+  images         ProviderImage[]
+  reviews        Review[]
+  categories     ProviderCategory[]
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  reports        ProviderReport[]   @relation("providerReports")
+  services       ProviderService[]
+  offers         ProviderOffer[]
+  favorites      ProviderFavorite[]
 }
 
 model ProviderReport {
-  id        String   @id @default(cuid())
+  id         String       @id @default(cuid())
   providerId String?
   reporterId String?
-  kind      String
-  name      String
-  phone     String?
-  note      String?
-  status    ReviewStatus @default(PENDING)
-  createdAt DateTime @default(now())
-  provider  Provider? @relation("providerReports", fields: [providerId], references: [id], onDelete: SetNull)
-  reporter  User?     @relation("reportedBy", fields: [reporterId], references: [id], onDelete: SetNull)
+  kind       String
+  name       String
+  phone      String?
+  note       String?
+  status     ReviewStatus @default(PENDING)
+  createdAt  DateTime     @default(now())
+  provider   Provider?    @relation("providerReports", fields: [providerId], references: [id], onDelete: SetNull)
+  reporter   User?        @relation("reportedBy", fields: [reporterId], references: [id], onDelete: SetNull)
+
   @@index([status, createdAt])
 }
 
@@ -190,6 +201,17 @@ model ProviderImage {
   sortOrder  Int      @default(0)
   kind       String   @default("work")
   provider   Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+}
+
+model ProviderFavorite {
+  userId     String
+  providerId String
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider   Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@id([userId, providerId])
+  @@index([providerId])
 }
 
 model ProviderService {
@@ -203,6 +225,7 @@ model ProviderService {
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
   provider    Provider     @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
   @@index([providerId, status])
 }
 
@@ -216,14 +239,15 @@ model ProviderOffer {
   status      ReviewStatus @default(PENDING)
   createdAt   DateTime     @default(now())
   provider    Provider     @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
   @@index([providerId, status, endsAt])
 }
 
 model Category {
-  id        String            @id @default(cuid())
+  id        String             @id @default(cuid())
   name      String
-  slug      String            @unique
-  isActive  Boolean           @default(true)
+  slug      String             @unique
+  isActive  Boolean            @default(true)
   providers ProviderCategory[]
 }
 
@@ -232,22 +256,63 @@ model ProviderCategory {
   categoryId String
   provider   Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
   category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
   @@id([providerId, categoryId])
 }
 
 model Listing {
-  id          String        @id @default(cuid())
+  id          String            @id @default(cuid())
   title       String
   description String?
-  price       Decimal       @db.Decimal(12, 2)
-  status      ListingStatus @default(PENDING)
+  category    String            @default("للبيع")
+  price       Decimal           @db.Decimal(12, 2)
+  status      ListingStatus     @default(PENDING)
   ownerId     String
   areaId      String
-  owner       User          @relation(fields: [ownerId], references: [id])
-  area        Area          @relation(fields: [areaId], references: [id])
+  owner       User              @relation(fields: [ownerId], references: [id])
+  area        Area              @relation(fields: [areaId], references: [id])
   images      ListingImage[]
-  createdAt   DateTime      @default(now())
+  favorites   ListingFavorite[]
+  interests   ListingInterest[]
+  reports     ListingReport[]
+  createdAt   DateTime          @default(now())
   expiresAt   DateTime?
+}
+
+model ListingFavorite {
+  userId    String
+  listingId String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@id([userId, listingId])
+  @@index([listingId])
+}
+
+model ListingInterest {
+  userId    String
+  listingId String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@id([userId, listingId])
+  @@index([listingId])
+}
+
+model ListingReport {
+  id        String       @id @default(cuid())
+  userId    String
+  listingId String
+  reason    String
+  status    ReviewStatus @default(PENDING)
+  createdAt DateTime     @default(now())
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  listing   Listing      @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@index([listingId, status])
+  @@index([userId, createdAt])
 }
 
 model ListingImage {
@@ -259,20 +324,33 @@ model ListingImage {
 }
 
 model Review {
-  id           String       @id @default(cuid())
+  id           String          @id @default(cuid())
   providerId   String
   authorId     String
   quality      Int
   commitment   Int
   value        Int
   comment      String?
-  status       ReviewStatus @default(PENDING)
+  status       ReviewStatus    @default(PENDING)
   moderatedAt  DateTime?
-  provider     Provider     @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  author       User         @relation(fields: [authorId], references: [id])
+  provider     Provider        @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  author       User            @relation(fields: [authorId], references: [id])
   replies      ReviewReply[]
-  createdAt    DateTime     @default(now())
+  helpfulVotes ReviewHelpful[]
+  createdAt    DateTime        @default(now())
+
   @@index([moderatedAt])
+}
+
+model ReviewHelpful {
+  userId    String
+  reviewId  String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  review    Review   @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+
+  @@id([userId, reviewId])
+  @@index([reviewId])
 }
 
 model ReviewReply {
@@ -284,6 +362,7 @@ model ReviewReply {
   review      Review    @relation(fields: [reviewId], references: [id], onDelete: Cascade)
   author      User      @relation(fields: [authorId], references: [id])
   createdAt   DateTime  @default(now())
+
   @@index([moderatedAt])
 }
 
@@ -303,42 +382,44 @@ model Ad {
 }
 
 model PriceGuide {
-  id          String       @id @default(cuid())
-  name        String
-  category    String?
-  minPrice    Decimal      @db.Decimal(12, 2)
-  maxPrice    Decimal      @db.Decimal(12, 2)
-  unit        String?
-  sourceNote  String?
-  status      ReviewStatus @default(PENDING)
-  areaId      String?
-  area        Area?        @relation(fields: [areaId], references: [id])
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  id         String       @id @default(cuid())
+  name       String
+  category   String?
+  minPrice   Decimal      @db.Decimal(12, 2)
+  maxPrice   Decimal      @db.Decimal(12, 2)
+  unit       String?
+  sourceNote String?
+  status     ReviewStatus @default(PENDING)
+  areaId     String?
+  area       Area?        @relation(fields: [areaId], references: [id])
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
   @@index([status, updatedAt])
 }
 
 model NowUpdate {
-  id          String       @id @default(cuid())
-  title       String
-  body        String?
-  category    String       @default("عام")
-  status      ReviewStatus @default(PENDING)
-  areaId      String?
-  startsAt    DateTime     @default(now())
-  endsAt      DateTime?
-  area        Area?        @relation(fields: [areaId], references: [id])
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  id        String       @id @default(cuid())
+  title     String
+  body      String?
+  category  String       @default("عام")
+  status    ReviewStatus @default(PENDING)
+  areaId    String?
+  startsAt  DateTime     @default(now())
+  endsAt    DateTime?
+  area      Area?        @relation(fields: [areaId], references: [id])
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
   @@index([status, startsAt, endsAt])
 }
 
 model Notification {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   userId    String
   title     String
   body      String
   readAt    DateTime?
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
 }

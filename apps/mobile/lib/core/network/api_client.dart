@@ -469,8 +469,116 @@ class ApiClient {
     if (response.statusCode != 201) throw Exception('review_error');
   }
 
+  Future<Map<String, dynamic>> toggleReviewHelpful(String reviewId) async {
+    final response = await http
+        .post(
+          Uri.parse('$baseUrl/api/reviews/$reviewId/helpful'),
+          headers: _jsonHeaders,
+        )
+        .timeout(const Duration(seconds: 8));
+    if (response.statusCode == 401) throw Exception('unauthorized');
+    if (response.statusCode != 200) throw Exception('review_helpful_error');
+    return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+  }
+
+  Future<void> replyToReview(String reviewId, String text) async {
+    final response = await http
+        .post(
+          Uri.parse('$baseUrl/api/reviews/$reviewId/replies'),
+          headers: _jsonHeaders,
+          body: jsonEncode({'text': text.trim()}),
+        )
+        .timeout(const Duration(seconds: 8));
+    if (response.statusCode == 401) throw Exception('unauthorized');
+    if (response.statusCode != 201) throw Exception('review_reply_error');
+  }
+
+  Future<Map<String, dynamic>> toggleProviderFavorite(String providerId) async {
+    final response = await http
+        .post(
+          Uri.parse('$baseUrl/api/providers/$providerId/favorite'),
+          headers: _jsonHeaders,
+        )
+        .timeout(const Duration(seconds: 8));
+    if (response.statusCode == 401) throw Exception('unauthorized');
+    if (response.statusCode != 200) throw Exception('favorite_error');
+    return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+  }
+
+  Future<List<Map<String, dynamic>>> fetchListings({
+    String? areaId,
+    String? category,
+    String? query,
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/listings').replace(
+      queryParameters: {
+        if (areaId != null) 'areaId': areaId,
+        if (category != null && category.isNotEmpty) 'category': category,
+        if (query != null && query.trim().isNotEmpty) 'q': query.trim(),
+      },
+    );
+    final response = await http.get(uri).timeout(const Duration(seconds: 5));
+    if (response.statusCode != 200) throw Exception('listings_error');
+    return (jsonDecode(response.body) as List<dynamic>)
+        .map((item) => Map<String, dynamic>.from(item as Map))
+        .toList();
+  }
+
+  Future<Map<String, dynamic>> fetchListing(String id) async {
+    final response = await http
+        .get(Uri.parse('$baseUrl/api/listings/$id'), headers: _jsonHeaders)
+        .timeout(const Duration(seconds: 5));
+    if (response.statusCode != 200) throw Exception('listing_error');
+    return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+  }
+
+  Future<void> reportListing(String id, String reason) async {
+    final response = await http
+        .post(
+          Uri.parse('$baseUrl/api/listings/$id/reports'),
+          headers: _jsonHeaders,
+          body: jsonEncode({'reason': reason.trim()}),
+        )
+        .timeout(const Duration(seconds: 8));
+    if (response.statusCode == 401) throw Exception('unauthorized');
+    if (response.statusCode != 201) throw Exception('listing_report_error');
+  }
+
+  Future<Map<String, dynamic>> toggleListingFavorite(String id) async {
+    return _toggleListingAction(id, 'favorite');
+  }
+
+  Future<Map<String, dynamic>> toggleListingInterested(String id) async {
+    return _toggleListingAction(id, 'interested');
+  }
+
+  Future<Map<String, dynamic>> _toggleListingAction(
+    String id,
+    String action,
+  ) async {
+    final response = await http
+        .post(
+          Uri.parse('$baseUrl/api/listings/$id/$action'),
+          headers: _jsonHeaders,
+        )
+        .timeout(const Duration(seconds: 8));
+    if (response.statusCode == 401) throw Exception('unauthorized');
+    if (response.statusCode != 200) throw Exception('listing_action_error');
+    return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+  }
+
+  Future<Map<String, dynamic>> fetchFavorites() async {
+    final response = await http
+        .get(Uri.parse('$baseUrl/api/me/favorites'), headers: _jsonHeaders)
+        .timeout(const Duration(seconds: 8));
+    if (response.statusCode == 401) throw Exception('unauthorized');
+    if (response.statusCode != 200) throw Exception('favorites_error');
+    return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+  }
+
   Future<void> submitListing({
     required String title,
+    required String category,
     required double price,
     required String areaId,
     required List<String> images,
@@ -482,6 +590,7 @@ class ApiClient {
           headers: _jsonHeaders,
           body: jsonEncode({
             'title': title,
+            'category': category,
             'price': price,
             'areaId': areaId,
             'images': images,

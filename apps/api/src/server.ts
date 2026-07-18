@@ -320,7 +320,8 @@ app.get('/api/providers/:id', async (req, res, next) => {
         categories: { include: { category: true } },
         services: { where: { status: ReviewStatus.APPROVED }, orderBy: { createdAt: 'desc' } },
         offers: { where: { status: ReviewStatus.APPROVED, startsAt: { lte: new Date() }, endsAt: { gte: new Date() } }, orderBy: { endsAt: 'asc' } },
-        reviews: { where: { status: ReviewStatus.APPROVED }, include: { author: { select: publicAuthorSelect }, replies: { include: { author: { select: publicAuthorSelect } } } }, orderBy: { createdAt: 'desc' } },
+        reviews: { where: { status: ReviewStatus.APPROVED }, include: { author: { select: publicAuthorSelect }, replies: { include: { author: { select: publicAuthorSelect } } }, _count: { select: { helpfulVotes: true } } }, orderBy: { createdAt: 'desc' } },
+        _count: { select: { favorites: true } },
       },
     });
     if (!provider) return res.status(404).json({ message: 'Provider not found' });
@@ -328,6 +329,19 @@ app.get('/api/providers/:id', async (req, res, next) => {
   } catch (error) {
     next(error);
   }
+});
+
+app.post('/api/providers/:id/favorite', async (req, res, next) => {
+  try {
+    const session = await sessionFromRequest(req);
+    if (!session) return res.status(401).json({ message: 'سجّل الدخول أولاً' });
+    const providerId = String(req.params.id);
+    const existing = await prisma.providerFavorite.findUnique({ where: { userId_providerId: { userId: session.userId, providerId } } });
+    if (existing) await prisma.providerFavorite.delete({ where: { userId_providerId: { userId: session.userId, providerId } } });
+    else await prisma.providerFavorite.create({ data: { userId: session.userId, providerId } });
+    const count = await prisma.providerFavorite.count({ where: { providerId } });
+    res.json({ active: !existing, count });
+  } catch (error) { next(error); }
 });
 
 const serviceSchema = z.object({ name: z.string().trim().min(2).max(120), description: z.string().trim().max(600).optional(), price: z.number().nonnegative().max(999999999).optional(), priceNote: z.string().trim().max(120).optional() });
@@ -338,11 +352,97 @@ app.post('/api/providers/:id/offers', async (req, res, next) => { try { const se
 app.get('/api/listings', async (req, res, next) => {
   try {
     const areaId = typeof req.query.areaId === 'string' ? req.query.areaId : undefined;
-    const listings = await prisma.listing.findMany({ where: { status: 'ACTIVE', ...(areaId ? { areaId } : {}) }, include: { area: true, images: { orderBy: { sortOrder: 'asc' } } }, orderBy: { createdAt: 'desc' } });
+    const category = typeof req.query.category === 'string' ? req.query.category : undefined;
+    const q = typeof req.query.q === 'string' ? req.query.q.trim() : undefined;
+    const listings = await prisma.listing.findMany({
+      where: {
+        status: ListingStatus.ACTIVE,
+        ...(areaId ? { areaId } : {}),
+        ...(category ? { category } : {}),
+        ...(q ? { OR: [{ title: { contains: q, mode: 'insensitive' } }, { description: { contains: q, mode: 'insensitive' } }] } : {}),
+      },
+      include: {
+        area: true,
+        images: { orderBy: { sortOrder: 'asc' } },
+        owner: { select: { id: true, name: true, phone: true, avatarUrl: true } },
+        _count: { select: { favorites: true, interests: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
     res.json(listings);
   } catch (error) {
     next(error);
   }
+});
+
+app.get('/api/listings/:id', async (req, res, next) => {
+  try {
+    const session = await sessionFromRequest(req);
+    const listingId = String(req.params.id);
+    const listing = await prisma.listing.findFirst({
+      where: { id: listingId, status: ListingStatus.ACTIVE },
+      include: {
+        area: true,
+        images: { orderBy: { sortOrder: 'asc' } },
+        owner: { select: { id: true, name: true, phone: true, avatarUrl: true } },
+        _count: { select: { favorites: true, interests: true } },
+      },
+    });
+    if (!listing) return res.status(404).json({ message: 'الإعلان غير موجود أو لم يعد متاحاً' });
+    const [favorite, interested] = session ? await Promise.all([
+      prisma.listingFavorite.findUnique({ where: { userId_listingId: { userId: session.userId, listingId } } }),
+      prisma.listingInterest.findUnique({ where: { userId_listingId: { userId: session.userId, listingId } } }),
+    ]) : [null, null];
+    res.json({ ...listing, viewer: { favorite: Boolean(favorite), interested: Boolean(interested) } });
+  } catch (error) { next(error); }
+});
+
+app.post('/api/listings/:id/favorite', async (req, res, next) => {
+  try {
+    const session = await sessionFromRequest(req);
+    if (!session) return res.status(401).json({ message: 'سجّل الدخول أولاً' });
+    const listingId = String(req.params.id);
+    const existing = await prisma.listingFavorite.findUnique({ where: { userId_listingId: { userId: session.userId, listingId } } });
+    if (existing) await prisma.listingFavorite.delete({ where: { userId_listingId: { userId: session.userId, listingId } } });
+    else await prisma.listingFavorite.create({ data: { userId: session.userId, listingId } });
+    const count = await prisma.listingFavorite.count({ where: { listingId } });
+    res.json({ active: !existing, count });
+  } catch (error) { next(error); }
+});
+
+app.post('/api/listings/:id/interested', async (req, res, next) => {
+  try {
+    const session = await sessionFromRequest(req);
+    if (!session) return res.status(401).json({ message: 'سجّل الدخول أولاً' });
+    const listingId = String(req.params.id);
+    const existing = await prisma.listingInterest.findUnique({ where: { userId_listingId: { userId: session.userId, listingId } } });
+    if (existing) await prisma.listingInterest.delete({ where: { userId_listingId: { userId: session.userId, listingId } } });
+    else await prisma.listingInterest.create({ data: { userId: session.userId, listingId } });
+    const count = await prisma.listingInterest.count({ where: { listingId } });
+    res.json({ active: !existing, count });
+  } catch (error) { next(error); }
+});
+
+app.post('/api/listings/:id/reports', async (req, res, next) => {
+  try {
+    const session = await sessionFromRequest(req);
+    if (!session) return res.status(401).json({ message: 'سجّل الدخول أولاً' });
+    const input = z.object({ reason: z.string().trim().min(3).max(300) }).parse(req.body);
+    const report = await prisma.listingReport.create({ data: { listingId: String(req.params.id), userId: session.userId, reason: input.reason } });
+    res.status(201).json({ id: report.id, status: report.status });
+  } catch (error) { next(error); }
+});
+
+app.get('/api/me/favorites', async (req, res, next) => {
+  try {
+    const session = await sessionFromRequest(req);
+    if (!session) return res.status(401).json({ message: 'غير مسجل الدخول' });
+    const [providers, listings] = await Promise.all([
+      prisma.providerFavorite.findMany({ where: { userId: session.userId }, include: { provider: { include: { area: true, images: { orderBy: { sortOrder: 'asc' }, take: 1 } } } }, orderBy: { createdAt: 'desc' } }),
+      prisma.listingFavorite.findMany({ where: { userId: session.userId }, include: { listing: { include: { area: true, images: { orderBy: { sortOrder: 'asc' }, take: 1 } } } }, orderBy: { createdAt: 'desc' } }),
+    ]);
+    res.json({ providers: providers.map((item) => item.provider), listings: listings.map((item) => item.listing) });
+  } catch (error) { next(error); }
 });
 
 app.get('/api/me/contributions', async (req, res, next) => {
@@ -353,13 +453,13 @@ app.post('/api/jobs/expire-listings', requireAdmin, async (_req, res, next) => {
   try { const result = await prisma.listing.updateMany({ where: { status: ListingStatus.ACTIVE, expiresAt: { lt: new Date() } }, data: { status: ListingStatus.EXPIRED } }); res.json({ expired: result.count }); } catch (error) { next(error); }
 });
 
-const listingCreateSchema = z.object({ title: z.string().trim().min(3).max(120), description: z.string().trim().max(1200).optional(), price: z.number().positive().max(999999999), areaId: z.string().min(1), images: z.array(z.string().url()).min(1).max(5) });
+const listingCreateSchema = z.object({ title: z.string().trim().min(3).max(120), description: z.string().trim().max(1200).optional(), category: z.enum(['للبيع', 'للإيجار', 'وظائف', 'سيارات', 'عقارات']), price: z.number().positive().max(999999999), areaId: z.string().min(1), images: z.array(z.string().url()).min(1).max(5) });
 app.post('/api/listings', async (req, res, next) => {
   try {
     const session = await sessionFromRequest(req);
     if (!session) return res.status(401).json({ message: 'سجّل الدخول أولاً لإضافة إعلان' });
     const input = listingCreateSchema.parse(req.body);
-    const listing = await prisma.listing.create({ data: { title: input.title, description: input.description, price: input.price, ownerId: session.userId, areaId: input.areaId, status: ListingStatus.PENDING, expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), images: { create: input.images.map((url, index) => ({ url, sortOrder: index })) } }, include: { area: true, images: true } });
+    const listing = await prisma.listing.create({ data: { title: input.title, description: input.description, category: input.category, price: input.price, ownerId: session.userId, areaId: input.areaId, status: ListingStatus.PENDING, expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), images: { create: input.images.map((url, index) => ({ url, sortOrder: index })) } }, include: { area: true, images: true } });
     res.status(201).json(listing);
   } catch (error) { next(error); }
 });
@@ -453,6 +553,19 @@ app.post('/api/reviews/:id/replies', async (req, res, next) => {
     const input = z.object({ text: z.string().trim().min(1).max(1000) }).parse(req.body);
     const reply = await prisma.reviewReply.create({ data: { reviewId: req.params.id, authorId: session.userId, text: input.text }, include: { author: { select: publicAuthorSelect } } });
     res.status(201).json(reply);
+  } catch (error) { next(error); }
+});
+
+app.post('/api/reviews/:id/helpful', async (req, res, next) => {
+  try {
+    const session = await sessionFromRequest(req);
+    if (!session) return res.status(401).json({ message: 'سجّل الدخول أولاً' });
+    const reviewId = String(req.params.id);
+    const existing = await prisma.reviewHelpful.findUnique({ where: { userId_reviewId: { userId: session.userId, reviewId } } });
+    if (existing) await prisma.reviewHelpful.delete({ where: { userId_reviewId: { userId: session.userId, reviewId } } });
+    else await prisma.reviewHelpful.create({ data: { userId: session.userId, reviewId } });
+    const count = await prisma.reviewHelpful.count({ where: { reviewId } });
+    res.json({ active: !existing, count });
   } catch (error) { next(error); }
 });
 

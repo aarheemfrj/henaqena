@@ -2953,11 +2953,42 @@ class _AlertCard extends StatelessWidget {
   );
 }
 
-class ListingsPage extends StatelessWidget {
+class ListingsPage extends StatefulWidget {
   const ListingsPage({super.key});
+  @override
+  State<ListingsPage> createState() => _ListingsPageState();
+}
+
+class _ListingsPageState extends State<ListingsPage> {
+  final api = ApiClient();
+  final search = TextEditingController();
+  Timer? debounce;
+  String? category;
+  late Future<List<Map<String, dynamic>>> listings = api.fetchListings();
+
+  @override
+  void dispose() {
+    debounce?.cancel();
+    search.dispose();
+    super.dispose();
+  }
+
+  void _reload() => setState(
+    () => listings = api.fetchListings(category: category, query: search.text),
+  );
+
+  void _search(String _) {
+    debounce?.cancel();
+    debounce = Timer(const Duration(milliseconds: 350), _reload);
+  }
+
   @override
   Widget build(BuildContext context) => BasePage(
     title: 'عندك؟',
+    onRefresh: () async {
+      _reload();
+      await listings;
+    },
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -2966,51 +2997,94 @@ class ListingsPage extends StatelessWidget {
           style: TextStyle(color: muted),
         ),
         const SizedBox(height: 14),
-        const TextField(
-          decoration: InputDecoration(
+        TextField(
+          controller: search,
+          onChanged: _search,
+          textInputAction: TextInputAction.search,
+          decoration: const InputDecoration(
             prefixIcon: Icon(Icons.search, color: teal),
             hintText: 'ابحث في الإعلانات',
           ),
         ),
         const SizedBox(height: 10),
-        const CategoryRail(
-          items: ['للبيع', 'للإيجار', 'وظائف', 'سيارات', 'عقارات'],
+        SizedBox(
+          height: 42,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            children: [
+              for (final item in [
+                'الكل',
+                'للبيع',
+                'للإيجار',
+                'وظائف',
+                'سيارات',
+                'عقارات',
+              ])
+                Padding(
+                  padding: const EdgeInsetsDirectional.only(end: 8),
+                  child: ChoiceChip(
+                    label: Text(item),
+                    selected: (category ?? 'الكل') == item,
+                    selectedColor: const Color(0xFFD8EFEC),
+                    onSelected: (_) {
+                      setState(() => category = item == 'الكل' ? null : item);
+                      _reload();
+                    },
+                  ),
+                ),
+            ],
+          ),
         ),
         const SizedBox(height: 12),
-        MotionIn(
-          child: MiniItem(
-            icon: Icons.home_outlined,
-            title: 'شقة للإيجار في قنا الجديدة',
-            subtitle: '7,500 جنيه · قنا الجديدة · منذ يوم',
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => const ListingDetailPage(
-                  title: 'شقة للإيجار في قنا الجديدة',
-                  price: '7,500 جنيه',
-                  location: 'قنا الجديدة',
-                ),
-              ),
-            ),
-          ),
-        ),
-        MotionIn(
-          delay: 60,
-          child: MiniItem(
-            icon: Icons.kitchen_outlined,
-            title: 'ثلاجة بحالة ممتازة',
-            subtitle: '3,500 جنيه · الحميدات · منذ 3 أيام',
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => const ListingDetailPage(
-                  title: 'ثلاجة بحالة ممتازة',
-                  price: '3,500 جنيه',
-                  location: 'الحميدات',
-                ),
-              ),
-            ),
-          ),
+        FutureBuilder<List<Map<String, dynamic>>>(
+          future: listings,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Padding(
+                padding: EdgeInsets.all(28),
+                child: Center(child: CircularProgressIndicator(color: teal)),
+              );
+            }
+            if (snapshot.hasError) {
+              return _StateMessage(
+                icon: Icons.cloud_off_outlined,
+                title: 'تعذر تحميل الإعلانات',
+                subtitle: 'تأكد من الاتصال وحاول مرة أخرى.',
+                actionLabel: 'إعادة المحاولة',
+                onAction: _reload,
+              );
+            }
+            final items = snapshot.data ?? const <Map<String, dynamic>>[];
+            if (items.isEmpty) {
+              return const _StateMessage(
+                icon: Icons.inventory_2_outlined,
+                title: 'مفيش إعلانات متاحة حاليًا',
+                subtitle: 'غيّر البحث أو كن أول شخص يضيف إعلانًا.',
+              );
+            }
+            return Column(
+              children: [
+                for (var index = 0; index < items.length; index++)
+                  MotionIn(
+                    delay: index * 45,
+                    child: MiniItem(
+                      icon: Icons.campaign_outlined,
+                      title: items[index]['title'] as String? ?? 'إعلان',
+                      subtitle:
+                          '${items[index]['price']} جنيه · ${items[index]['area']?['name'] ?? 'قنا'} · ${items[index]['category'] ?? ''}',
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ListingDetailPage(
+                            listingId: items[index]['id'] as String,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            );
+          },
         ),
         const SizedBox(height: 8),
         FilledButton.icon(
@@ -3040,174 +3114,265 @@ class CreateListingPage extends StatefulWidget {
   State<CreateListingPage> createState() => _CreateListingPageState();
 }
 
-class ListingDetailPage extends StatelessWidget {
-  const ListingDetailPage({
-    super.key,
-    required this.title,
-    required this.price,
-    required this.location,
-  });
-  final String title;
-  final String price;
-  final String location;
+class ListingDetailPage extends StatefulWidget {
+  const ListingDetailPage({super.key, required this.listingId});
+  final String listingId;
   @override
-  Widget build(BuildContext context) => Directionality(
-    textDirection: TextDirection.rtl,
-    child: Scaffold(
-      appBar: AppBar(
-        title: const Text('تفاصيل الإعلان'),
-        actions: [
-          IconButton(onPressed: () {}, icon: const Icon(Icons.share_outlined)),
-          IconButton(onPressed: () {}, icon: const Icon(Icons.favorite_border)),
-        ],
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(18),
-        children: [
-          MediaGallery(
-            imageCount: 3,
-            label: 'صور الإعلان',
-            heroTag: 'listing-image-$title',
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  title,
-                  style: const TextStyle(
-                    color: deepTeal,
-                    fontSize: 21,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              const Chip(
-                label: Text('مراجع'),
-                avatar: Icon(Icons.verified_outlined, size: 16, color: teal),
-                backgroundColor: Color(0xFFE8F5F2),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text('$price · $location', style: const TextStyle(color: muted)),
-          const SizedBox(height: 20),
-          Row(
-            children: [
-              Expanded(
-                child: FilledButton.icon(
-                  onPressed: () {},
-                  icon: const Icon(Icons.phone_outlined),
-                  label: const Text('اتصال'),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () {},
-                  icon: const Icon(Icons.chat_outlined),
-                  label: const Text('واتساب'),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 18),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              TextButton.icon(
-                onPressed: () {},
-                icon: const Icon(Icons.thumb_up_alt_outlined),
-                label: const Text('مهتم'),
-              ),
-              TextButton.icon(
-                onPressed: () {},
-                icon: const Icon(Icons.bookmark_border),
-                label: const Text('حفظ'),
-              ),
-              TextButton.icon(
-                onPressed: () {},
-                icon: const Icon(Icons.ios_share_outlined),
-                label: const Text('مشاركة'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          const SectionTitle(title: 'الوصف'),
-          const SizedBox(height: 8),
-          const Text(
-            'إعلان منشور من مستخدم بعد مراجعة الإدارة. التفاصيل والصور قابلة للتحديث من صاحب الإعلان.',
-            style: TextStyle(color: muted, height: 1.5),
-          ),
-          const SizedBox(height: 22),
-          const SectionTitle(title: 'التفاعل'),
-          const SizedBox(height: 8),
-          const MiniItem(
-            icon: Icons.person_outline,
-            title: 'أحمد محمد',
-            subtitle: 'إعلان واضح ومعلوماته كاملة · منذ ساعة',
-          ),
-          const SizedBox(height: 10),
-          OutlinedButton.icon(
-            onPressed: () => _report(context),
-            icon: const Icon(Icons.flag_outlined),
-            label: const Text('إبلاغ عن الإعلان'),
-          ),
-        ],
-      ),
-    ),
+  State<ListingDetailPage> createState() => _ListingDetailPageState();
+}
+
+class _ListingDetailPageState extends State<ListingDetailPage> {
+  final api = ApiClient();
+  late Future<Map<String, dynamic>> listing = api.fetchListing(
+    widget.listingId,
   );
-  void _report(BuildContext context) {
-    showModalBottomSheet<void>(
+  bool? favorite;
+  bool? interested;
+
+  Future<void> _toggle(String action) async {
+    try {
+      final result = action == 'favorite'
+          ? await api.toggleListingFavorite(widget.listingId)
+          : await api.toggleListingInterested(widget.listingId);
+      if (!mounted) return;
+      setState(() {
+        if (action == 'favorite') {
+          favorite = result['active'] as bool;
+        } else {
+          interested = result['active'] as bool;
+        }
+      });
+    } catch (error) {
+      if (!mounted) return;
+      if (error.toString().contains('unauthorized')) {
+        await Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const AuthPage()),
+        );
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('تعذر حفظ التفاعل حالياً')));
+    }
+  }
+
+  Future<void> _report() async {
+    final reason = await showModalBottomSheet<String>(
       context: context,
       useSafeArea: true,
       showDragHandle: true,
       backgroundColor: paper,
-      sheetAnimationStyle: const AnimationStyle(
-        duration: AppMotion.gentle,
-        reverseDuration: AppMotion.quick,
-      ),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (_) => Directionality(
+      builder: (context) => Directionality(
         textDirection: TextDirection.rtl,
-        child: SafeArea(
-          child: Wrap(
-            children: [
-              const Padding(
-                padding: EdgeInsets.all(18),
-                child: Text(
-                  'سبب الإبلاغ',
-                  style: TextStyle(
-                    color: deepTeal,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            const ListTile(
+              title: Text(
+                'سبب الإبلاغ',
+                style: TextStyle(color: deepTeal, fontWeight: FontWeight.w700),
               ),
-              ...['السعر غير صحيح', 'محتوى مخالف', 'إعلان مكرر', 'سبب آخر'].map(
-                (x) => ListTile(
-                  title: Text(x),
-                  leading: const Icon(
-                    Icons.radio_button_unchecked,
-                    color: teal,
-                  ),
-                  onTap: () => Navigator.pop(context),
-                ),
+            ),
+            for (final item in [
+              'السعر غير صحيح',
+              'محتوى مخالف',
+              'إعلان مكرر',
+              'المنتج غير متاح',
+            ])
+              ListTile(
+                title: Text(item),
+                leading: const Icon(Icons.flag_outlined, color: teal),
+                onTap: () => Navigator.pop(context, item),
               ),
-            ],
-          ),
+          ],
         ),
       ),
     );
+    if (reason == null) return;
+    try {
+      await api.reportListing(widget.listingId, reason);
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('تم إرسال البلاغ للمراجعة')));
+    } catch (error) {
+      if (!mounted) return;
+      if (error.toString().contains('unauthorized')) {
+        await Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const AuthPage()),
+        );
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('تعذر إرسال البلاغ')));
+    }
   }
+
+  @override
+  Widget build(BuildContext context) => Directionality(
+    textDirection: TextDirection.rtl,
+    child: Scaffold(
+      appBar: AppBar(title: const Text('تفاصيل الإعلان')),
+      body: FutureBuilder<Map<String, dynamic>>(
+        future: listing,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator(color: teal));
+          }
+          if (snapshot.hasError || !snapshot.hasData) {
+            return _StateMessage(
+              icon: Icons.error_outline,
+              title: 'الإعلان غير متاح',
+              subtitle: 'ربما انتهت مدته أو تم حذفه.',
+              actionLabel: 'إعادة المحاولة',
+              onAction: () =>
+                  setState(() => listing = api.fetchListing(widget.listingId)),
+            );
+          }
+          final data = snapshot.data!;
+          final owner = data['owner'] as Map<String, dynamic>?;
+          final images = (data['images'] as List<dynamic>? ?? [])
+              .map((item) => (item as Map<String, dynamic>)['url'] as String)
+              .toList();
+          final viewer = data['viewer'] as Map<String, dynamic>?;
+          favorite ??= viewer?['favorite'] as bool? ?? false;
+          interested ??= viewer?['interested'] as bool? ?? false;
+          final title = data['title'] as String? ?? 'إعلان';
+          final phone = owner?['phone'] as String?;
+          return ListView(
+            padding: const EdgeInsets.all(18),
+            children: [
+              MediaGallery(
+                imageCount: images.isEmpty ? 1 : images.length,
+                imageUrls: images,
+                label: 'صور الإعلان',
+                heroTag: 'listing-image-${widget.listingId}',
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: const TextStyle(
+                        color: deepTeal,
+                        fontSize: 21,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  const Chip(
+                    label: Text('مراجع'),
+                    avatar: Icon(
+                      Icons.verified_outlined,
+                      size: 16,
+                      color: teal,
+                    ),
+                    backgroundColor: Color(0xFFE8F5F2),
+                  ),
+                ],
+              ),
+              Text(
+                '${data['price']} جنيه · ${data['area']?['name'] ?? 'قنا'} · ${data['category'] ?? ''}',
+                style: const TextStyle(color: muted),
+              ),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: phone == null
+                          ? null
+                          : () => AppActions.call(phone),
+                      icon: const Icon(Icons.phone_outlined),
+                      label: const Text('اتصال'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: phone == null
+                          ? null
+                          : () => AppActions.whatsapp(
+                              phone,
+                              message:
+                                  'مرحبًا، شفت إعلان «$title» على تطبيق هنا قنا.',
+                            ),
+                      icon: const Icon(Icons.chat_outlined),
+                      label: const Text('واتساب'),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                alignment: WrapAlignment.spaceAround,
+                children: [
+                  TextButton.icon(
+                    onPressed: () => _toggle('interested'),
+                    icon: Icon(
+                      interested == true
+                          ? Icons.thumb_up_alt
+                          : Icons.thumb_up_alt_outlined,
+                    ),
+                    label: const Text('مهتم'),
+                  ),
+                  TextButton.icon(
+                    onPressed: () => _toggle('favorite'),
+                    icon: Icon(
+                      favorite == true ? Icons.bookmark : Icons.bookmark_border,
+                    ),
+                    label: const Text('حفظ'),
+                  ),
+                  TextButton.icon(
+                    onPressed: () => AppActions.share(
+                      context,
+                      subject: title,
+                      text:
+                          '$title\n${data['price']} جنيه · ${data['area']?['name'] ?? 'قنا'}\nمن تطبيق هنا قنا',
+                    ),
+                    icon: const Icon(Icons.ios_share_outlined),
+                    label: const Text('مشاركة'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              const SectionTitle(title: 'الوصف'),
+              const SizedBox(height: 8),
+              Text(
+                data['description'] as String? ?? 'لا يوجد وصف إضافي.',
+                style: const TextStyle(color: muted, height: 1.5),
+              ),
+              const SizedBox(height: 18),
+              MiniItem(
+                icon: Icons.person_outline,
+                title: owner?['name'] as String? ?? 'مستخدم هنا قنا',
+                subtitle:
+                    '${data['_count']?['interests'] ?? 0} مهتم · ${data['_count']?['favorites'] ?? 0} حفظ',
+              ),
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                onPressed: _report,
+                icon: const Icon(Icons.flag_outlined),
+                label: const Text('إبلاغ عن الإعلان'),
+              ),
+            ],
+          );
+        },
+      ),
+    ),
+  );
 }
 
 class _CreateListingPageState extends State<CreateListingPage> {
   final api = ApiClient();
   int step = 0;
   String category = 'للبيع';
+  String? areaId;
+  late final Future<List<AreaOption>> areas = api.fetchAreas();
   final title = TextEditingController();
   final price = TextEditingController();
   final description = TextEditingController();
@@ -3249,12 +3414,20 @@ class _CreateListingPageState extends State<CreateListingPage> {
       return;
     }
     try {
-      final area = (await api.fetchAreas()).first;
+      final resolvedArea = areaId;
+      if (resolvedArea == null) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('اختار المنطقة أولاً')));
+        setState(() => step = 0);
+        return;
+      }
       final uploaded = await api.uploadProviderImages(selectedImages);
       await api.submitListing(
         title: title.text.trim(),
+        category: category,
         price: double.parse(price.text.trim()),
-        areaId: area.id,
+        areaId: resolvedArea,
         images: uploaded.map((image) => image['url'] as String).toList(),
         description: description.text,
       );
@@ -3351,6 +3524,34 @@ class _CreateListingPageState extends State<CreateListingPage> {
                   ),
                 )
                 .toList(),
+          ),
+          const SizedBox(height: 14),
+          FutureBuilder<List<AreaOption>>(
+            future: areas,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const LinearProgressIndicator(color: teal);
+              }
+              if (snapshot.hasError) {
+                return const Text(
+                  'تعذر تحميل المناطق. ارجع وحاول مرة أخرى.',
+                  style: TextStyle(color: Colors.red),
+                );
+              }
+              return DropdownButtonFormField<String>(
+                initialValue: areaId,
+                decoration: const InputDecoration(labelText: 'المنطقة *'),
+                items: (snapshot.data ?? const <AreaOption>[])
+                    .map(
+                      (area) => DropdownMenuItem(
+                        value: area.id,
+                        child: Text(area.name),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) => setState(() => areaId = value),
+              );
+            },
           ),
           const SizedBox(height: 18),
           TextField(
