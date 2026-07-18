@@ -2,6 +2,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { cookies } from 'next/headers';
 
 const cookieName = 'henaqena_admin_session';
+const apiTokenCookieName = 'henaqena_admin_api_token';
 const sessionHours = 12;
 
 function dashboardPassword() {
@@ -22,7 +23,7 @@ export function isValidDashboardPassword(candidate: string) {
   return timingSafeEqual(Buffer.from(expected), Buffer.from(candidate));
 }
 
-export async function createAdminSession() {
+export async function createAdminSession(apiToken?: string) {
   const issuedAt = String(Date.now());
   const store = await cookies();
   store.set(cookieName, `${issuedAt}.${signature(issuedAt)}`, {
@@ -32,11 +33,14 @@ export async function createAdminSession() {
     path: '/',
     maxAge: sessionHours * 60 * 60,
   });
+  if (apiToken) store.set(apiTokenCookieName, apiToken, { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', path: '/', maxAge: sessionHours * 60 * 60 });
 }
 
 export async function hasAdminSession() {
-  if (!sessionSecret()) return false;
   const store = await cookies();
+  const apiToken = store.get(apiTokenCookieName)?.value;
+  if (apiToken) return true;
+  if (!sessionSecret()) return false;
   const value = store.get(cookieName)?.value;
   if (!value) return false;
   const [issuedAt, receivedSignature] = value.split('.');
@@ -48,4 +52,5 @@ export async function hasAdminSession() {
 export async function clearAdminSession() {
   const store = await cookies();
   store.delete(cookieName);
+  store.delete(apiTokenCookieName);
 }

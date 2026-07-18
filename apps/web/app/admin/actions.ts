@@ -3,12 +3,15 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { apiPatch, apiPost } from '@/lib/api';
-import { clearAdminSession, createAdminSession, hasAdminSession, isValidDashboardPassword } from '@/lib/admin-session';
+import { clearAdminSession, createAdminSession, hasAdminSession } from '@/lib/admin-session';
+import { getApiBaseUrl } from '@/lib/api';
 
 export async function loginAdmin(formData: FormData) {
-  const password = String(formData.get('password') ?? '');
-  if (!isValidDashboardPassword(password)) redirect('/admin/login?error=1');
-  await createAdminSession();
+  const email = String(formData.get('email') ?? ''); const password = String(formData.get('password') ?? '');
+  const response = await fetch(`${getApiBaseUrl()}/api/admin/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email, password }), cache: 'no-store' });
+  if (!response.ok) redirect('/admin/login?error=1');
+  const body = await response.json() as { token: string };
+  await createAdminSession(body.token);
   redirect('/admin');
 }
 
