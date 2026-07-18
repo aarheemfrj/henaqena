@@ -1694,6 +1694,11 @@ After that, implement the provider-directory data model and admin review workflo
 - When the owner says «موشن جرافيك تنقل الصفحات», use the Pinterest references documented in `docs/MOTION_REFERENCES.md`.
 - These are visual references only; implementation must remain original and respect Hena Qena's teal/gold identity.
 
+## 34. Deferred Web Repository (2026-07-18)
+
+- The owner created a separate private GitHub repository for the web platform: `aarheemfrj/henaqenawebapp`.
+- Keep this repository as a deferred destination only. Do not change the current repository remote or push/migrate the web platform into it until the owner explicitly requests that action.
+
 ---
 
 **Last updated:** 2026-07-18
