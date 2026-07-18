@@ -437,6 +437,17 @@ app.get('/api/admin/overview', requireAdmin, async (_req, res, next) => {
   } catch (error) { next(error); }
 });
 
+app.get('/api/admin/team', requireAdmin, async (_req, res, next) => {
+  try { res.json(await prisma.adminAccount.findMany({ select: { id: true, name: true, email: true, role: true, isActive: true, lastLoginAt: true, createdAt: true }, orderBy: { createdAt: 'desc' } })); } catch (error) { next(error); }
+});
+const adminAccountSchema = z.object({ name: z.string().trim().min(2).max(80), email: z.string().email(), password: z.string().min(10).max(128), role: z.enum(['OWNER', 'REVIEWER', 'CONTENT_EDITOR', 'MODERATOR']).default('REVIEWER') });
+app.post('/api/admin/team', requireAdmin, async (req, res, next) => {
+  try { const input = adminAccountSchema.parse(req.body); const member = await prisma.adminAccount.create({ data: { name: input.name, email: input.email.toLowerCase(), passwordHash: await passwordHash(input.password), role: input.role } }); res.status(201).json({ id: member.id, name: member.name, email: member.email, role: member.role, isActive: member.isActive }); } catch (error) { next(error); }
+});
+app.patch('/api/admin/team/:id', requireAdmin, async (req, res, next) => {
+  try { const input = z.object({ role: z.enum(['OWNER', 'REVIEWER', 'CONTENT_EDITOR', 'MODERATOR']).optional(), isActive: z.boolean().optional(), name: z.string().trim().min(2).max(80).optional() }).parse(req.body); const member = await prisma.adminAccount.update({ where: { id: String(req.params.id) }, data: input }); res.json({ id: member.id, name: member.name, email: member.email, role: member.role, isActive: member.isActive }); } catch (error) { next(error); }
+});
+
 app.get('/api/admin/reviews', requireAdmin, async (req, res, next) => {
   try {
     const status = typeof req.query.status === 'string' && Object.values(ReviewStatus).includes(req.query.status as ReviewStatus)

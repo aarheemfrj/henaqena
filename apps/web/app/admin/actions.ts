@@ -67,3 +67,16 @@ export async function moderateNow(formData: FormData) {
   if (!id || !['APPROVED', 'REJECTED'].includes(status)) return;
   await apiPatch(`/api/admin/now/${id}`, { status }); revalidatePath('/admin/now');
 }
+
+export async function createTeamMember(formData: FormData) {
+  if (!await hasAdminSession()) redirect('/admin/login');
+  await apiPost('/api/admin/team', { name: String(formData.get('name') ?? ''), email: String(formData.get('email') ?? ''), password: String(formData.get('password') ?? ''), role: String(formData.get('role') ?? 'REVIEWER') });
+  revalidatePath('/admin/team');
+}
+
+export async function updateTeamMember(formData: FormData) {
+  if (!await hasAdminSession()) redirect('/admin/login');
+  const id = String(formData.get('id') ?? ''); if (!id) return;
+  await apiPatch(`/api/admin/team/${id}`, { role: String(formData.get('role') ?? 'REVIEWER'), isActive: formData.get('isActive') === 'true' });
+  revalidatePath('/admin/team');
+}

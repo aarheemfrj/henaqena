@@ -27,6 +27,13 @@ enum UserLevel {
   QENAWY_ASIL
 }
 
+enum AdminRole {
+  OWNER
+  REVIEWER
+  CONTENT_EDITOR
+  MODERATOR
+}
+
 model User {
   id              String         @id @default(cuid())
   name            String
@@ -56,6 +63,18 @@ model User {
   verificationCodes VerificationCode[]
   auditLogs       AuditLog[]
   providerReports ProviderReport[] @relation("reportedBy")
+}
+
+model AdminAccount {
+  id           String    @id @default(cuid())
+  name         String
+  email        String    @unique
+  passwordHash String
+  role         AdminRole @default(REVIEWER)
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 }
 
 model Session {
