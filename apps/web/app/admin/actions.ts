@@ -92,3 +92,9 @@ export async function moderateReview(formData: FormData) {
 export async function moderateReport(formData: FormData) {
   if (!await hasAdminSession()) redirect('/admin/login'); const id = String(formData.get('id') ?? ''); const status = String(formData.get('status') ?? ''); if (!id || !['APPROVED', 'REJECTED'].includes(status)) return; await apiPatch(`/api/admin/provider-reports/${id}`, { status }); revalidatePath('/admin/reports');
 }
+
+export async function importProviders(formData: FormData) {
+  if (!await hasAdminSession()) redirect('/admin/login');
+  const file = formData.get('file'); if (!(file instanceof File)) return;
+  const csv = await file.text(); await apiPost('/api/admin/import/providers', { csv }); revalidatePath('/admin/providers'); revalidatePath('/admin/import');
+}

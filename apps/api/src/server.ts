@@ -448,6 +448,30 @@ app.patch('/api/admin/team/:id', requireAdmin, async (req, res, next) => {
   try { const input = z.object({ role: z.enum(['OWNER', 'REVIEWER', 'CONTENT_EDITOR', 'MODERATOR']).optional(), isActive: z.boolean().optional(), name: z.string().trim().min(2).max(80).optional() }).parse(req.body); const member = await prisma.adminAccount.update({ where: { id: String(req.params.id) }, data: input }); res.json({ id: member.id, name: member.name, email: member.email, role: member.role, isActive: member.isActive }); } catch (error) { next(error); }
 });
 
+app.get('/api/admin/users', requireAdmin, async (_req, res, next) => {
+  try { res.json(await prisma.user.findMany({ select: { id: true, name: true, phone: true, email: true, points: true, level: true, role: true, createdAt: true, _count: { select: { reviews: true, listings: true, providers: true } } }, orderBy: { createdAt: 'desc' }, take: 500 })); } catch (error) { next(error); }
+});
+
+const parseCsvLine = (line: string) => line.split(',').map((value) => value.trim().replace(/^"|"$/g, ''));
+app.post('/api/admin/import/providers', requireAdmin, async (req, res, next) => {
+  try {
+    const csv = z.object({ csv: z.string().min(1).max(2_000_000) }).parse(req.body).csv.replace(/^\uFEFF/, '');
+    const lines = csv.split(/\r?\n/).map((line) => line.trim()).filter(Boolean); if (lines.length < 2) return res.status(400).json({ message: 'ملف CSV يحتاج صف عناوين وصف بيانات واحد على الأقل' });
+    const headers = parseCsvLine(lines[0]).map((header) => header.toLowerCase()); const index = (names: string[]) => names.map((name) => headers.indexOf(name)).find((value) => value >= 0) ?? -1;
+    const nameIndex = index(['name', 'الاسم', 'اسم النشاط']); const areaIndex = index(['area', 'المنطقة']); const categoryIndex = index(['category', 'الفئة']); const descriptionIndex = index(['description', 'الوصف']); const phoneIndex = index(['phone', 'الهاتف', 'التليفون']);
+    if (nameIndex < 0 || areaIndex < 0 || categoryIndex < 0) return res.status(400).json({ message: 'الأعمدة المطلوبة: name, area, category' });
+    let created = 0; let duplicates = 0; const errors: string[] = [];
+    for (let rowIndex = 1; rowIndex < lines.length; rowIndex++) {
+      const row = parseCsvLine(lines[rowIndex]); const name = row[nameIndex] ?? ''; const areaName = row[areaIndex] ?? ''; const categoryName = row[categoryIndex] ?? ''; if (!name || !areaName || !categoryName) { errors.push(`السطر ${rowIndex + 1}: بيانات ناقصة`); continue; }
+      const area = await prisma.area.findFirst({ where: { name: areaName } }) ?? await prisma.area.create({ data: { name: areaName, city: 'قنا' } });
+      const category = await prisma.category.findFirst({ where: { OR: [{ name: categoryName }, { slug: categoryName.toLowerCase().replace(/\s+/g, '-') }] } }) ?? await prisma.category.create({ data: { name: categoryName, slug: `${categoryName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${randomBytes(3).toString('hex')}` } });
+      const phone = phoneIndex >= 0 ? row[phoneIndex] || undefined : undefined; const duplicate = await prisma.provider.findFirst({ where: { areaId: area.id, OR: [{ name: { equals: name, mode: 'insensitive' } }, ...(phone ? [{ phone }] : [])] } }); if (duplicate) { duplicates++; continue; }
+      await prisma.provider.create({ data: { name, description: descriptionIndex >= 0 ? row[descriptionIndex] || undefined : undefined, phone, areaId: area.id, status: ReviewStatus.PENDING, communityAdded: false, submissionKind: 'IMPORT', images: { create: [{ url: '/assets/brand/temp-logo-mark.svg', kind: 'temporary', sortOrder: 0 }] }, categories: { create: { categoryId: category.id } } } }); created++;
+    }
+    res.status(201).json({ created, duplicates, errors });
+  } catch (error) { next(error); }
+});
+
 app.get('/api/admin/reviews', requireAdmin, async (req, res, next) => {
   try {
     const status = typeof req.query.status === 'string' && Object.values(ReviewStatus).includes(req.query.status as ReviewStatus)
