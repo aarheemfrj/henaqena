@@ -1670,8 +1670,9 @@ After that, implement the provider-directory data model and admin review workflo
 - PostgreSQL local infrastructure is defined in `infra/docker-compose.yml`.
 - Prisma schema covers users, areas, providers, provider images, categories, listings, ads, reviews, replies, and notifications.
 - Initial API lives under `apps/api` with health, areas, providers, listings, ads, and review endpoints.
-- Initial admin review dashboard lives under `apps/admin` and is currently a front-end prototype awaiting authenticated API integration.
-- The mobile directory uses API data when available and falls back to local demo data when the API is unavailable.
+- The production web and admin dashboard live under `apps/web`, use Next.js, authenticated server sessions, and the live API/PostgreSQL data.
+- The old static `apps/admin` preview was removed after its functionality was replaced by the authenticated Next.js platform.
+- The mobile directory uses API data only and shows a clear retry state when the server is unavailable.
 
 ---
 
@@ -1685,8 +1686,8 @@ After that, implement the provider-directory data model and admin review workflo
 
 - The mobile client remains Flutter for the iOS/Android launch.
 - The public/admin web platform must be Next.js + TypeScript to align with MaalSoft's architecture and interaction model.
-- `apps/admin` is a temporary static prototype and is not the final platform.
-- `apps/web` is the intended Next.js app location; migration should be incremental and must reuse the existing PostgreSQL/Prisma model.
+- The old static `apps/admin` prototype has been retired and removed.
+- `apps/web` is the final Next.js app location and reuses the existing PostgreSQL/Prisma model.
 - The current Express API may remain as a compatibility layer while web routes are migrated; do not delete it during the migration.
 
 ## 33. Page Transition Motion References (2026-07-18)
