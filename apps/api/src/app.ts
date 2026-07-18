@@ -1,9 +1,11 @@
 import cors from 'cors';
 import express from 'express';
+import swaggerUi from 'swagger-ui-express';
 import { PrismaClient, ReviewStatus, ListingStatus } from '@prisma/client';
 import { z } from 'zod';
 import { createHash, randomBytes, randomInt, scrypt as scryptCallback } from 'node:crypto';
 import { promisify } from 'node:util';
+import { swaggerSpec } from './swagger';
 
 export function createApp(prismaClient?: PrismaClient) {
   const prisma = prismaClient || new PrismaClient();
@@ -37,6 +39,10 @@ export function createApp(prismaClient?: PrismaClient) {
 
   app.use(cors());
   app.use(express.json({ limit: '2mb' }));
+
+  // Swagger documentation
+  app.use('/api/docs', swaggerUi.serve);
+  app.get('/api/docs', swaggerUi.setup(swaggerSpec, { swaggerOptions: { tryItOutEnabled: true } }));
 
   const authLimiter = createRateLimiter(5, 15 * 60 * 1000);
   const verificationLimiter = createRateLimiter(10, 60 * 60 * 1000);
