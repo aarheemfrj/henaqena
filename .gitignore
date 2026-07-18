@@ -8,6 +8,7 @@ dist/
 .packages
 .pub-cache/
 build/
+.next/
 ios/Pods/
 android/.gradle/
 android/local.properties
