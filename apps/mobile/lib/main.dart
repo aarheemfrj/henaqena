@@ -4171,22 +4171,26 @@ class _ListingsPageState extends State<ListingsPage> {
     super.dispose();
   }
 
-  void _reload() => setState(
-    () => listings = api.fetchListings(category: category, query: search.text),
-  );
+  Future<void> _reload() async {
+    final next = api.fetchListings(category: category, query: search.text);
+    if (!mounted) return;
+    setState(() {
+      listings = next;
+    });
+    await next;
+  }
 
   void _search(String _) {
     debounce?.cancel();
-    debounce = Timer(const Duration(milliseconds: 350), _reload);
+    debounce = Timer(const Duration(milliseconds: 350), () {
+      _reload();
+    });
   }
 
   @override
   Widget build(BuildContext context) => BasePage(
     title: 'عندك؟',
-    onRefresh: () async {
-      _reload();
-      await listings;
-    },
+    onRefresh: _reload,
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -4434,7 +4438,9 @@ class _ListingDetailPageState extends State<ListingDetailPage> {
         'category': category,
       });
       if (mounted) {
-        setState(() => listing = api.fetchListing(widget.listingId));
+        setState(() {
+          listing = api.fetchListing(widget.listingId);
+        });
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text('تم حفظ تعديلات الإعلان')));
@@ -4551,8 +4557,9 @@ class _ListingDetailPageState extends State<ListingDetailPage> {
               title: 'الإعلان غير متاح',
               subtitle: 'ربما انتهت مدته أو تم حذفه.',
               actionLabel: 'إعادة المحاولة',
-              onAction: () =>
-                  setState(() => listing = api.fetchListing(widget.listingId)),
+              onAction: () => setState(() {
+                listing = api.fetchListing(widget.listingId);
+              }),
             );
           }
           final data = snapshot.data!;
@@ -5482,7 +5489,12 @@ class FavoritesPage extends StatefulWidget {
 
 class _FavoritesPageState extends State<FavoritesPage> {
   late Future<Map<String, dynamic>> favorites = ApiClient().fetchFavorites();
-  void _reload() => setState(() => favorites = ApiClient().fetchFavorites());
+  void _reload() {
+    if (!mounted) return;
+    setState(() {
+      favorites = ApiClient().fetchFavorites();
+    });
+  }
 
   @override
   Widget build(BuildContext context) => Directionality(
@@ -5591,7 +5603,12 @@ class MyListingsPage extends StatefulWidget {
 class _MyListingsPageState extends State<MyListingsPage> {
   final api = ApiClient();
   late Future<Map<String, dynamic>> contributions = api.fetchContributions();
-  void _reload() => setState(() => contributions = api.fetchContributions());
+  void _reload() {
+    if (!mounted) return;
+    setState(() {
+      contributions = api.fetchContributions();
+    });
+  }
 
   String _status(String? value) => switch (value) {
     'PENDING' => 'قيد المراجعة',
@@ -5840,8 +5857,15 @@ class _NotificationsPageState extends State<NotificationsPage> {
   final api = ApiClient();
   late Future<List<Map<String, dynamic>>> notifications = api
       .fetchNotifications();
-  Future<void> _reload() async =>
-      setState(() => notifications = api.fetchNotifications());
+  Future<void> _reload() async {
+    final next = api.fetchNotifications();
+    if (!mounted) return;
+    setState(() {
+      notifications = next;
+    });
+    await next;
+  }
+
   @override
   Widget build(BuildContext context) => Directionality(
     textDirection: TextDirection.rtl,
@@ -7241,15 +7265,18 @@ class _AdminControlPageState extends State<AdminControlPage> {
       .fetchAdminListingReports();
   late Future<List<Map<String, dynamic>>> supportTickets = api
       .fetchAdminSupportTickets();
-  Future<void> _reload() async => setState(() {
-    providers = api.fetchAdminProviders();
-    listings = api.fetchAdminListings();
-    reviews = api.fetchAdminReviews();
-    replies = api.fetchAdminReplies();
-    providerReports = api.fetchAdminProviderReports();
-    listingReports = api.fetchAdminListingReports();
-    supportTickets = api.fetchAdminSupportTickets();
-  });
+  Future<void> _reload() async {
+    if (!mounted) return;
+    setState(() {
+      providers = api.fetchAdminProviders();
+      listings = api.fetchAdminListings();
+      reviews = api.fetchAdminReviews();
+      replies = api.fetchAdminReplies();
+      providerReports = api.fetchAdminProviderReports();
+      listingReports = api.fetchAdminListingReports();
+      supportTickets = api.fetchAdminSupportTickets();
+    });
+  }
 
   Future<String?> _rejectionReason() async {
     final controller = TextEditingController();
