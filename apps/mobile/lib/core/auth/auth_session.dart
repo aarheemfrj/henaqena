@@ -44,6 +44,12 @@ class AuthSession {
     await preferences.remove(_nameKey);
   }
 
+  static Future<void> updateName(String userName) async {
+    name = userName;
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setString(_nameKey, userName);
+  }
+
   static Future<void> saveAdmin({
     required String newToken,
     required String userName,

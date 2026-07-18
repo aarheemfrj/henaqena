@@ -43,6 +43,24 @@ const requireAdmin = async (req: express.Request, res: express.Response, next: e
 const requireAdminRoles = (roles: string[]) => async (req: express.Request, res: express.Response, next: express.NextFunction) => { const expected = process.env.ADMIN_API_KEY ?? (process.env.NODE_ENV !== 'production' ? 'dev-henaqena-admin' : undefined); const provided = typeof req.headers['x-admin-key'] === 'string' ? req.headers['x-admin-key'] : ''; if (expected && provided === expected) return next(); const session = await adminSessionFromRequest(req); if (!session || !roles.includes(session.admin.role)) return res.status(403).json({ message: 'الدور الإداري لا يسمح بهذه العملية' }); next(); };
 const audit = (action: string, entity: string, entityId: string, metadata?: Record<string, unknown>) => prisma.auditLog.create({ data: { action, entity, entityId, metadata: metadata as any } });
 const publicAuthorSelect = { id: true, name: true, avatarUrl: true, isProfilePrivate: true, points: true, level: true } as const;
+const verificationWebhooks: Record<string, string | undefined> = {
+  whatsapp: process.env.WHATSAPP_OTP_WEBHOOK_URL,
+  sms: process.env.SMS_OTP_WEBHOOK_URL,
+  email: process.env.EMAIL_OTP_WEBHOOK_URL,
+};
+const deliverVerificationCode = async (channel: string, target: string, code: string, purpose: 'verify' | 'reset') => {
+  const webhook = verificationWebhooks[channel];
+  if (!webhook) {
+    if (process.env.NODE_ENV !== 'production') { console.log(`[${purpose}:${channel}] ${target}: ${code}`); return; }
+    throw new Error(`قناة إرسال ${channel} غير مهيأة`);
+  }
+  const response = await fetch(webhook, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(process.env.OTP_WEBHOOK_TOKEN ? { authorization: `Bearer ${process.env.OTP_WEBHOOK_TOKEN}` } : {}) },
+    body: JSON.stringify({ channel, target, code, purpose, app: 'henaqena' }),
+  });
+  if (!response.ok) throw new Error(`تعذر إرسال رمز ${channel}`);
+};
 
 const allowedOrigins = (process.env.CORS_ORIGINS ?? '*').split(',').map((origin) => origin.trim()).filter(Boolean);
 app.use(cors({ origin: allowedOrigins.includes('*') ? true : allowedOrigins }));
@@ -156,7 +174,7 @@ app.post('/api/auth/verification/request', verificationLimiter, async (req, res,
     if (!target) return res.status(400).json({ message: 'أضف وسيلة التواصل أولاً' });
     const code = String(randomInt(100000, 1000000));
     await prisma.verificationCode.create({ data: { userId: session.userId, channel: input.channel, target, codeHash: hash(code), expiresAt: new Date(Date.now() + 10 * 60 * 1000) } });
-    if (process.env.NODE_ENV !== 'production') console.log(`[verification:${input.channel}] ${target}: ${code}`);
+    await deliverVerificationCode(input.channel, target, code, 'verify');
     res.json({ sent: true, channel: input.channel, targetMasked: `${target.slice(0, 3)}***${target.slice(-2)}` });
   } catch (error) { next(error); }
 });
@@ -179,7 +197,7 @@ app.post('/api/auth/password-reset/request', verificationLimiter, async (req, re
     const input = z.object({ identifier: z.string().trim().min(3), channel: z.enum(['whatsapp', 'sms', 'email']) }).parse(req.body);
     const user = input.channel === 'email' ? await prisma.user.findUnique({ where: { email: input.identifier } }) : await prisma.user.findUnique({ where: { phone: input.identifier } });
     // Always return the same response to avoid leaking whether an account exists.
-    if (user) { const code = String(randomInt(100000, 1000000)); await prisma.verificationCode.create({ data: { userId: user.id, channel: `reset_${input.channel}`, target: input.identifier, codeHash: hash(code), expiresAt: new Date(Date.now() + 10 * 60 * 1000) } }); if (process.env.NODE_ENV !== 'production') console.log(`[password-reset:${input.channel}] ${input.identifier}: ${code}`); }
+    if (user) { const code = String(randomInt(100000, 1000000)); await prisma.verificationCode.create({ data: { userId: user.id, channel: `reset_${input.channel}`, target: input.identifier, codeHash: hash(code), expiresAt: new Date(Date.now() + 10 * 60 * 1000) } }); await deliverVerificationCode(input.channel, input.identifier, code, 'reset'); }
     res.json({ sent: true, channel: input.channel });
   } catch (error) { next(error); }
 });
@@ -265,6 +283,32 @@ app.post('/api/uploads/provider-images', async (req, res, next) => {
       return { url: `${publicApiBaseUrl}/uploads/providers/${filename}`, kind: 'work' };
     }));
     res.status(201).json({ images });
+  } catch (error) { next(error); }
+});
+
+app.post('/api/uploads/avatar', async (req, res, next) => {
+  try {
+    const session = await sessionFromRequest(req);
+    if (!session) return res.status(401).json({ message: 'سجّل الدخول أولاً' });
+    const image = uploadedImageSchema.parse(req.body);
+    const bytes = Buffer.from(image.base64, 'base64');
+    if (bytes.length === 0 || bytes.length > 2 * 1024 * 1024) return res.status(400).json({ message: 'حجم الصورة يجب ألا يزيد عن 2 ميجابايت' });
+    const extension = image.mimeType === 'image/png' ? 'png' : image.mimeType === 'image/webp' ? 'webp' : 'jpg';
+    const folder = path.join(uploadRoot, 'avatars');
+    await mkdir(folder, { recursive: true });
+    const filename = `${session.userId}-${Date.now()}-${randomBytes(6).toString('hex')}.${extension}`;
+    await writeFile(path.join(folder, filename), bytes, { flag: 'wx' });
+    res.status(201).json({ url: `${publicApiBaseUrl}/uploads/avatars/${filename}` });
+  } catch (error) { next(error); }
+});
+
+app.patch('/api/me/profile', async (req, res, next) => {
+  try {
+    const session = await sessionFromRequest(req);
+    if (!session) return res.status(401).json({ message: 'غير مسجل الدخول' });
+    const input = z.object({ name: z.string().trim().min(2).max(80), email: z.union([z.string().email(), z.literal('')]).optional(), avatarUrl: z.string().url().nullable().optional() }).parse(req.body);
+    const user = await prisma.user.update({ where: { id: session.userId }, data: { name: input.name, email: input.email ? input.email.toLowerCase() : null, ...(input.avatarUrl !== undefined ? { avatarUrl: input.avatarUrl } : {}) } });
+    res.json({ id: user.id, name: user.name, email: user.email, avatarUrl: user.avatarUrl });
   } catch (error) { next(error); }
 });
 
@@ -820,4 +864,33 @@ app.use((error: unknown, _req: express.Request, res: express.Response, _next: ex
   res.status(500).json({ message: 'خطأ في الخادم - يرجى المحاولة لاحقاً' });
 });
 
-app.listen(port, () => console.log(`Hena Qena API listening on http://localhost:${port}`));
+const runListingLifecycle = async () => {
+  const now = new Date();
+  const expiring = await prisma.listing.findMany({ where: { status: ListingStatus.ACTIVE, expiresAt: { lt: now } }, select: { id: true, ownerId: true, title: true } });
+  for (const listing of expiring) {
+    await prisma.$transaction([
+      prisma.listing.update({ where: { id: listing.id }, data: { status: ListingStatus.EXPIRED } }),
+      prisma.notification.create({ data: { userId: listing.ownerId, title: 'انتهت مدة إعلانك', body: `إعلان «${listing.title}» انتهت مدته. افتح «إعلاناتي» خلال 3 أيام لإعادة نشره.` } }),
+    ]);
+  }
+  const cleanupBefore = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+  const stale = await prisma.listing.findMany({ where: { status: ListingStatus.EXPIRED, expiresAt: { lt: cleanupBefore } }, include: { images: true } });
+  for (const listing of stale) {
+    await prisma.listing.delete({ where: { id: listing.id } });
+    await Promise.all(listing.images.map(async (image) => {
+      try {
+        const pathname = new URL(image.url).pathname;
+        if (pathname.startsWith('/uploads/providers/')) await unlink(path.join(uploadRoot, 'providers', path.basename(pathname)));
+      } catch { /* Missing files do not block lifecycle cleanup. */ }
+    }));
+  }
+};
+
+app.listen(port, () => {
+  console.log(`Hena Qena API listening on http://localhost:${port}`);
+  if (process.env.ENABLE_BACKGROUND_JOBS !== 'false') {
+    void runListingLifecycle().catch((error) => console.error('[listing-lifecycle]', error));
+    const lifecycleTimer = setInterval(() => void runListingLifecycle().catch((error) => console.error('[listing-lifecycle]', error)), 6 * 60 * 60 * 1000);
+    lifecycleTimer.unref();
+  }
+});

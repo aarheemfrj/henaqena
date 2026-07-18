@@ -314,6 +314,32 @@ class ApiClient {
     if (response.statusCode != 200) throw Exception('reset_request_error');
   }
 
+  Future<Map<String, dynamic>> requestVerification(String channel) async {
+    final response = await http
+        .post(
+          Uri.parse('$baseUrl/api/auth/verification/request'),
+          headers: _jsonHeaders,
+          body: jsonEncode({'channel': channel}),
+        )
+        .timeout(const Duration(seconds: 8));
+    if (response.statusCode == 401) throw Exception('unauthorized');
+    if (response.statusCode != 200)
+      throw Exception('verification_request_error');
+    return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+  }
+
+  Future<void> confirmVerification(String channel, String code) async {
+    final response = await http
+        .post(
+          Uri.parse('$baseUrl/api/auth/verification/confirm'),
+          headers: _jsonHeaders,
+          body: jsonEncode({'channel': channel, 'code': code.trim()}),
+        )
+        .timeout(const Duration(seconds: 8));
+    if (response.statusCode != 200)
+      throw Exception('verification_confirm_error');
+  }
+
   Future<void> confirmPasswordReset({
     required String identifier,
     required String channel,
@@ -414,6 +440,46 @@ class ApiClient {
     return (body['images'] as List<dynamic>)
         .map((item) => Map<String, dynamic>.from(item as Map))
         .toList();
+  }
+
+  Future<String> uploadAvatar(XFile image) async {
+    final path = image.path.toLowerCase();
+    final mimeType = path.endsWith('.png')
+        ? 'image/png'
+        : path.endsWith('.webp')
+        ? 'image/webp'
+        : 'image/jpeg';
+    final response = await http
+        .post(
+          Uri.parse('$baseUrl/api/uploads/avatar'),
+          headers: _jsonHeaders,
+          body: jsonEncode({
+            'base64': base64Encode(await image.readAsBytes()),
+            'mimeType': mimeType,
+          }),
+        )
+        .timeout(const Duration(seconds: 30));
+    if (response.statusCode != 201) throw Exception('avatar_upload_error');
+    return (jsonDecode(response.body) as Map<String, dynamic>)['url'] as String;
+  }
+
+  Future<void> updateProfile({
+    required String name,
+    String? email,
+    String? avatarUrl,
+  }) async {
+    final response = await http
+        .patch(
+          Uri.parse('$baseUrl/api/me/profile'),
+          headers: _jsonHeaders,
+          body: jsonEncode({
+            'name': name.trim(),
+            'email': email?.trim() ?? '',
+            if (avatarUrl != null) 'avatarUrl': avatarUrl,
+          }),
+        )
+        .timeout(const Duration(seconds: 8));
+    if (response.statusCode != 200) throw Exception('profile_update_error');
   }
 
   Future<void> submitProviderReport({

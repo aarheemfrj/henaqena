@@ -423,8 +423,246 @@ class _AuthPageState extends State<AuthPage> {
                 createAccount ? 'عندي حساب بالفعل' : 'إنشاء حساب جديد',
               ),
             ),
+            if (!createAccount)
+              TextButton(
+                onPressed: submitting
+                    ? null
+                    : () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const ForgotPasswordPage(),
+                        ),
+                      ),
+                child: const Text('نسيت كلمة المرور؟'),
+              ),
           ],
         ),
+      ),
+    ),
+  );
+}
+
+class ForgotPasswordPage extends StatefulWidget {
+  const ForgotPasswordPage({super.key});
+  @override
+  State<ForgotPasswordPage> createState() => _ForgotPasswordPageState();
+}
+
+class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
+  final identifier = TextEditingController();
+  final code = TextEditingController();
+  final password = TextEditingController();
+  String channel = 'whatsapp';
+  bool requested = false;
+  bool submitting = false;
+
+  @override
+  void dispose() {
+    identifier.dispose();
+    code.dispose();
+    password.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (identifier.text.trim().isEmpty) return;
+    setState(() => submitting = true);
+    try {
+      if (!requested) {
+        await ApiClient().requestPasswordReset(
+          identifier: identifier.text.trim(),
+          channel: channel,
+        );
+        if (mounted) setState(() => requested = true);
+      } else {
+        await ApiClient().confirmPasswordReset(
+          identifier: identifier.text.trim(),
+          channel: channel,
+          code: code.text.trim(),
+          newPassword: password.text,
+        );
+        if (!mounted) return;
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('تم تغيير كلمة المرور، سجّل دخولك الآن'),
+          ),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              requested
+                  ? 'تأكد من الرمز وكلمة المرور الجديدة'
+                  : 'تعذر إرسال رمز الاستعادة حالياً',
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => submitting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Directionality(
+    textDirection: TextDirection.rtl,
+    child: Scaffold(
+      appBar: AppBar(title: const Text('استعادة كلمة المرور')),
+      body: ListView(
+        padding: const EdgeInsets.all(18),
+        children: [
+          const Text(
+            'اختار وسيلة الاستعادة المرتبطة بحسابك.',
+            style: TextStyle(color: muted),
+          ),
+          const SizedBox(height: 14),
+          SegmentedButton<String>(
+            segments: const [
+              ButtonSegment(value: 'whatsapp', label: Text('واتساب')),
+              ButtonSegment(value: 'sms', label: Text('رسالة')),
+              ButtonSegment(value: 'email', label: Text('بريد')),
+            ],
+            selected: {channel},
+            onSelectionChanged: requested
+                ? null
+                : (value) => setState(() => channel = value.first),
+          ),
+          const SizedBox(height: 14),
+          TextField(
+            controller: identifier,
+            enabled: !requested,
+            keyboardType: channel == 'email'
+                ? TextInputType.emailAddress
+                : TextInputType.phone,
+            decoration: InputDecoration(
+              labelText: channel == 'email'
+                  ? 'البريد الإلكتروني'
+                  : 'رقم الهاتف',
+            ),
+          ),
+          if (requested) ...[
+            const SizedBox(height: 12),
+            TextField(
+              controller: code,
+              keyboardType: TextInputType.number,
+              maxLength: 6,
+              decoration: const InputDecoration(labelText: 'رمز التأكيد'),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: password,
+              obscureText: true,
+              decoration: const InputDecoration(
+                labelText: 'كلمة المرور الجديدة',
+              ),
+            ),
+          ],
+          const SizedBox(height: 18),
+          FilledButton(
+            onPressed: submitting ? null : _submit,
+            child: Text(
+              submitting
+                  ? 'جارٍ التنفيذ…'
+                  : requested
+                  ? 'تأكيد كلمة المرور'
+                  : 'إرسال الرمز',
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class AccountVerificationPage extends StatefulWidget {
+  const AccountVerificationPage({super.key});
+  @override
+  State<AccountVerificationPage> createState() =>
+      _AccountVerificationPageState();
+}
+
+class _AccountVerificationPageState extends State<AccountVerificationPage> {
+  final code = TextEditingController();
+  String channel = 'whatsapp';
+  bool requested = false;
+  bool submitting = false;
+
+  @override
+  void dispose() {
+    code.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    setState(() => submitting = true);
+    try {
+      if (!requested) {
+        await ApiClient().requestVerification(channel);
+        if (mounted) setState(() => requested = true);
+      } else {
+        await ApiClient().confirmVerification(channel, code.text);
+        if (!mounted) return;
+        Navigator.pop(context);
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('تم تأكيد وسيلة التواصل')));
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('تعذر التأكيد؛ راجع الرمز وحاول مرة أخرى'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => submitting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Directionality(
+    textDirection: TextDirection.rtl,
+    child: Scaffold(
+      appBar: AppBar(title: const Text('تأكيد الحساب')),
+      body: ListView(
+        padding: const EdgeInsets.all(18),
+        children: [
+          SegmentedButton<String>(
+            segments: const [
+              ButtonSegment(value: 'whatsapp', label: Text('واتساب')),
+              ButtonSegment(value: 'sms', label: Text('رسالة')),
+              ButtonSegment(value: 'email', label: Text('بريد')),
+            ],
+            selected: {channel},
+            onSelectionChanged: requested
+                ? null
+                : (value) => setState(() => channel = value.first),
+          ),
+          if (requested) ...[
+            const SizedBox(height: 14),
+            TextField(
+              controller: code,
+              keyboardType: TextInputType.number,
+              maxLength: 6,
+              decoration: const InputDecoration(labelText: 'رمز التأكيد'),
+            ),
+          ],
+          const SizedBox(height: 18),
+          FilledButton(
+            onPressed: submitting ? null : _submit,
+            child: Text(
+              submitting
+                  ? 'جارٍ التنفيذ…'
+                  : requested
+                  ? 'تأكيد الرمز'
+                  : 'إرسال الرمز',
+            ),
+          ),
+        ],
       ),
     ),
   );
@@ -4023,8 +4261,13 @@ class _MediaGalleryState extends State<MediaGallery>
   );
 }
 
-class AccountPage extends StatelessWidget {
+class AccountPage extends StatefulWidget {
   const AccountPage({super.key});
+  @override
+  State<AccountPage> createState() => _AccountPageState();
+}
+
+class _AccountPageState extends State<AccountPage> {
   @override
   Widget build(BuildContext context) => Directionality(
     textDirection: TextDirection.rtl,
@@ -4064,14 +4307,33 @@ class AccountPage extends StatelessWidget {
                   borderRadius: BorderRadius.circular(18),
                 ),
                 child: ListTile(
+                  onTap: () async {
+                    await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => EditProfilePage(profile: profile),
+                      ),
+                    );
+                    if (mounted) setState(() {});
+                  },
                   contentPadding: EdgeInsets.all(14),
                   leading: CircleAvatar(
                     radius: 25,
                     backgroundColor: deepTeal,
-                    child: Text(
-                      profileName.isEmpty ? 'هـ' : profileName.characters.first,
-                      style: TextStyle(color: Colors.white, fontSize: 18),
-                    ),
+                    backgroundImage: profile?['avatarUrl'] == null
+                        ? null
+                        : NetworkImage(profile!['avatarUrl'] as String),
+                    child: profile?['avatarUrl'] == null
+                        ? Text(
+                            profileName.isEmpty
+                                ? 'هـ'
+                                : profileName.characters.first,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                            ),
+                          )
+                        : null,
                   ),
                   title: Text(
                     profileName,
@@ -4147,6 +4409,128 @@ class AccountPage extends StatelessWidget {
             ],
           );
         },
+      ),
+    ),
+  );
+}
+
+class EditProfilePage extends StatefulWidget {
+  const EditProfilePage({super.key, required this.profile});
+  final Map<String, dynamic>? profile;
+  @override
+  State<EditProfilePage> createState() => _EditProfilePageState();
+}
+
+class _EditProfilePageState extends State<EditProfilePage> {
+  late final name = TextEditingController(
+    text: widget.profile?['name'] as String? ?? AuthSession.name ?? '',
+  );
+  late final email = TextEditingController(
+    text: widget.profile?['email'] as String? ?? '',
+  );
+  XFile? avatar;
+  bool submitting = false;
+
+  @override
+  void dispose() {
+    name.dispose();
+    email.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickAvatar() async {
+    final image = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 75,
+      maxWidth: 800,
+    );
+    if (image != null && mounted) setState(() => avatar = image);
+  }
+
+  Future<void> _save() async {
+    if (name.text.trim().length < 2) return;
+    setState(() => submitting = true);
+    try {
+      final avatarUrl = avatar == null
+          ? null
+          : await ApiClient().uploadAvatar(avatar!);
+      await ApiClient().updateProfile(
+        name: name.text,
+        email: email.text,
+        avatarUrl: avatarUrl,
+      );
+      await AuthSession.updateName(name.text.trim());
+      if (mounted) Navigator.pop(context);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('تعذر حفظ بيانات الحساب')));
+      }
+    } finally {
+      if (mounted) setState(() => submitting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Directionality(
+    textDirection: TextDirection.rtl,
+    child: Scaffold(
+      appBar: AppBar(title: const Text('تعديل الحساب')),
+      body: ListView(
+        padding: const EdgeInsets.all(18),
+        children: [
+          Center(
+            child: Stack(
+              children: [
+                CircleAvatar(
+                  radius: 46,
+                  backgroundColor: const Color(0xFFD8EFEC),
+                  backgroundImage: avatar == null
+                      ? (widget.profile?['avatarUrl'] == null
+                            ? null
+                            : NetworkImage(
+                                widget.profile!['avatarUrl'] as String,
+                              ))
+                      : FileImage(File(avatar!.path)) as ImageProvider,
+                  child: avatar == null && widget.profile?['avatarUrl'] == null
+                      ? const Icon(
+                          Icons.person_outline,
+                          color: deepTeal,
+                          size: 42,
+                        )
+                      : null,
+                ),
+                PositionedDirectional(
+                  end: 0,
+                  bottom: 0,
+                  child: IconButton.filled(
+                    onPressed: _pickAvatar,
+                    icon: const Icon(Icons.camera_alt_outlined, size: 18),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 22),
+          TextField(
+            controller: name,
+            decoration: const InputDecoration(labelText: 'الاسم الحقيقي'),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: email,
+            keyboardType: TextInputType.emailAddress,
+            decoration: const InputDecoration(
+              labelText: 'البريد الإلكتروني (اختياري)',
+            ),
+          ),
+          const SizedBox(height: 18),
+          FilledButton(
+            onPressed: submitting ? null : _save,
+            child: Text(submitting ? 'جارٍ الحفظ…' : 'حفظ التعديلات'),
+          ),
+        ],
       ),
     ),
   );
@@ -4995,13 +5379,23 @@ class _AddActivityPageState extends State<AddActivityPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Container(
-            height: 130,
-            decoration: BoxDecoration(
-              color: const Color(0xFFD8EFEC),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: const Icon(Icons.image_outlined, color: deepTeal, size: 52),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(14),
+            child: selectedImages.isEmpty
+                ? Container(
+                    height: 130,
+                    color: const Color(0xFFD8EFEC),
+                    child: const Icon(
+                      Icons.image_outlined,
+                      color: deepTeal,
+                      size: 52,
+                    ),
+                  )
+                : Image.file(
+                    File(selectedImages.first.path),
+                    height: 130,
+                    fit: BoxFit.cover,
+                  ),
           ),
           const SizedBox(height: 14),
           Text(
@@ -5622,6 +6016,17 @@ class _SettingsPageState extends State<SettingsPage> {
             icon: Icons.password_outlined,
             title: 'تغيير كلمة المرور',
             onTap: _changePassword,
+          ),
+          _AccountTile(
+            icon: Icons.verified_outlined,
+            title: 'تأكيد الهاتف أو البريد',
+            subtitle: 'واتساب أو رسالة أو بريد إلكتروني',
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const AccountVerificationPage(),
+              ),
+            ),
           ),
           _AccountTile(
             icon: Icons.logout,
