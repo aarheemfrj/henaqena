@@ -40,6 +40,7 @@ const issueAdminSession = async (adminId: string) => { const token = randomBytes
 const sessionFromRequest = async (req: express.Request) => { const token = typeof req.headers.authorization === 'string' ? req.headers.authorization.replace(/^Bearer\s+/i, '') : ''; if (!token) return null; const session = await prisma.session.findUnique({ where: { tokenHash: hash(token) }, include: { user: true } }); return session && session.expiresAt > new Date() ? session : null; };
 const adminSessionFromRequest = async (req: express.Request) => { const token = typeof req.headers.authorization === 'string' ? req.headers.authorization.replace(/^Bearer\s+/i, '') : ''; if (!token) return null; const session = await prisma.adminSession.findUnique({ where: { tokenHash: hash(token) }, include: { admin: true } }); return session && session.expiresAt > new Date() && session.admin.isActive ? session : null; };
 const requireAdmin = async (req: express.Request, res: express.Response, next: express.NextFunction) => { const expected = process.env.ADMIN_API_KEY ?? (process.env.NODE_ENV !== 'production' ? 'dev-henaqena-admin' : undefined); const provided = typeof req.headers['x-admin-key'] === 'string' ? req.headers['x-admin-key'] : ''; if (expected && provided === expected) return next(); if (await adminSessionFromRequest(req)) return next(); return res.status(403).json({ message: 'صلاحيات الإدارة مطلوبة' }); };
+const requireAdminRoles = (roles: string[]) => async (req: express.Request, res: express.Response, next: express.NextFunction) => { const expected = process.env.ADMIN_API_KEY ?? (process.env.NODE_ENV !== 'production' ? 'dev-henaqena-admin' : undefined); const provided = typeof req.headers['x-admin-key'] === 'string' ? req.headers['x-admin-key'] : ''; if (expected && provided === expected) return next(); const session = await adminSessionFromRequest(req); if (!session || !roles.includes(session.admin.role)) return res.status(403).json({ message: 'الدور الإداري لا يسمح بهذه العملية' }); next(); };
 const audit = (action: string, entity: string, entityId: string, metadata?: Record<string, unknown>) => prisma.auditLog.create({ data: { action, entity, entityId, metadata: metadata as any } });
 const publicAuthorSelect = { id: true, name: true, avatarUrl: true, isProfilePrivate: true, points: true, level: true } as const;
 
@@ -474,10 +475,10 @@ app.get('/api/admin/team', requireAdmin, async (_req, res, next) => {
   try { res.json(await prisma.adminAccount.findMany({ select: { id: true, name: true, email: true, role: true, isActive: true, lastLoginAt: true, createdAt: true }, orderBy: { createdAt: 'desc' } })); } catch (error) { next(error); }
 });
 const adminAccountSchema = z.object({ name: z.string().trim().min(2).max(80), email: z.string().email(), password: z.string().min(10).max(128), role: z.enum(['OWNER', 'REVIEWER', 'CONTENT_EDITOR', 'MODERATOR']).default('REVIEWER') });
-app.post('/api/admin/team', requireAdmin, async (req, res, next) => {
+app.post('/api/admin/team', requireAdminRoles(['OWNER']), async (req, res, next) => {
   try { const input = adminAccountSchema.parse(req.body); const member = await prisma.adminAccount.create({ data: { name: input.name, email: input.email.toLowerCase(), passwordHash: await passwordHash(input.password), role: input.role } }); res.status(201).json({ id: member.id, name: member.name, email: member.email, role: member.role, isActive: member.isActive }); } catch (error) { next(error); }
 });
-app.patch('/api/admin/team/:id', requireAdmin, async (req, res, next) => {
+app.patch('/api/admin/team/:id', requireAdminRoles(['OWNER']), async (req, res, next) => {
   try { const input = z.object({ role: z.enum(['OWNER', 'REVIEWER', 'CONTENT_EDITOR', 'MODERATOR']).optional(), isActive: z.boolean().optional(), name: z.string().trim().min(2).max(80).optional() }).parse(req.body); const member = await prisma.adminAccount.update({ where: { id: String(req.params.id) }, data: input }); res.json({ id: member.id, name: member.name, email: member.email, role: member.role, isActive: member.isActive }); } catch (error) { next(error); }
 });
 
