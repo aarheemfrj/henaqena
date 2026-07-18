@@ -80,3 +80,15 @@ export async function updateTeamMember(formData: FormData) {
   await apiPatch(`/api/admin/team/${id}`, { role: String(formData.get('role') ?? 'REVIEWER'), isActive: formData.get('isActive') === 'true' });
   revalidatePath('/admin/team');
 }
+
+export async function moderateListing(formData: FormData) {
+  if (!await hasAdminSession()) redirect('/admin/login'); const id = String(formData.get('id') ?? ''); const status = String(formData.get('status') ?? ''); if (!id || !['ACTIVE', 'REJECTED', 'ARCHIVED'].includes(status)) return; await apiPatch(`/api/admin/listings/${id}`, { status, note: String(formData.get('note') ?? '') }); revalidatePath('/admin/listings');
+}
+
+export async function moderateReview(formData: FormData) {
+  if (!await hasAdminSession()) redirect('/admin/login'); const id = String(formData.get('id') ?? ''); const status = String(formData.get('status') ?? ''); if (!id || !['APPROVED', 'REJECTED'].includes(status)) return; await apiPatch(`/api/admin/reviews/${id}`, { status, note: String(formData.get('note') ?? '') }); revalidatePath('/admin/reviews');
+}
+
+export async function moderateReport(formData: FormData) {
+  if (!await hasAdminSession()) redirect('/admin/login'); const id = String(formData.get('id') ?? ''); const status = String(formData.get('status') ?? ''); if (!id || !['APPROVED', 'REJECTED'].includes(status)) return; await apiPatch(`/api/admin/provider-reports/${id}`, { status }); revalidatePath('/admin/reports');
+}

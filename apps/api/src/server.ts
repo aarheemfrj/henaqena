@@ -490,6 +490,9 @@ app.get('/api/admin/providers', requireAdmin, async (_req, res, next) => {
 app.get('/api/admin/provider-reports', requireAdmin, async (_req, res, next) => {
   try { res.json(await prisma.providerReport.findMany({ include: { provider: true, reporter: true }, orderBy: { createdAt: 'desc' }, take: 100 })); } catch (error) { next(error); }
 });
+app.patch('/api/admin/provider-reports/:id', requireAdmin, async (req, res, next) => {
+  try { const { status } = moderationSchema.parse(req.body); const report = await prisma.providerReport.update({ where: { id: String(req.params.id) }, data: { status } }); res.json(report); } catch (error) { next(error); }
+});
 
 app.get('/api/admin/listings', requireAdmin, async (_req, res, next) => {
   try {
