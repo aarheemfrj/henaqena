@@ -1,0 +1,1 @@
+export default function ListingsPage() { return <section><span className="eyebrow">مجتمع هنا قنا</span><h1 className="pageTitle">عندك؟</h1><p className="pageLead">إعلانات المستخدمين المعتمدة ستظهر هنا، بنفس مدة النشر وقواعد المراجعة الموجودة في التطبيق.</p></section>; }

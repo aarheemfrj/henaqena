@@ -1,0 +1,1 @@
+export default function PricesPage() { return <section><span className="eyebrow">العروض والأسعار</span><h1 className="pageTitle">بكام؟</h1><p className="pageLead">العروض والأسعار ستظهر هنا من نفس البيانات المعتمدة داخل التطبيق.</p></section>; }
