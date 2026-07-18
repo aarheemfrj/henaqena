@@ -20,24 +20,35 @@ const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://127.0.0.1:400
 
 export async function apiGet<T>(path: string, options?: { admin?: boolean }): Promise<T> {
   const headers = new Headers();
-  if (options?.admin) headers.set('x-admin-key', process.env.ADMIN_API_KEY ?? 'dev-henaqena-admin');
+  if (options?.admin) {
+    const token = await getAdminApiToken();
+    if (!token) throw new Error('Admin session is required');
+    headers.set('authorization', `Bearer ${token}`);
+  }
   const response = await fetch(`${apiBaseUrl}${path}`, { headers, cache: 'no-store' });
   if (!response.ok) throw new Error(`API request failed: ${response.status}`);
   return response.json() as Promise<T>;
 }
 
 export async function apiPatch<T>(path: string, body: Record<string, unknown>): Promise<T> {
-  const response = await fetch(`${apiBaseUrl}${path}`, { method: 'PATCH', headers: { 'content-type': 'application/json', 'x-admin-key': process.env.ADMIN_API_KEY ?? 'dev-henaqena-admin' }, body: JSON.stringify(body), cache: 'no-store' });
-  if (!response.ok) throw new Error(`API request failed: ${response.status}`);
+  const token = await getAdminApiToken();
+  if (!token) throw new Error('Admin session is required');
+  const response = await fetch(`${apiBaseUrl}${path}`, { method: 'PATCH', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify(body), cache: 'no-store' });
+  if (!response.ok) throw new Error(`API request failed: ${response.status} ${await response.text()}`);
   return response.json() as Promise<T>;
 }
 
 export async function apiPost<T>(path: string, body: Record<string, unknown>): Promise<T> {
-  const response = await fetch(`${apiBaseUrl}${path}`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-admin-key': process.env.ADMIN_API_KEY ?? 'dev-henaqena-admin' }, body: JSON.stringify(body), cache: 'no-store' });
-  if (!response.ok) throw new Error(`API request failed: ${response.status}`);
+  const token = await getAdminApiToken();
+  if (!token) throw new Error('Admin session is required');
+  const response = await fetch(`${apiBaseUrl}${path}`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify(body), cache: 'no-store' });
+  if (!response.ok) throw new Error(`API request failed: ${response.status} ${await response.text()}`);
   return response.json() as Promise<T>;
 }
 
 export function getApiBaseUrl() {
   return apiBaseUrl;
 }
+import 'server-only';
+
+import { getAdminApiToken } from './admin-session';

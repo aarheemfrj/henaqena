@@ -49,6 +49,11 @@ export async function hasAdminSession() {
   return receivedSignature.length === expectedSignature.length && timingSafeEqual(Buffer.from(receivedSignature), Buffer.from(expectedSignature));
 }
 
+export async function getAdminApiToken() {
+  const store = await cookies();
+  return store.get(apiTokenCookieName)?.value ?? null;
+}
+
 export async function clearAdminSession() {
   const store = await cookies();
   store.delete(cookieName);

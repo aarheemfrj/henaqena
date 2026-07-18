@@ -159,3 +159,5 @@
 2026-07-19 — Codex — جولة التسليم النهائية: API build + 15/15 tests، Next.js production build، Flutter analyze بدون ملاحظات، 3/3 widget tests، Android debug APK، iOS Simulator build، PostgreSQL `/ready` ready، وتشغيل آخر نسخة على محاكي iPhone — مكتملة — المنفذ: Codex
 
 2026-07-19 — Codex — مرحلة «while closing eyes»: تفنيش التطبيق والمنصة، توحيد التصميم، إضافة الثيمات، زرع بيانات قنا التجريبية، اختبار التكامل، وتجهيز Google/Apple/Maps دون مفاتيح الإنتاج — قيد التنفيذ — المنفذ: Codex
+
+2026-07-19 — Codex — تحويل إجراءات منصة Next.js لاستخدام توكن جلسة المدير الحقيقي بدل مفتاح الخادم الافتراضي، وإعادة تقسيم مركز التحكم لمجموعات المتابعة/المراجعة/المحتوى/الإدارة — مكتملة بعد نجاح Next.js production build — المنفذ: Codex

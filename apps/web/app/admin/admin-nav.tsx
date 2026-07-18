@@ -1,5 +1,54 @@
+'use client';
+
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+
+const groups = [
+  {
+    label: 'المتابعة',
+    items: [
+      { href: '/admin', label: 'ملخص اليوم', icon: '◉' },
+      { href: '/admin/audit', label: 'سجل العمليات', icon: '≡' },
+    ],
+  },
+  {
+    label: 'المراجعة',
+    items: [
+      { href: '/admin/providers', label: 'الأنشطة', icon: '⌂' },
+      { href: '/admin/listings', label: 'الإعلانات المحلية', icon: '◇' },
+      { href: '/admin/reviews', label: 'التقييمات', icon: '☆' },
+      { href: '/admin/reports', label: 'البلاغات والدعم', icon: '!' },
+      { href: '/admin/services', label: 'الخدمات والعروض', icon: '◈' },
+    ],
+  },
+  {
+    label: 'محتوى التطبيق',
+    items: [
+      { href: '/admin/ads', label: 'إعلانات الرئيسية', icon: '▣' },
+      { href: '/admin/prices', label: 'بكام؟', icon: '◇' },
+      { href: '/admin/now', label: 'دلوقتي', icon: 'ϟ' },
+      { href: '/admin/import', label: 'استيراد البيانات', icon: '⇩' },
+    ],
+  },
+  {
+    label: 'الإدارة',
+    items: [
+      { href: '/admin/users', label: 'المستخدمون', icon: '◎' },
+      { href: '/admin/team', label: 'فريق العمل', icon: '◉' },
+    ],
+  },
+];
 
 export function AdminNav() {
-  return <nav className="adminNav"><span>المراكز:</span><Link href="/admin">الرئيسية</Link><Link href="/admin/team">الفريق</Link><Link href="/admin/users">المستخدمون</Link><Link href="/admin/import">استيراد CSV</Link><Link href="/admin/audit">سجل التدقيق</Link><Link href="/admin/providers">مين؟</Link><Link href="/admin/services">الخدمات والعروض</Link><Link href="/admin/listings">عندك؟</Link><Link href="/admin/reviews">التقييمات</Link><Link href="/admin/reports">البلاغات</Link><Link href="/admin/ads">إعلانات الرئيسية</Link><Link href="/admin/prices">بكام؟</Link><Link href="/admin/now">دلوقتي</Link></nav>;
+  const pathname = usePathname();
+  return <aside className="adminSidebar" aria-label="مراكز الإدارة">
+    <div className="adminSidebarHead"><span className="adminSidebarMark">⚙</span><div><strong>مركز التحكم</strong><small>هنا قنا</small></div></div>
+    {groups.map((group) => <section className="adminNavGroup" key={group.label}>
+      <small>{group.label}</small>
+      {group.items.map((item) => {
+        const active = pathname === item.href;
+        return <Link key={item.href} href={item.href} className={active ? 'adminNavActive' : 'adminNavLink'}><span>{item.icon}</span>{item.label}</Link>;
+      })}
+    </section>)}
+  </aside>;
 }

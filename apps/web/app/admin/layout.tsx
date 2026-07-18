@@ -1,5 +1,5 @@
 import { AdminNav } from './admin-nav';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  return <><AdminNav />{children}</>;
+  return <div className="adminWorkspace"><AdminNav /><div className="adminContent">{children}</div></div>;
 }
