@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import '../auth/auth_session.dart';
+
 class ProviderSummary {
   const ProviderSummary({required this.id, required this.name, required this.subtitle});
   final String id;
@@ -28,6 +30,29 @@ class ApiClient {
   ApiClient({String? baseUrl}) : baseUrl = baseUrl ?? const String.fromEnvironment('API_BASE_URL', defaultValue: 'http://127.0.0.1:4000');
   final String baseUrl;
 
+  Map<String, String> get _jsonHeaders => {
+    'content-type': 'application/json',
+    if (AuthSession.isSignedIn) 'authorization': 'Bearer ${AuthSession.token}',
+  };
+
+  Future<void> register({required String name, required String phone, required String password, String? email}) async {
+    final response = await http.post(Uri.parse('$baseUrl/api/auth/register'), headers: _jsonHeaders, body: jsonEncode({'name': name, 'phone': phone, 'password': password, if (email != null && email.isNotEmpty) 'email': email})).timeout(const Duration(seconds: 8));
+    await _saveAuthenticatedSession(response);
+  }
+
+  Future<void> login({required String phone, required String password}) async {
+    final response = await http.post(Uri.parse('$baseUrl/api/auth/login'), headers: _jsonHeaders, body: jsonEncode({'phone': phone, 'password': password})).timeout(const Duration(seconds: 8));
+    await _saveAuthenticatedSession(response);
+  }
+
+  Future<void> _saveAuthenticatedSession(http.Response response) async {
+    if (response.statusCode != 200 && response.statusCode != 201) {
+      throw Exception(response.statusCode == 401 ? 'invalid_credentials' : 'auth_error');
+    }
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    await AuthSession.save(newToken: body['token'] as String, userName: (body['user'] as Map<String, dynamic>)['name'] as String);
+  }
+
   Future<List<CategoryOption>> fetchCategories() async {
     final response = await http.get(Uri.parse('$baseUrl/api/categories')).timeout(const Duration(seconds: 3));
     if (response.statusCode != 200) throw Exception('API error ${response.statusCode}');
@@ -41,13 +66,15 @@ class ApiClient {
   }
 
   Future<void> submitProvider({required Map<String, dynamic> data}) async {
-    final response = await http.post(Uri.parse('$baseUrl/api/providers'), headers: {'content-type': 'application/json'}, body: jsonEncode(data)).timeout(const Duration(seconds: 5));
+    final response = await http.post(Uri.parse('$baseUrl/api/providers'), headers: _jsonHeaders, body: jsonEncode(data)).timeout(const Duration(seconds: 8));
     if (response.statusCode == 409) throw Exception('duplicate');
+    if (response.statusCode == 401) throw Exception('unauthorized');
     if (response.statusCode != 201) throw Exception('API error ${response.statusCode}');
   }
 
   Future<void> submitProviderReport({required Map<String, dynamic> data}) async {
-    final response = await http.post(Uri.parse('$baseUrl/api/provider-reports'), headers: {'content-type': 'application/json'}, body: jsonEncode(data)).timeout(const Duration(seconds: 5));
+    final response = await http.post(Uri.parse('$baseUrl/api/provider-reports'), headers: _jsonHeaders, body: jsonEncode(data)).timeout(const Duration(seconds: 8));
+    if (response.statusCode == 401) throw Exception('unauthorized');
     if (response.statusCode != 201) throw Exception('API error ${response.statusCode}');
   }
 

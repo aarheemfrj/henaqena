@@ -2,10 +2,15 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'core/auth/auth_session.dart';
 import 'core/theme/app_theme.dart';
 import 'core/network/api_client.dart';
 
-void main() => runApp(const HenaQenaApp());
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await AuthSession.restore();
+  runApp(const HenaQenaApp());
+}
 
 class HenaQenaApp extends StatelessWidget {
   const HenaQenaApp({super.key});
@@ -54,7 +59,7 @@ class HenaQenaApp extends StatelessWidget {
           focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: teal, width: 1.5)),
         ),
       ),
-      home: const WelcomeScreen(),
+      home: AuthSession.isSignedIn ? const HomeShell() : const WelcomeScreen(),
     );
   }
 }
@@ -109,7 +114,7 @@ class WelcomeScreen extends StatelessWidget {
               const Spacer(),
               FilledButton(onPressed: () => _begin(context), style: FilledButton.styleFrom(backgroundColor: teal, minimumSize: const Size.fromHeight(52), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))), child: const Text('ابدأ الآن', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700))),
               const SizedBox(height: 10),
-              OutlinedButton(onPressed: () => _begin(context), style: OutlinedButton.styleFrom(foregroundColor: deepTeal, minimumSize: const Size.fromHeight(52), side: const BorderSide(color: teal), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))), child: const Text('تسجيل الدخول', style: TextStyle(fontSize: 15))),
+              OutlinedButton(onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AuthPage())), style: OutlinedButton.styleFrom(foregroundColor: deepTeal, minimumSize: const Size.fromHeight(52), side: const BorderSide(color: teal), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))), child: const Text('تسجيل الدخول', style: TextStyle(fontSize: 15))),
               TextButton(onPressed: () => Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const HomeShell())), child: const Text('التكملة كزائر', style: TextStyle(color: deepTeal))),
               const SizedBox(height: 10),
               const Text('كل ما تحتاجه.. قريب منك', textAlign: TextAlign.center, style: TextStyle(color: muted, fontSize: 12)),
@@ -119,6 +124,73 @@ class WelcomeScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+class AuthPage extends StatefulWidget {
+  const AuthPage({super.key, this.createAccount = false});
+  final bool createAccount;
+
+  @override
+  State<AuthPage> createState() => _AuthPageState();
+}
+
+class _AuthPageState extends State<AuthPage> {
+  final formKey = GlobalKey<FormState>();
+  final api = ApiClient();
+  final name = TextEditingController();
+  final phone = TextEditingController();
+  final password = TextEditingController();
+  final email = TextEditingController();
+  late bool createAccount;
+  bool submitting = false;
+
+  @override
+  void initState() { super.initState(); createAccount = widget.createAccount; }
+
+  @override
+  void dispose() { for (final controller in [name, phone, password, email]) { controller.dispose(); } super.dispose(); }
+
+  Future<void> submit() async {
+    if (!(formKey.currentState?.validate() ?? false)) return;
+    setState(() => submitting = true);
+    try {
+      if (createAccount) {
+        await api.register(name: name.text.trim(), phone: phone.text.trim(), password: password.text, email: email.text.trim());
+      } else {
+        await api.login(phone: phone.text.trim(), password: password.text);
+      }
+      if (!mounted) return;
+      Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute(builder: (_) => const HomeShell()), (_) => false);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString().contains('invalid_credentials') ? 'رقم الهاتف أو كلمة المرور غير صحيحين' : 'تعذر إتمام الدخول حالياً')));
+    } finally {
+      if (mounted) setState(() => submitting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Directionality(textDirection: TextDirection.rtl, child: Scaffold(
+    appBar: AppBar(title: Text(createAccount ? 'إنشاء حساب' : 'تسجيل الدخول')),
+    body: Form(key: formKey, child: ListView(padding: const EdgeInsets.all(20), children: [
+      Text(createAccount ? 'أهلاً بيك في مجتمع هنا قنا' : 'سجّل دخولك عشان تقدر تضيف وتتابع مساهماتك', style: const TextStyle(color: deepTeal, fontSize: 21, fontWeight: FontWeight.w700)),
+      const SizedBox(height: 20),
+      if (createAccount) ...[
+        TextFormField(controller: name, decoration: const InputDecoration(labelText: 'الاسم الحقيقي *'), validator: (value) => value == null || value.trim().length < 2 ? 'اكتب اسمك' : null),
+        const SizedBox(height: 12),
+      ],
+      TextFormField(controller: phone, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'رقم الموبايل المصري *'), validator: (value) => value == null || !RegExp(r'^01[0125][0-9]{8}$').hasMatch(value) ? 'اكتب رقم مصري صحيح' : null),
+      const SizedBox(height: 12),
+      if (createAccount) ...[
+        TextFormField(controller: email, keyboardType: TextInputType.emailAddress, decoration: const InputDecoration(labelText: 'البريد الإلكتروني (اختياري)')),
+        const SizedBox(height: 12),
+      ],
+      TextFormField(controller: password, obscureText: true, decoration: const InputDecoration(labelText: 'كلمة المرور *'), validator: (value) => value == null || value.length < 8 ? 'كلمة المرور 8 حروف على الأقل' : null),
+      const SizedBox(height: 22),
+      FilledButton(onPressed: submitting ? null : submit, style: FilledButton.styleFrom(backgroundColor: teal, minimumSize: const Size.fromHeight(52), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))), child: Text(submitting ? 'جارٍ المتابعة…' : createAccount ? 'إنشاء الحساب' : 'دخول')),
+      TextButton(onPressed: submitting ? null : () => setState(() => createAccount = !createAccount), child: Text(createAccount ? 'عندي حساب بالفعل' : 'إنشاء حساب جديد')),
+    ])),
+  ));
 }
 
 class SetupFlow extends StatefulWidget {
@@ -206,16 +278,17 @@ class _SetupFlowState extends State<SetupFlow> {
       }))).toList());
     }
     return ListView(children: [
-      _authChoice(Icons.person_add_alt_1, 'إنشاء حساب', 'اسم، رقم هاتف، وكلمة مرور'),
-      _authChoice(Icons.login, 'تسجيل الدخول', 'ادخل على حسابك الحالي'),
-      _authChoice(Icons.g_mobiledata, 'المتابعة باستخدام Google', 'بدون كلمة مرور'),
-      _authChoice(Icons.apple, 'المتابعة باستخدام Apple', 'بدون كلمة مرور'),
-      _authChoice(Icons.explore_outlined, 'التكملة كزائر', 'تصفح التطبيق بدون حساب'),
+      _authChoice(Icons.person_add_alt_1, 'إنشاء حساب', 'اسم، رقم هاتف، وكلمة مرور', () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AuthPage(createAccount: true)))),
+      _authChoice(Icons.login, 'تسجيل الدخول', 'ادخل على حسابك الحالي', () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AuthPage()))),
+      _authChoice(Icons.g_mobiledata, 'المتابعة باستخدام Google', 'قريباً', () => _comingSoon('تسجيل Google')),
+      _authChoice(Icons.apple, 'المتابعة باستخدام Apple', 'قريباً', () => _comingSoon('تسجيل Apple')),
+      _authChoice(Icons.explore_outlined, 'التكملة كزائر', 'تصفح التطبيق بدون حساب', () => Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const HomeShell()))),
     ]);
   }
 
   Widget _choiceTile(String label, bool selected, VoidCallback onTap) => Card(color: selected ? const Color(0xFFD8EFEC) : Colors.white, elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14), side: BorderSide(color: selected ? teal : const Color(0xFFE0E8E6))), child: ListTile(onTap: onTap, leading: Icon(selected ? Icons.check_circle : Icons.circle_outlined, color: selected ? teal : muted), title: Text(label), trailing: label == 'قنا كلها' ? const Text('المدينة', style: TextStyle(color: muted, fontSize: 12)) : null));
-  Widget _authChoice(IconData icon, String title, String subtitle) => Card(elevation: 0, color: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14), side: const BorderSide(color: Color(0xFFE0E8E6))), child: ListTile(leading: Icon(icon, color: teal), title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)), subtitle: Text(subtitle, style: const TextStyle(color: muted, fontSize: 12)), trailing: const Icon(Icons.chevron_left, color: muted)));
+  void _comingSoon(String label) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$label هيتوفر قريباً')));
+  Widget _authChoice(IconData icon, String title, String subtitle, VoidCallback onTap) => Card(elevation: 0, color: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14), side: const BorderSide(color: Color(0xFFE0E8E6))), child: ListTile(onTap: onTap, leading: Icon(icon, color: teal), title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)), subtitle: Text(subtitle, style: const TextStyle(color: muted, fontSize: 12)), trailing: const Icon(Icons.chevron_left, color: muted)));
 }
 
 class HomeShell extends StatefulWidget {
@@ -996,7 +1069,7 @@ class _AddActivityPageState extends State<AddActivityPage> {
   Future<void> _pickImages() async { final picked = await ImagePicker().pickMultiImage(imageQuality: 82, maxWidth: 1600); if (!mounted || picked.isEmpty) return; setState(() { selectedImages..clear()..addAll(picked.take(10)); imageCount = selectedImages.length; }); }
   void _review() { if (formKey.currentState?.validate() ?? false) setState(() => preview = true); }
   Widget _previewCard() => Card(elevation: 0, color: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18), side: const BorderSide(color: Color(0xFFE0E8E6))), child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [Container(height: 130, decoration: BoxDecoration(color: const Color(0xFFD8EFEC), borderRadius: BorderRadius.circular(14)), child: const Icon(Icons.image_outlined, color: deepTeal, size: 52)), const SizedBox(height: 14), Text(name.text, style: const TextStyle(color: deepTeal, fontSize: 20, fontWeight: FontWeight.w700)), const SizedBox(height: 6), Text('${mode == 'LOCAL' ? 'محلي' : 'أونلاين'} · ${phoneType == 'BUSINESS' ? 'رقم نشاط' : 'رقم شخصي'}', style: const TextStyle(color: teal)), if (address.text.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 6), child: Text(address.text, style: const TextStyle(color: muted))), if (description.text.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 10), child: Text(description.text, style: const TextStyle(color: ink, height: 1.4))), const SizedBox(height: 12), const Row(children: [Icon(Icons.hourglass_top_outlined, size: 16, color: gold), SizedBox(width: 5), Text('بانتظار مراجعة الإدارة', style: TextStyle(color: muted, fontSize: 12))])])));
-  Future<void> _submit() async { try { final category = categoryId; if (category == null) return; final resolvedArea = areaId ?? (await areas).first.id; await api.submitProvider(data: {'name': name.text.trim(), 'description': description.text.trim(), 'phone': phone.text.trim(), 'whatsapp': whatsapp.text.trim().isEmpty ? null : whatsapp.text.trim(), 'phoneType': phoneType, 'serviceMode': mode, 'areaId': resolvedArea, 'categoryIds': [category], 'openingTime': opening, 'closingTime': closing, 'address': address.text.trim(), 'images': List.generate(imageCount, (index) => {'url': 'https://placehold.co/800x600/png?text=Hena+Qena', 'kind': index == 0 ? 'cover' : 'gallery'})}); if (!mounted) return; Navigator.pop(context); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم إرسال النشاط للمراجعة'))); } catch (error) { if (!mounted) return; ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString().contains('duplicate') ? 'النشاط موجود بالفعل أو قيد المراجعة' : 'تعذر إرسال النشاط حالياً'))); } }
+  Future<void> _submit() async { try { final category = categoryId; if (category == null) return; final resolvedArea = areaId ?? (await areas).first.id; await api.submitProvider(data: {'name': name.text.trim(), 'description': description.text.trim(), 'phone': phone.text.trim(), 'whatsapp': whatsapp.text.trim().isEmpty ? null : whatsapp.text.trim(), 'phoneType': phoneType, 'serviceMode': mode, 'areaId': resolvedArea, 'categoryIds': [category], 'openingTime': opening, 'closingTime': closing, 'address': address.text.trim(), 'images': List.generate(imageCount, (index) => {'url': 'https://placehold.co/800x600/png?text=Hena+Qena', 'kind': index == 0 ? 'cover' : 'gallery'})}); if (!mounted) return; Navigator.pop(context); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم إرسال النشاط للمراجعة'))); } catch (error) { if (!mounted) return; if (error.toString().contains('unauthorized')) { await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AuthPage())); return; } ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString().contains('duplicate') ? 'النشاط موجود بالفعل أو قيد المراجعة' : 'تعذر إرسال النشاط حالياً'))); } }
 }
 
 class CommunityRequestPage extends StatefulWidget {
@@ -1015,7 +1088,7 @@ class _CommunityRequestPageState extends State<CommunityRequestPage> {
   void dispose() { name.dispose(); phone.dispose(); note.dispose(); super.dispose(); }
   @override
   Widget build(BuildContext context) => Directionality(textDirection: TextDirection.rtl, child: Scaffold(appBar: AppBar(title: Text(widget.kind == 'CLAIM' ? 'أملك نشاط' : 'أبلغ عن نشاط')), body: ListView(padding: const EdgeInsets.all(18), children: [Text(widget.kind == 'CLAIM' ? 'أثبت ملكيتك لنشاط موجود' : 'ساعدنا نراجع بيانات نشاط', style: const TextStyle(color: deepTeal, fontSize: 21, fontWeight: FontWeight.w700)), const SizedBox(height: 8), Text(widget.kind == 'CLAIM' ? 'اكتب بيانات النشاط وهنراجع الطلب مع الإدارة.' : 'اكتب اسم النشاط وسبب البلاغ، ولن يظهر البلاغ للجمهور.', style: const TextStyle(color: muted, height: 1.5)), const SizedBox(height: 22), TextField(controller: name, decoration: const InputDecoration(labelText: 'اسم النشاط *')), const SizedBox(height: 12), TextField(controller: phone, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'رقم الهاتف (اختياري)')), const SizedBox(height: 12), TextField(controller: note, maxLines: 5, decoration: InputDecoration(labelText: widget.kind == 'CLAIM' ? 'معلومة تساعدنا في التحقق' : 'سبب البلاغ')), const SizedBox(height: 22), FilledButton(onPressed: _submit, style: FilledButton.styleFrom(backgroundColor: teal, minimumSize: const Size.fromHeight(52), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))), child: const Text('إرسال للمراجعة'))])));
-  Future<void> _submit() async { if (name.text.trim().length < 2) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('اكتب اسم النشاط'))); return; } try { await api.submitProviderReport(data: {'kind': widget.kind, 'name': name.text.trim(), 'phone': phone.text.trim().isEmpty ? null : phone.text.trim(), 'note': note.text.trim().isEmpty ? null : note.text.trim()}); if (!mounted) return; Navigator.pop(context); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم إرسال الطلب للمراجعة'))); } catch (_) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر إرسال الطلب حالياً'))); } }
+  Future<void> _submit() async { if (name.text.trim().length < 2) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('اكتب اسم النشاط'))); return; } try { await api.submitProviderReport(data: {'kind': widget.kind, 'name': name.text.trim(), 'phone': phone.text.trim().isEmpty ? null : phone.text.trim(), 'note': note.text.trim().isEmpty ? null : note.text.trim()}); if (!mounted) return; Navigator.pop(context); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم إرسال الطلب للمراجعة'))); } catch (error) { if (!mounted) return; if (error.toString().contains('unauthorized')) { await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AuthPage())); return; } ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر إرسال الطلب حالياً'))); } }
 }
 
 class SettingsPage extends StatefulWidget {
