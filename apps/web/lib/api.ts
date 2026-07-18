@@ -7,6 +7,7 @@ export type Provider = {
   isVerified: boolean;
   communityAdded: boolean;
   serviceMode: 'LOCAL' | 'ONLINE';
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
   openingTime?: string | null;
   closingTime?: string | null;
   area: Area;
@@ -21,6 +22,12 @@ export async function apiGet<T>(path: string, options?: { admin?: boolean }): Pr
   const headers = new Headers();
   if (options?.admin) headers.set('x-admin-key', process.env.ADMIN_API_KEY ?? 'dev-henaqena-admin');
   const response = await fetch(`${apiBaseUrl}${path}`, { headers, cache: 'no-store' });
+  if (!response.ok) throw new Error(`API request failed: ${response.status}`);
+  return response.json() as Promise<T>;
+}
+
+export async function apiPatch<T>(path: string, body: Record<string, unknown>): Promise<T> {
+  const response = await fetch(`${apiBaseUrl}${path}`, { method: 'PATCH', headers: { 'content-type': 'application/json', 'x-admin-key': process.env.ADMIN_API_KEY ?? 'dev-henaqena-admin' }, body: JSON.stringify(body), cache: 'no-store' });
   if (!response.ok) throw new Error(`API request failed: ${response.status}`);
   return response.json() as Promise<T>;
 }
