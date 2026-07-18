@@ -8,7 +8,7 @@ A local community services platform for Qena Governorate, Egypt.
 
 ## 📋 المتطلبات
 
-- **Node.js** 18+ (للـ API والـ Admin)
+- **Node.js** 18+ (لمنصة الويب وAPI)
 - **Flutter** 3.12+ (للتطبيق الجوال)
 - **PostgreSQL** 15+ (قاعدة البيانات)
 - **Docker** (اختياري - لتشغيل PostgreSQL)
@@ -56,17 +56,9 @@ npm run dev
 
 الخادم يعمل على: `http://localhost:4000`
 
-### 3️⃣ إعداد لوحة الإدارة
+### 3️⃣ إعداد منصة الويب والإدارة (Next.js — قيد البناء)
 
-```bash
-cd apps/admin
-
-# سيرفر محلي بسيط (اختياري)
-python3 -m http.server 8000
-
-# أو افتح مباشرة:
-open index.html
-```
+المنصة الرسمية والإدارة يجب أن تُبنى بـ Next.js + TypeScript، لتوحيد تجربة الويب مع MaalSoft. مجلد `apps/admin` الحالي نموذج مؤقت فقط وسيتم استبداله تدريجياً.
 
 ثم أضف مفتاح الإدارة:
 - اضغط على الإعدادات (Settings)
@@ -92,7 +84,8 @@ flutter run
 HenaQena/
 ├── apps/
 │   ├── api/              # خادم النوى (Node.js + Express + Prisma)
-│   ├── admin/            # لوحة إدارة ويب (HTML + JavaScript)
+│   ├── web/              # منصة الويب والإدارة (Next.js — قيد البناء)
+│   ├── admin/            # نموذج إدارة مؤقت (سيتم استبداله بـ Next.js)
 │   └── mobile/           # تطبيق الجوال (Flutter)
 ├── infra/                # ملفات البنية التحتية (Docker, etc.)
 └── HENA_QENA_PROJECT_MEMORY.md  # توثيق المشروع والمعايير
@@ -126,6 +119,14 @@ NODE_ENV=development
 ```bash
 cd apps/api
 npm run build     # فحص TypeScript
+```
+
+### منصة الويب
+
+```bash
+cd apps/web
+npm install
+npm run dev
 ```
 
 ### التطبيق الجوال

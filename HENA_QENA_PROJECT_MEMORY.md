@@ -1681,6 +1681,14 @@ After that, implement the provider-directory data model and admin review workflo
 - Before starting parallel work, read the latest log entry and mark the new step as `قيد التنفيذ`.
 - After testing, update the same entry to `مكتملة` or `متوقفة` with a clear reason.
 
+## 32. Architecture Correction: Next.js Web Platform (2026-07-18)
+
+- The mobile client remains Flutter for the iOS/Android launch.
+- The public/admin web platform must be Next.js + TypeScript to align with MaalSoft's architecture and interaction model.
+- `apps/admin` is a temporary static prototype and is not the final platform.
+- `apps/web` is the intended Next.js app location; migration should be incremental and must reuse the existing PostgreSQL/Prisma model.
+- The current Express API may remain as a compatibility layer while web routes are migrated; do not delete it during the migration.
+
 ---
 
 **Last updated:** 2026-07-18
