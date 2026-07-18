@@ -226,28 +226,35 @@ class HomeShell extends StatefulWidget {
 
 class _HomeShellState extends State<HomeShell> {
   int index = 0;
+  int previousIndex = 0;
   final pages = const [HomePage(), DirectoryPage(), PricesPage(), NowPage(), ListingsPage()];
   final labels = const ['الرئيسية', 'مين؟', 'بكام؟', 'دلوقتي', 'عندك؟'];
   final icons = const [Icons.home_outlined, Icons.person_search_outlined, Icons.sell_outlined, Icons.bolt_outlined, Icons.campaign_outlined];
 
+  void _select(int value) => setState(() { previousIndex = index; index = value; });
+
   @override
   Widget build(BuildContext context) {
+    final forward = index >= previousIndex;
     return Directionality(textDirection: TextDirection.rtl, child: Scaffold(
       body: AnimatedSwitcher(
-        duration: AppMotion.standard,
+        duration: AppMotion.gentle,
         switchInCurve: Curves.easeOutCubic,
         switchOutCurve: Curves.easeInCubic,
         transitionBuilder: (child, animation) => FadeTransition(
           opacity: animation,
           child: SlideTransition(
-            position: Tween<Offset>(begin: const Offset(0.025, 0), end: Offset.zero)
+            position: Tween<Offset>(begin: Offset(forward ? 0.06 : -0.06, 0), end: Offset.zero)
                 .animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic)),
-            child: child,
+            child: ScaleTransition(
+              scale: Tween<double>(begin: .985, end: 1).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic)),
+              child: child,
+            ),
           ),
         ),
         child: KeyedSubtree(key: ValueKey(index), child: pages[index]),
       ),
-      bottomNavigationBar: NavigationBar(selectedIndex: index, onDestinationSelected: (value) => setState(() => index = value), backgroundColor: Colors.white, indicatorColor: const Color(0xFFD8EFEC), destinations: [for (var i = 0; i < labels.length; i++) NavigationDestination(icon: Icon(icons[i]), selectedIcon: Icon(icons[i], color: deepTeal), label: labels[i])]),
+      bottomNavigationBar: NavigationBar(selectedIndex: index, onDestinationSelected: _select, backgroundColor: Colors.white, indicatorColor: const Color(0xFFD8EFEC), destinations: [for (var i = 0; i < labels.length; i++) NavigationDestination(icon: Icon(icons[i]), selectedIcon: Icon(icons[i], color: deepTeal), label: labels[i])]),
     ));
   }
 }
@@ -300,8 +307,8 @@ class HomePage extends StatelessWidget {
     const SizedBox(height: 20),
     const SectionTitle(title: 'مختارات قنا'),
     const SizedBox(height: 9),
-    MiniItem(icon: Icons.local_pharmacy_outlined, title: 'صيدلية الرحمة', subtitle: 'الحميدات · مفتوح الآن · 4.8 ★', onTap: () => _openDetails(context, 'صيدلية الرحمة', Icons.local_pharmacy_outlined, 'الحميدات · مفتوح الآن · 4.8 ★')),
-    MiniItem(icon: Icons.coffee_outlined, title: 'قهوة البلد', subtitle: 'وسط البلد · على بُعد 0.8 كم', onTap: () => _openDetails(context, 'قهوة البلد', Icons.coffee_outlined, 'وسط البلد · مفتوح الآن · 4.7 ★')),
+    MotionIn(child: MiniItem(icon: Icons.local_pharmacy_outlined, title: 'صيدلية الرحمة', subtitle: 'الحميدات · مفتوح الآن · 4.8 ★', onTap: () => _openDetails(context, 'صيدلية الرحمة', Icons.local_pharmacy_outlined, 'الحميدات · مفتوح الآن · 4.8 ★'))),
+    MotionIn(delay: 60, child: MiniItem(icon: Icons.coffee_outlined, title: 'قهوة البلد', subtitle: 'وسط البلد · على بُعد 0.8 كم', onTap: () => _openDetails(context, 'قهوة البلد', Icons.coffee_outlined, 'وسط البلد · مفتوح الآن · 4.7 ★'))),
   ]));
 
   void _openDetails(BuildContext context, String title, IconData icon, String subtitle) {
@@ -501,7 +508,7 @@ class _DirectoryPageState extends State<DirectoryPage> {
     FutureBuilder<List<ProviderSummary>>(future: providersFuture, builder: (context, snapshot) {
       final fallback = [const ProviderSummary(id: 'local-electrician', name: 'كهربائي المصباح', subtitle: 'قنا · موثق · 4.8 ★ · مفتوح الآن'), const ProviderSummary(id: 'local-medical', name: 'مركز الشفاء الطبي', subtitle: 'وسط البلد · 4.6 ★')];
       final providers = snapshot.hasData && snapshot.data!.isNotEmpty ? snapshot.data! : fallback;
-      return Column(children: [if (snapshot.connectionState == ConnectionState.waiting) const LinearProgressIndicator(minHeight: 3, color: teal), if (snapshot.hasError) const Padding(padding: EdgeInsets.only(bottom: 8), child: Text('بيانات تجريبية — سيتم تحديثها عند تشغيل الخادم', style: TextStyle(color: muted, fontSize: 11))), ...providers.asMap().entries.map((entry) { final icon = entry.key == 0 ? Icons.build_outlined : Icons.local_hospital_outlined; final provider = entry.value; return MiniItem(icon: icon, title: provider.name, subtitle: provider.subtitle, onTap: () => _openDetails(context, provider.name, icon, provider.subtitle)); })]);
+      return Column(children: [if (snapshot.connectionState == ConnectionState.waiting) const LinearProgressIndicator(minHeight: 3, color: teal), if (snapshot.hasError) const Padding(padding: EdgeInsets.only(bottom: 8), child: Text('بيانات تجريبية — سيتم تحديثها عند تشغيل الخادم', style: TextStyle(color: muted, fontSize: 11))), ...providers.asMap().entries.map((entry) { final icon = entry.key == 0 ? Icons.build_outlined : Icons.local_hospital_outlined; final provider = entry.value; return MotionIn(delay: entry.key * 60, child: MiniItem(icon: icon, title: provider.name, subtitle: provider.subtitle, onTap: () => _openDetails(context, provider.name, icon, provider.subtitle))); })]);
     }),
   ]));
 
@@ -607,8 +614,8 @@ class ProviderDetailPage extends StatelessWidget {
         const SizedBox(height: 18),
         const SectionTitle(title: 'التقييمات الموجودة'),
         const SizedBox(height: 8),
-        const CommentBubble(name: 'أحمد محمد', initial: 'أ', text: 'خدمة ممتازة والتعامل محترم.', rating: 5, replies: [CommentReply(name: 'مريم علي', initial: 'م', text: 'أتفق معاك، تجربتي كانت كويسة برضه.')]),
-        const CommentBubble(name: 'مريم علي', initial: 'م', text: 'سعر مناسب وملتزمين بالموعد.', rating: 4),
+        const MotionIn(child: CommentBubble(name: 'أحمد محمد', initial: 'أ', text: 'خدمة ممتازة والتعامل محترم.', rating: 5, replies: [CommentReply(name: 'مريم علي', initial: 'م', text: 'أتفق معاك، تجربتي كانت كويسة برضه.')])),
+        const MotionIn(delay: 60, child: CommentBubble(name: 'مريم علي', initial: 'م', text: 'سعر مناسب وملتزمين بالموعد.', rating: 4)),
       ]),
     ),
   );
@@ -695,7 +702,7 @@ class _PricesPageState extends State<PricesPage> {
     const SizedBox(height: 14),
     SegmentedButton<String>(segments: const [ButtonSegment(value: 'offers', label: Text('العروض'), icon: Icon(Icons.local_offer_outlined)), ButtonSegment(value: 'prices', label: Text('الأسعار'), icon: Icon(Icons.sell_outlined))], selected: {selected}, onSelectionChanged: (value) => setState(() => selected = value.first)),
     const SizedBox(height: 16),
-    AnimatedSwitcher(duration: AppMotion.standard, transitionBuilder: (child, animation) => FadeTransition(opacity: animation, child: SlideTransition(position: Tween<Offset>(begin: const Offset(.03, 0), end: Offset.zero).animate(animation), child: child)), child: selected == 'offers' ? const Column(key: ValueKey('offers'), children: [MiniItem(icon: Icons.local_offer_outlined, title: 'خصم 15% على الأجهزة', subtitle: 'من نشاط موثق · ينتهي خلال 3 أيام'), MiniItem(icon: Icons.local_offer_outlined, title: 'عرض نهاية الأسبوع', subtitle: 'مطاعم مختارة · ينتهي غدًا')]) : const Column(key: ValueKey('prices'), children: [MiniItem(icon: Icons.shopping_basket_outlined, title: 'زيت عباد الشمس — 1 لتر', subtitle: 'السعر المعتاد 72 جنيه · من 68 إلى 77 · منذ يومين'), MiniItem(icon: Icons.home_repair_service_outlined, title: 'تركيب تكييف', subtitle: 'من 800 إلى 1,200 جنيه · سعر تقريبي')])),
+    AnimatedSwitcher(duration: AppMotion.standard, transitionBuilder: (child, animation) => FadeTransition(opacity: animation, child: SlideTransition(position: Tween<Offset>(begin: const Offset(.03, 0), end: Offset.zero).animate(animation), child: child)), child: selected == 'offers' ? const Column(key: ValueKey('offers'), children: [MotionIn(child: MiniItem(icon: Icons.local_offer_outlined, title: 'خصم 15% على الأجهزة', subtitle: 'من نشاط موثق · ينتهي خلال 3 أيام')), MotionIn(delay: 60, child: MiniItem(icon: Icons.local_offer_outlined, title: 'عرض نهاية الأسبوع', subtitle: 'مطاعم مختارة · ينتهي غدًا'))]) : const Column(key: ValueKey('prices'), children: [MotionIn(child: MiniItem(icon: Icons.shopping_basket_outlined, title: 'زيت عباد الشمس — 1 لتر', subtitle: 'السعر المعتاد 72 جنيه · من 68 إلى 77 · منذ يومين')), MotionIn(delay: 60, child: MiniItem(icon: Icons.home_repair_service_outlined, title: 'تركيب تكييف', subtitle: 'من 800 إلى 1,200 جنيه · سعر تقريبي'))])),
   ]));
 }
 
@@ -754,8 +761,8 @@ class ListingsPage extends StatelessWidget {
     const SizedBox(height: 10),
     const CategoryRail(items: ['للبيع', 'للإيجار', 'وظائف', 'سيارات', 'عقارات']),
     const SizedBox(height: 12),
-    MiniItem(icon: Icons.home_outlined, title: 'شقة للإيجار في قنا الجديدة', subtitle: '7,500 جنيه · قنا الجديدة · منذ يوم', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ListingDetailPage(title: 'شقة للإيجار في قنا الجديدة', price: '7,500 جنيه', location: 'قنا الجديدة')))),
-    MiniItem(icon: Icons.kitchen_outlined, title: 'ثلاجة بحالة ممتازة', subtitle: '3,500 جنيه · الحميدات · منذ 3 أيام', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ListingDetailPage(title: 'ثلاجة بحالة ممتازة', price: '3,500 جنيه', location: 'الحميدات')))),
+    MotionIn(child: MiniItem(icon: Icons.home_outlined, title: 'شقة للإيجار في قنا الجديدة', subtitle: '7,500 جنيه · قنا الجديدة · منذ يوم', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ListingDetailPage(title: 'شقة للإيجار في قنا الجديدة', price: '7,500 جنيه', location: 'قنا الجديدة'))))),
+    MotionIn(delay: 60, child: MiniItem(icon: Icons.kitchen_outlined, title: 'ثلاجة بحالة ممتازة', subtitle: '3,500 جنيه · الحميدات · منذ 3 أيام', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ListingDetailPage(title: 'ثلاجة بحالة ممتازة', price: '3,500 جنيه', location: 'الحميدات'))))),
     const SizedBox(height: 8),
     FilledButton.icon(onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CreateListingPage())), icon: const Icon(Icons.add), label: const Text('أضف إعلانًا'), style: FilledButton.styleFrom(backgroundColor: gold, foregroundColor: deepTeal, minimumSize: const Size.fromHeight(48), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)))),
   ]));
