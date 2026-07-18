@@ -233,12 +233,16 @@ class ApiClient {
   Future<void> moderateAdminProvider({
     required String id,
     required String status,
+    String? note,
   }) async {
     final response = await http
         .patch(
           Uri.parse('$baseUrl/api/admin/providers/$id'),
           headers: _adminHeaders,
-          body: jsonEncode({'status': status}),
+          body: jsonEncode({
+            'status': status,
+            if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
+          }),
         )
         .timeout(const Duration(seconds: 8));
     if (response.statusCode != 200) throw Exception('admin_moderation_error');
@@ -257,16 +261,85 @@ class ApiClient {
   Future<void> moderateAdminListing({
     required String id,
     required String status,
+    String? note,
   }) async {
     final response = await http
         .patch(
           Uri.parse('$baseUrl/api/admin/listings/$id'),
           headers: _adminHeaders,
-          body: jsonEncode({'status': status}),
+          body: jsonEncode({
+            'status': status,
+            if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
+          }),
         )
         .timeout(const Duration(seconds: 8));
     if (response.statusCode != 200) throw Exception('admin_moderation_error');
   }
+
+  Future<List<Map<String, dynamic>>> _fetchAdminQueue(String path) async {
+    final response = await http
+        .get(Uri.parse('$baseUrl/api/admin/$path'), headers: _adminHeaders)
+        .timeout(const Duration(seconds: 8));
+    if (response.statusCode != 200) throw Exception('admin_error');
+    return (jsonDecode(response.body) as List<dynamic>)
+        .map((item) => Map<String, dynamic>.from(item as Map))
+        .toList();
+  }
+
+  Future<void> _moderateAdminQueue({
+    required String path,
+    required String id,
+    required String status,
+    String? note,
+  }) async {
+    final response = await http
+        .patch(
+          Uri.parse('$baseUrl/api/admin/$path/$id'),
+          headers: _adminHeaders,
+          body: jsonEncode({
+            'status': status,
+            if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
+          }),
+        )
+        .timeout(const Duration(seconds: 8));
+    if (response.statusCode != 200) throw Exception('admin_moderation_error');
+  }
+
+  Future<List<Map<String, dynamic>>> fetchAdminReviews() =>
+      _fetchAdminQueue('reviews?status=PENDING');
+  Future<List<Map<String, dynamic>>> fetchAdminReplies() =>
+      _fetchAdminQueue('replies');
+  Future<List<Map<String, dynamic>>> fetchAdminProviderReports() =>
+      _fetchAdminQueue('provider-reports');
+  Future<List<Map<String, dynamic>>> fetchAdminListingReports() =>
+      _fetchAdminQueue('listing-reports');
+  Future<List<Map<String, dynamic>>> fetchAdminSupportTickets() =>
+      _fetchAdminQueue('support-tickets');
+
+  Future<void> moderateAdminReview({
+    required String id,
+    required String status,
+    String? note,
+  }) =>
+      _moderateAdminQueue(path: 'reviews', id: id, status: status, note: note);
+  Future<void> moderateAdminReply({
+    required String id,
+    required String status,
+    String? note,
+  }) =>
+      _moderateAdminQueue(path: 'replies', id: id, status: status, note: note);
+  Future<void> moderateAdminProviderReport({
+    required String id,
+    required String status,
+  }) => _moderateAdminQueue(path: 'provider-reports', id: id, status: status);
+  Future<void> moderateAdminListingReport({
+    required String id,
+    required String status,
+  }) => _moderateAdminQueue(path: 'listing-reports', id: id, status: status);
+  Future<void> moderateAdminSupportTicket({
+    required String id,
+    required String status,
+  }) => _moderateAdminQueue(path: 'support-tickets', id: id, status: status);
 
   Future<void> register({
     required String name,
@@ -564,6 +637,30 @@ class ApiClient {
     if (response.statusCode == 401) throw Exception('unauthorized');
     if (response.statusCode == 409) throw Exception('duplicate_review');
     if (response.statusCode != 201) throw Exception('review_error');
+  }
+
+  Future<void> updateReview({
+    required String reviewId,
+    required int quality,
+    required int commitment,
+    required int value,
+    String? comment,
+  }) async {
+    final response = await http
+        .patch(
+          Uri.parse('$baseUrl/api/me/reviews/$reviewId'),
+          headers: _jsonHeaders,
+          body: jsonEncode({
+            'quality': quality,
+            'commitment': commitment,
+            'value': value,
+            if (comment != null && comment.trim().isNotEmpty)
+              'comment': comment.trim(),
+          }),
+        )
+        .timeout(const Duration(seconds: 8));
+    if (response.statusCode == 401) throw Exception('unauthorized');
+    if (response.statusCode != 200) throw Exception('review_error');
   }
 
   Future<Map<String, dynamic>> toggleReviewHelpful(String reviewId) async {

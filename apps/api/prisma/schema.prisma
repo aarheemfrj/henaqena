@@ -326,20 +326,21 @@ model ListingImage {
 }
 
 model Review {
-  id           String          @id @default(cuid())
-  providerId   String
-  authorId     String
-  quality      Int
-  commitment   Int
-  value        Int
-  comment      String?
-  status       ReviewStatus    @default(PENDING)
-  moderatedAt  DateTime?
-  provider     Provider        @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  author       User            @relation(fields: [authorId], references: [id])
-  replies      ReviewReply[]
-  helpfulVotes ReviewHelpful[]
-  createdAt    DateTime        @default(now())
+  id            String          @id @default(cuid())
+  providerId    String
+  authorId      String
+  quality       Int
+  commitment    Int
+  value         Int
+  comment       String?
+  status        ReviewStatus    @default(PENDING)
+  pointsAwarded Boolean         @default(false)
+  moderatedAt   DateTime?
+  provider      Provider        @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  author        User            @relation(fields: [authorId], references: [id])
+  replies       ReviewReply[]
+  helpfulVotes  ReviewHelpful[]
+  createdAt     DateTime        @default(now())
 
   @@index([moderatedAt])
 }
@@ -356,16 +357,17 @@ model ReviewHelpful {
 }
 
 model ReviewReply {
-  id          String    @id @default(cuid())
+  id          String       @id @default(cuid())
   reviewId    String
   authorId    String
   text        String
+  status      ReviewStatus @default(PENDING)
   moderatedAt DateTime?
-  review      Review    @relation(fields: [reviewId], references: [id], onDelete: Cascade)
-  author      User      @relation(fields: [authorId], references: [id])
-  createdAt   DateTime  @default(now())
+  review      Review       @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  author      User         @relation(fields: [authorId], references: [id])
+  createdAt   DateTime     @default(now())
 
-  @@index([moderatedAt])
+  @@index([status, moderatedAt])
 }
 
 model Ad {

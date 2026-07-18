@@ -381,7 +381,7 @@ app.get('/api/providers/:id', async (req, res, next) => {
         categories: { include: { category: true } },
         services: { where: { status: ReviewStatus.APPROVED }, orderBy: { createdAt: 'desc' } },
         offers: { where: { status: ReviewStatus.APPROVED, startsAt: { lte: new Date() }, endsAt: { gte: new Date() } }, orderBy: { endsAt: 'asc' } },
-        reviews: { where: { status: ReviewStatus.APPROVED }, include: { author: { select: publicAuthorSelect }, replies: { include: { author: { select: publicAuthorSelect } } }, _count: { select: { helpfulVotes: true } } }, orderBy: { createdAt: 'desc' } },
+        reviews: { where: { status: ReviewStatus.APPROVED }, include: { author: { select: publicAuthorSelect }, replies: { where: { status: ReviewStatus.APPROVED }, include: { author: { select: publicAuthorSelect } } }, _count: { select: { helpfulVotes: true } } }, orderBy: { createdAt: 'desc' } },
         _count: { select: { favorites: true } },
       },
     });
@@ -525,6 +525,18 @@ app.get('/api/me/contributions', async (req, res, next) => {
   try { const session = await sessionFromRequest(req); if (!session) return res.status(401).json({ message: 'غير مسجل الدخول' }); const [providers, listings, reviews, reports] = await Promise.all([prisma.provider.findMany({ where: { ownerId: session.userId }, include: { area: true }, orderBy: { createdAt: 'desc' } }), prisma.listing.findMany({ where: { ownerId: session.userId }, include: { area: true, images: true }, orderBy: { createdAt: 'desc' } }), prisma.review.findMany({ where: { authorId: session.userId }, include: { provider: { select: { id: true, name: true } } }, orderBy: { createdAt: 'desc' } }), prisma.providerReport.findMany({ where: { reporterId: session.userId }, include: { provider: { select: { id: true, name: true } } }, orderBy: { createdAt: 'desc' } })]); res.json({ providers, listings, reviews, reports }); } catch (error) { next(error); }
 });
 
+app.patch('/api/me/reviews/:id', async (req, res, next) => {
+  try {
+    const session = await sessionFromRequest(req);
+    if (!session) return res.status(401).json({ message: 'غير مسجل الدخول' });
+    const input = reviewSchema.omit({ providerId: true }).parse(req.body);
+    const review = await prisma.review.findFirst({ where: { id: String(req.params.id), authorId: session.userId } });
+    if (!review) return res.status(404).json({ message: 'التقييم غير موجود' });
+    const updated = await prisma.review.update({ where: { id: review.id }, data: { ...input, status: ReviewStatus.PENDING, moderatedAt: null } });
+    res.json({ ...updated, message: 'تم تحديث التقييم وإرساله للمراجعة' });
+  } catch (error) { next(error); }
+});
+
 app.patch('/api/me/listings/:id/renew', async (req, res, next) => {
   try {
     const session = await sessionFromRequest(req);
@@ -661,13 +673,7 @@ app.post('/api/reviews', async (req, res, next) => {
     const input = reviewSchema.parse(req.body);
     const existing = await prisma.review.findFirst({ where: { providerId: input.providerId, authorId: session.userId } });
     if (existing) return res.status(409).json({ message: 'سبق لك تقييم هذا المكان' });
-    const review = await prisma.$transaction(async (tx) => {
-      const author = await tx.user.findUniqueOrThrow({ where: { id: session.userId }, select: { points: true } });
-      const points = author.points + 1;
-      const level = points >= 100 ? 'QENAWY_ASIL' : points >= 50 ? 'QENAWY_RAYEQ' : 'QENAWY';
-      await tx.user.update({ where: { id: session.userId }, data: { points, level } });
-      return tx.review.create({ data: { ...input, authorId: session.userId, status: ReviewStatus.APPROVED } });
-    });
+    const review = await prisma.review.create({ data: { ...input, authorId: session.userId, status: ReviewStatus.PENDING } });
     res.status(201).json(review);
   } catch (error) {
     next(error);
@@ -679,8 +685,10 @@ app.post('/api/reviews/:id/replies', async (req, res, next) => {
     const session = await sessionFromRequest(req);
     if (!session) return res.status(401).json({ message: 'غير مسجل الدخول' });
     const input = z.object({ text: z.string().trim().min(1).max(1000) }).parse(req.body);
-    const reply = await prisma.reviewReply.create({ data: { reviewId: req.params.id, authorId: session.userId, text: input.text }, include: { author: { select: publicAuthorSelect } } });
-    res.status(201).json(reply);
+    const review = await prisma.review.findUnique({ where: { id: String(req.params.id) } });
+    if (!review || review.status !== ReviewStatus.APPROVED) return res.status(404).json({ message: 'التقييم غير متاح' });
+    const reply = await prisma.reviewReply.create({ data: { reviewId: review.id, authorId: session.userId, text: input.text, status: ReviewStatus.PENDING }, include: { author: { select: publicAuthorSelect } } });
+    res.status(201).json({ ...reply, message: 'تم إرسال الرد للمراجعة وسيظهر بعد اعتماده' });
   } catch (error) { next(error); }
 });
 
@@ -847,10 +855,31 @@ app.patch('/api/admin/providers/:id', requireAdmin, async (req, res, next) => {
 app.patch('/api/admin/reviews/:id', requireAdmin, async (req, res, next) => {
   try {
     const { status, note } = moderationWithNoteSchema.parse(req.body);
-    const review = await prisma.review.update({ where: { id: String(req.params.id) }, data: { status, moderatedAt: new Date() } });
+    const previous = await prisma.review.findUniqueOrThrow({ where: { id: String(req.params.id) } });
+    const review = await prisma.$transaction(async (tx) => {
+      const shouldAward = status === ReviewStatus.APPROVED && !previous.pointsAwarded;
+      const updated = await tx.review.update({ where: { id: previous.id }, data: { status, moderatedAt: new Date(), ...(shouldAward ? { pointsAwarded: true } : {}) } });
+      if (shouldAward) {
+        const author = await tx.user.findUniqueOrThrow({ where: { id: updated.authorId }, select: { points: true } });
+        const points = author.points + 1;
+        const level = points >= 100 ? 'QENAWY_ASIL' : points >= 50 ? 'QENAWY_RAYEQ' : 'QENAWY';
+        await tx.user.update({ where: { id: updated.authorId }, data: { points, level } });
+      }
+      return updated;
+    });
     await prisma.notification.create({ data: { userId: review.authorId, title: status === ReviewStatus.APPROVED ? 'تم اعتماد تقييمك' : 'لم يتم اعتماد تقييمك', body: status === ReviewStatus.APPROVED ? 'شكراً لمساهمتك في تحسين هنا قنا.' : `سبب الرفض: ${note ?? 'يرجى مراجعة محتوى التقييم.'}` } });
     await audit(`review.${status.toLowerCase()}`, 'review', review.id, { status, note });
     res.json(review);
+  } catch (error) { next(error); }
+});
+
+app.patch('/api/admin/replies/:id', requireAdmin, async (req, res, next) => {
+  try {
+    const { status, note } = moderationWithNoteSchema.parse(req.body);
+    const reply = await prisma.reviewReply.update({ where: { id: String(req.params.id) }, data: { status, moderatedAt: new Date() } });
+    await prisma.notification.create({ data: { userId: reply.authorId, title: status === ReviewStatus.APPROVED ? 'تم اعتماد ردك' : 'لم يتم اعتماد ردك', body: status === ReviewStatus.APPROVED ? 'ردك ظاهر الآن ضمن التقييمات.' : `سبب الرفض: ${note ?? 'يرجى مراجعة محتوى الرد.'}` } });
+    await audit(`reply.${status.toLowerCase()}`, 'reviewReply', reply.id, { status, note });
+    res.json(reply);
   } catch (error) { next(error); }
 });
 

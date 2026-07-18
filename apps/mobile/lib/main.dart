@@ -694,6 +694,21 @@ class _ContributionsPageState extends State<ContributionsPage> {
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting)
             return const Center(child: CircularProgressIndicator(color: teal));
+          if (snapshot.hasError) {
+            return _StateMessage(
+              icon: Icons.lock_outline,
+              title: 'سجّل الدخول لعرض مساهماتك',
+              subtitle: 'كل طلباتك وتقييماتك محفوظة في حسابك.',
+              actionLabel: 'تسجيل الدخول',
+              onAction: () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const AuthPage()),
+                );
+                if (mounted) _reload();
+              },
+            );
+          }
           final data = snapshot.data ?? {};
           final providers = (data['providers'] as List<dynamic>? ?? []);
           final listings = (data['listings'] as List<dynamic>? ?? []);
@@ -717,6 +732,17 @@ class _ContributionsPageState extends State<ContributionsPage> {
                     title: item['name'] as String,
                     subtitle:
                         '${item['area']?['name'] ?? 'قنا'} · ${item['status']}',
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ProviderDetailPage(
+                          providerId: item['id'] as String,
+                          title: item['name'] as String,
+                          icon: Icons.storefront_outlined,
+                          subtitle: item['area']?['name'] as String? ?? 'قنا',
+                        ),
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 14),
@@ -731,6 +757,13 @@ class _ContributionsPageState extends State<ContributionsPage> {
                   (item) => _ContributionTile(
                     title: item['title'] as String,
                     subtitle: '${item['price']} جنيه · ${item['status']}',
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            ListingDetailPage(listingId: item['id'] as String),
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 14),
@@ -745,6 +778,25 @@ class _ContributionsPageState extends State<ContributionsPage> {
                   (item) => _ContributionTile(
                     title: item['provider']?['name'] as String? ?? 'تقييم',
                     subtitle: item['status'] as String? ?? 'قيد المراجعة',
+                    onTap: () async {
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ReviewPage(
+                            providerId: item['providerId'] as String,
+                            providerName:
+                                item['provider']?['name'] as String? ??
+                                'النشاط',
+                            reviewId: item['id'] as String,
+                            initialQuality: item['quality'] as int? ?? 0,
+                            initialCommitment: item['commitment'] as int? ?? 0,
+                            initialValue: item['value'] as int? ?? 0,
+                            initialComment: item['comment'] as String?,
+                          ),
+                        ),
+                      );
+                      if (mounted) _reload();
+                    },
                   ),
                 ),
                 const SizedBox(height: 14),
@@ -761,6 +813,23 @@ class _ContributionsPageState extends State<ContributionsPage> {
                         item['provider']?['name'] as String? ??
                         item['name'] as String,
                     subtitle: item['status'] as String? ?? 'قيد المراجعة',
+                    onTap: () => showDialog<void>(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: Text(
+                          item['kind'] == 'CLAIM' ? 'طلب ملكية' : 'بلاغ',
+                        ),
+                        content: Text(
+                          item['note'] as String? ?? 'بدون ملاحظات',
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: const Text('إغلاق'),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -773,17 +842,25 @@ class _ContributionsPageState extends State<ContributionsPage> {
 }
 
 class _ContributionTile extends StatelessWidget {
-  const _ContributionTile({required this.title, required this.subtitle});
+  const _ContributionTile({
+    required this.title,
+    required this.subtitle,
+    this.onTap,
+  });
   final String title;
   final String subtitle;
+  final VoidCallback? onTap;
   @override
   Widget build(BuildContext context) => Card(
     elevation: 0,
     margin: const EdgeInsets.only(top: 7),
     child: ListTile(
+      onTap: onTap,
       title: Text(title),
       subtitle: Text(subtitle, style: const TextStyle(color: muted)),
-      trailing: const Icon(Icons.chevron_left, color: teal),
+      trailing: onTap == null
+          ? null
+          : const Icon(Icons.chevron_left, color: teal),
     ),
   );
 }
@@ -1465,7 +1542,7 @@ class _HomePageState extends State<HomePage> {
         const SizedBox(height: 16),
         const HeroBanner(),
         const SizedBox(height: 14),
-        const PromoCarousel(),
+        PromoCarousel(areaId: selectedAreaId),
         const SizedBox(height: 20),
         const SectionTitle(title: 'فئات قريبة منك'),
         const SizedBox(height: 9),
@@ -1710,7 +1787,8 @@ class _HeroBannerState extends State<HeroBanner>
 }
 
 class PromoCarousel extends StatefulWidget {
-  const PromoCarousel({super.key});
+  const PromoCarousel({super.key, this.areaId});
+  final String? areaId;
   @override
   State<PromoCarousel> createState() => _PromoCarouselState();
 }
@@ -1723,10 +1801,26 @@ class _PromoCarouselState extends State<PromoCarousel> {
   @override
   void initState() {
     super.initState();
+    _load();
+  }
+
+  @override
+  void didUpdateWidget(covariant PromoCarousel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.areaId != widget.areaId) _load();
+  }
+
+  void _load() {
     ApiClient()
-        .fetchAds()
+        .fetchAds(areaId: widget.areaId)
         .then((ads) {
-          if (mounted) setState(() => promos = ads);
+          if (mounted) {
+            setState(() {
+              promos = ads;
+              active = 0;
+            });
+            if (controller.hasClients) controller.jumpToPage(0);
+          }
         })
         .catchError((_) {});
   }
@@ -2410,6 +2504,20 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
       body: FutureBuilder<ProviderDetails?>(
         future: details,
         builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return ListView(
+              padding: const EdgeInsets.all(24),
+              children: [
+                _StateMessage(
+                  icon: Icons.cloud_off_outlined,
+                  title: 'تعذر تحميل تفاصيل النشاط',
+                  subtitle: 'تحقق من الاتصال وحاول مرة أخرى.',
+                  actionLabel: 'إعادة المحاولة',
+                  onAction: _reload,
+                ),
+              ],
+            );
+          }
           final data = snapshot.data;
           favorite ??= data?.viewerFavorite ?? false;
           final imageUrls = data?.images ?? const <String>[];
@@ -2472,13 +2580,22 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                                   ),
                                 ),
                                 const SizedBox(width: 10),
-                                const Text(
-                                  'موثق',
-                                  style: TextStyle(
-                                    color: teal,
-                                    fontWeight: FontWeight.w700,
+                                if (data?.isVerified == true)
+                                  const Text(
+                                    'موثق',
+                                    style: TextStyle(
+                                      color: teal,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  )
+                                else if (data != null)
+                                  const Text(
+                                    'مضاف من المجتمع',
+                                    style: TextStyle(
+                                      color: muted,
+                                      fontSize: 12,
+                                    ),
                                   ),
-                                ),
                               ],
                             ),
                           ],
@@ -2861,17 +2978,31 @@ class ReviewPage extends StatefulWidget {
     super.key,
     required this.providerId,
     required this.providerName,
+    this.reviewId,
+    this.initialQuality = 0,
+    this.initialCommitment = 0,
+    this.initialValue = 0,
+    this.initialComment,
   });
   final String providerId;
   final String providerName;
+  final String? reviewId;
+  final int initialQuality;
+  final int initialCommitment;
+  final int initialValue;
+  final String? initialComment;
   @override
   State<ReviewPage> createState() => _ReviewPageState();
 }
 
 class _ReviewPageState extends State<ReviewPage> {
   final api = ApiClient();
-  final scores = <String, int>{'الجودة': 0, 'الالتزام': 0, 'السعر': 0};
-  final comment = TextEditingController();
+  late final scores = <String, int>{
+    'الجودة': widget.initialQuality,
+    'الالتزام': widget.initialCommitment,
+    'السعر': widget.initialValue,
+  };
+  late final comment = TextEditingController(text: widget.initialComment);
   bool submitting = false;
   @override
   void dispose() {
@@ -2883,7 +3014,9 @@ class _ReviewPageState extends State<ReviewPage> {
   Widget build(BuildContext context) => Directionality(
     textDirection: TextDirection.rtl,
     child: Scaffold(
-      appBar: AppBar(title: const Text('إضافة تقييم')),
+      appBar: AppBar(
+        title: Text(widget.reviewId == null ? 'إضافة تقييم' : 'تعديل التقييم'),
+      ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(18, 12, 18, 24),
         children: [
@@ -2919,7 +3052,7 @@ class _ReviewPageState extends State<ReviewPage> {
           ),
           const SizedBox(height: 12),
           const Text(
-            'التقييم يظهر باسمك الحقيقي ويمكنك تعديله من مساهماتك.',
+            'التقييم يظهر باسمك الحقيقي بعد مراجعة الإدارة ويمكنك تعديله من مساهماتك.',
             style: TextStyle(color: muted, fontSize: 12),
           ),
           const SizedBox(height: 22),
@@ -2934,7 +3067,13 @@ class _ReviewPageState extends State<ReviewPage> {
                 borderRadius: BorderRadius.circular(14),
               ),
             ),
-            child: Text(submitting ? 'جارٍ الإرسال…' : 'إرسال التقييم'),
+            child: Text(
+              submitting
+                  ? 'جارٍ الإرسال…'
+                  : widget.reviewId == null
+                  ? 'إرسال التقييم'
+                  : 'حفظ وإرسال للمراجعة',
+            ),
           ),
         ],
       ),
@@ -2944,18 +3083,30 @@ class _ReviewPageState extends State<ReviewPage> {
   Future<void> _submit() async {
     setState(() => submitting = true);
     try {
-      await api.submitReview(
-        providerId: widget.providerId,
-        quality: scores['الجودة']!,
-        commitment: scores['الالتزام']!,
-        value: scores['السعر']!,
-        comment: comment.text,
-      );
+      if (widget.reviewId == null) {
+        await api.submitReview(
+          providerId: widget.providerId,
+          quality: scores['الجودة']!,
+          commitment: scores['الالتزام']!,
+          value: scores['السعر']!,
+          comment: comment.text,
+        );
+      } else {
+        await api.updateReview(
+          reviewId: widget.reviewId!,
+          quality: scores['الجودة']!,
+          commitment: scores['الالتزام']!,
+          value: scores['السعر']!,
+          comment: comment.text,
+        );
+      }
       if (!mounted) return;
       Navigator.pop(context);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('تم إرسال التقييم')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('تم إرسال التقييم للمراجعة وسيظهر بعد اعتماده'),
+        ),
+      );
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -3192,21 +3343,37 @@ class NowPage extends StatefulWidget {
 class _NowPageState extends State<NowPage> {
   String selected = 'الكل';
   List<Map<String, dynamic>> nowItems = const [];
+  bool loading = true;
+  bool loadFailed = false;
 
   @override
   void initState() {
     super.initState();
-    ApiClient()
+    _load();
+  }
+
+  Future<void> _load() async {
+    if (mounted) setState(() => loading = true);
+    await ApiClient()
         .fetchNow()
         .then((items) {
-          if (mounted) setState(() => nowItems = items);
+          if (mounted) {
+            setState(() {
+              nowItems = items;
+              loadFailed = false;
+            });
+          }
         })
-        .catchError((_) {});
+        .catchError((_) {
+          if (mounted) setState(() => loadFailed = true);
+        });
+    if (mounted) setState(() => loading = false);
   }
 
   @override
   Widget build(BuildContext context) => BasePage(
     title: 'دلوقتي',
+    onRefresh: _load,
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -3255,6 +3422,25 @@ class _NowPageState extends State<NowPage> {
   );
 
   List<Widget> _items() {
+    if (loading) {
+      return const [
+        Padding(
+          padding: EdgeInsets.all(24),
+          child: Center(child: CircularProgressIndicator(color: teal)),
+        ),
+      ];
+    }
+    if (loadFailed) {
+      return [
+        _StateMessage(
+          icon: Icons.cloud_off_outlined,
+          title: 'تعذر تحميل التحديثات',
+          subtitle: 'اسحب لأسفل أو اضغط للمحاولة مرة أخرى.',
+          actionLabel: 'إعادة المحاولة',
+          onAction: _load,
+        ),
+      ];
+    }
     final live = nowItems
         .where((item) => selected == 'الكل' || item['category'] == selected)
         .toList();
@@ -4324,6 +4510,24 @@ class _AccountPageState extends State<AccountPage> {
       body: FutureBuilder<Map<String, dynamic>>(
         future: ApiClient().fetchMe(),
         builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator(color: teal));
+          }
+          if (snapshot.hasError || !AuthSession.isSignedIn) {
+            return _StateMessage(
+              icon: Icons.person_outline,
+              title: 'أنت داخل كزائر',
+              subtitle: 'سجّل الدخول لحفظ المفضلة ومتابعة إعلاناتك وتقييماتك.',
+              actionLabel: 'تسجيل الدخول أو إنشاء حساب',
+              onAction: () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const AuthPage()),
+                );
+                if (mounted) setState(() {});
+              },
+            );
+          }
           final profile = snapshot.data;
           final profileName =
               profile?['name'] as String? ?? AuthSession.name ?? 'حسابي';
@@ -5666,6 +5870,22 @@ class _SettingsPageState extends State<SettingsPage> {
   List<String> selectedAreaNames = const [];
   Set<String> selectedInterests = {};
 
+  void _requireAccount(VoidCallback action) {
+    if (AuthSession.isSignedIn) {
+      action();
+      return;
+    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const AuthPage()),
+    ).then((_) {
+      if (mounted && AuthSession.isSignedIn) {
+        setState(() {});
+        _loadPreferences();
+      }
+    });
+  }
+
   @override
   void initState() {
     super.initState();
@@ -6008,9 +6228,11 @@ class _SettingsPageState extends State<SettingsPage> {
               borderRadius: BorderRadius.circular(16),
             ),
             child: ListTile(
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const AddActivityPage()),
+              onTap: () => _requireAccount(
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const AddActivityPage()),
+                ),
               ),
               leading: const CircleAvatar(
                 backgroundColor: teal,
@@ -6032,10 +6254,12 @@ class _SettingsPageState extends State<SettingsPage> {
             icon: Icons.verified_user_outlined,
             title: 'أملك نشاط',
             subtitle: 'اطلب إثبات ملكية نشاط موجود',
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => const CommunityRequestPage(kind: 'CLAIM'),
+            onTap: () => _requireAccount(
+              () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const CommunityRequestPage(kind: 'CLAIM'),
+                ),
               ),
             ),
           ),
@@ -6043,33 +6267,37 @@ class _SettingsPageState extends State<SettingsPage> {
             icon: Icons.flag_outlined,
             title: 'أبلغ عن نشاط',
             subtitle: 'أرسل ملاحظة للإدارة للمراجعة',
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => const CommunityRequestPage(kind: 'REPORT'),
+            onTap: () => _requireAccount(
+              () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const CommunityRequestPage(kind: 'REPORT'),
+                ),
               ),
             ),
           ),
           _AccountTile(
             icon: Icons.password_outlined,
             title: 'تغيير كلمة المرور',
-            onTap: _changePassword,
+            onTap: () => _requireAccount(_changePassword),
           ),
           _AccountTile(
             icon: Icons.verified_outlined,
             title: 'تأكيد الهاتف أو البريد',
             subtitle: 'واتساب أو رسالة أو بريد إلكتروني',
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => const AccountVerificationPage(),
+            onTap: () => _requireAccount(
+              () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const AccountVerificationPage(),
+                ),
               ),
             ),
           ),
           _AccountTile(
             icon: Icons.logout,
             title: 'تسجيل الخروج من كل الأجهزة',
-            onTap: _logoutAll,
+            onTap: () => _requireAccount(_logoutAll),
           ),
           _AccountTile(
             icon: Icons.admin_panel_settings_outlined,
@@ -6096,8 +6324,10 @@ class _SettingsPageState extends State<SettingsPage> {
             title: const Text('كل الإشعارات'),
             value: allNotifications,
             onChanged: (value) {
-              setState(() => allNotifications = value);
-              _savePreferences();
+              _requireAccount(() {
+                setState(() => allNotifications = value);
+                _savePreferences();
+              });
             },
             activeThumbColor: teal,
           ),
@@ -6106,8 +6336,10 @@ class _SettingsPageState extends State<SettingsPage> {
             title: const Text('إشعارات منطقتي فقط'),
             value: areaOnly,
             onChanged: (value) {
-              setState(() => areaOnly = value);
-              _savePreferences();
+              _requireAccount(() {
+                setState(() => areaOnly = value);
+                _savePreferences();
+              });
             },
             activeThumbColor: teal,
           ),
@@ -6125,8 +6357,10 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
             value: privateProfile,
             onChanged: (value) {
-              setState(() => privateProfile = value);
-              _savePreferences();
+              _requireAccount(() {
+                setState(() => privateProfile = value);
+                _savePreferences();
+              });
             },
             activeThumbColor: teal,
           ),
@@ -6137,7 +6371,7 @@ class _SettingsPageState extends State<SettingsPage> {
             subtitle: selectedAreaNames.isEmpty
                 ? 'لم تحدد مناطق؛ سيظهر ترتيب قنا العام'
                 : selectedAreaNames.join('، '),
-            onTap: _pickAreas,
+            onTap: () => _requireAccount(_pickAreas),
           ),
           _AccountTile(
             icon: Icons.interests_outlined,
@@ -6145,12 +6379,12 @@ class _SettingsPageState extends State<SettingsPage> {
             subtitle: selectedInterests.isEmpty
                 ? 'لم تحدد اهتمامات'
                 : selectedInterests.join('، '),
-            onTap: _pickInterests,
+            onTap: () => _requireAccount(_pickInterests),
           ),
           _AccountTile(
             icon: Icons.delete_forever_outlined,
             title: 'حذف الحساب نهائياً',
-            onTap: _deleteAccount,
+            onTap: () => _requireAccount(_deleteAccount),
             destructive: true,
           ),
         ],
@@ -6169,10 +6403,59 @@ class _AdminControlPageState extends State<AdminControlPage> {
   final api = ApiClient();
   late Future<List<Map<String, dynamic>>> providers = api.fetchAdminProviders();
   late Future<List<Map<String, dynamic>>> listings = api.fetchAdminListings();
+  late Future<List<Map<String, dynamic>>> reviews = api.fetchAdminReviews();
+  late Future<List<Map<String, dynamic>>> replies = api.fetchAdminReplies();
+  late Future<List<Map<String, dynamic>>> providerReports = api
+      .fetchAdminProviderReports();
+  late Future<List<Map<String, dynamic>>> listingReports = api
+      .fetchAdminListingReports();
+  late Future<List<Map<String, dynamic>>> supportTickets = api
+      .fetchAdminSupportTickets();
   Future<void> _reload() async => setState(() {
     providers = api.fetchAdminProviders();
     listings = api.fetchAdminListings();
+    reviews = api.fetchAdminReviews();
+    replies = api.fetchAdminReplies();
+    providerReports = api.fetchAdminProviderReports();
+    listingReports = api.fetchAdminListingReports();
+    supportTickets = api.fetchAdminSupportTickets();
   });
+
+  Future<String?> _rejectionReason() async {
+    final controller = TextEditingController();
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('سبب الرفض'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          minLines: 2,
+          maxLines: 4,
+          decoration: const InputDecoration(
+            hintText: 'اكتب سببًا واضحًا يصل لصاحب الطلب',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            onPressed: () {
+              if (controller.text.trim().length >= 3) {
+                Navigator.pop(context, controller.text.trim());
+              }
+            },
+            child: const Text('رفض وإرسال السبب'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    return result;
+  }
+
   Future<void> _logout() async {
     await api.adminLogout();
     if (mounted) Navigator.pop(context);
@@ -6203,76 +6486,172 @@ class _AdminControlPageState extends State<AdminControlPage> {
               ),
             ),
             const SizedBox(height: 16),
-            const Text(
-              'طلبات الأنشطة',
-              style: TextStyle(color: deepTeal, fontWeight: FontWeight.w700),
-            ),
-            FutureBuilder<List<Map<String, dynamic>>>(
+            _AdminQueue(
+              title: 'طلبات الأنشطة',
               future: providers,
-              builder: (context, snapshot) {
-                final items = (snapshot.data ?? const <Map<String, dynamic>>[])
-                    .where((item) => item['status'] == 'PENDING')
-                    .toList();
-                return Column(
-                  children: [
-                    for (final item in items)
-                      _AdminApprovalTile(
-                        title: item['name'] as String,
-                        subtitle: item['area']?['name'] as String? ?? 'قنا',
-                        onApprove: () async {
-                          await api.moderateAdminProvider(
-                            id: item['id'] as String,
-                            status: 'APPROVED',
-                          );
-                          await _reload();
-                        },
-                        onReject: () async {
-                          await api.moderateAdminProvider(
-                            id: item['id'] as String,
-                            status: 'REJECTED',
-                          );
-                          await _reload();
-                        },
-                      ),
-                  ],
+              filter: (item) => item['status'] == 'PENDING',
+              itemTitle: (item) => item['name'] as String? ?? 'نشاط',
+              itemSubtitle: (item) => item['area']?['name'] as String? ?? 'قنا',
+              onApprove: (item) async {
+                await api.moderateAdminProvider(
+                  id: item['id'] as String,
+                  status: 'APPROVED',
                 );
+                await _reload();
+              },
+              onReject: (item) async {
+                final reason = await _rejectionReason();
+                if (reason == null) return;
+                await api.moderateAdminProvider(
+                  id: item['id'] as String,
+                  status: 'REJECTED',
+                  note: reason,
+                );
+                await _reload();
               },
             ),
-            const SizedBox(height: 18),
-            const Text(
-              'طلبات الإعلانات المحلية',
-              style: TextStyle(color: deepTeal, fontWeight: FontWeight.w700),
-            ),
-            FutureBuilder<List<Map<String, dynamic>>>(
+            _AdminQueue(
+              title: 'طلبات الإعلانات المحلية',
               future: listings,
-              builder: (context, snapshot) {
-                final items = (snapshot.data ?? const <Map<String, dynamic>>[])
-                    .where((item) => item['status'] == 'PENDING')
-                    .toList();
-                return Column(
-                  children: [
-                    for (final item in items)
-                      _AdminApprovalTile(
-                        title: item['title'] as String,
-                        subtitle:
-                            '${item['price']} جنيه · ${item['area']?['name'] ?? 'قنا'}',
-                        onApprove: () async {
-                          await api.moderateAdminListing(
-                            id: item['id'] as String,
-                            status: 'ACTIVE',
-                          );
-                          await _reload();
-                        },
-                        onReject: () async {
-                          await api.moderateAdminListing(
-                            id: item['id'] as String,
-                            status: 'REJECTED',
-                          );
-                          await _reload();
-                        },
-                      ),
-                  ],
+              filter: (item) => item['status'] == 'PENDING',
+              itemTitle: (item) => item['title'] as String? ?? 'إعلان',
+              itemSubtitle: (item) =>
+                  '${item['price']} جنيه · ${item['area']?['name'] ?? 'قنا'}',
+              onApprove: (item) async {
+                await api.moderateAdminListing(
+                  id: item['id'] as String,
+                  status: 'ACTIVE',
                 );
+                await _reload();
+              },
+              onReject: (item) async {
+                final reason = await _rejectionReason();
+                if (reason == null) return;
+                await api.moderateAdminListing(
+                  id: item['id'] as String,
+                  status: 'REJECTED',
+                  note: reason,
+                );
+                await _reload();
+              },
+            ),
+            _AdminQueue(
+              title: 'التقييمات الجديدة',
+              future: reviews,
+              filter: (item) => item['status'] == 'PENDING',
+              itemTitle: (item) =>
+                  item['author']?['name'] as String? ?? 'مستخدم',
+              itemSubtitle: (item) =>
+                  '${item['provider']?['name'] ?? 'نشاط'} · ${item['comment'] ?? 'تقييم بالنجوم فقط'}',
+              onApprove: (item) async {
+                await api.moderateAdminReview(
+                  id: item['id'] as String,
+                  status: 'APPROVED',
+                );
+                await _reload();
+              },
+              onReject: (item) async {
+                final reason = await _rejectionReason();
+                if (reason == null) return;
+                await api.moderateAdminReview(
+                  id: item['id'] as String,
+                  status: 'REJECTED',
+                  note: reason,
+                );
+                await _reload();
+              },
+            ),
+            _AdminQueue(
+              title: 'ردود التقييمات',
+              future: replies,
+              filter: (item) => item['status'] == 'PENDING',
+              itemTitle: (item) =>
+                  item['author']?['name'] as String? ?? 'مستخدم',
+              itemSubtitle: (item) => item['text'] as String? ?? '',
+              onApprove: (item) async {
+                await api.moderateAdminReply(
+                  id: item['id'] as String,
+                  status: 'APPROVED',
+                );
+                await _reload();
+              },
+              onReject: (item) async {
+                final reason = await _rejectionReason();
+                if (reason == null) return;
+                await api.moderateAdminReply(
+                  id: item['id'] as String,
+                  status: 'REJECTED',
+                  note: reason,
+                );
+                await _reload();
+              },
+            ),
+            _AdminQueue(
+              title: 'بلاغات وملكية الأنشطة',
+              future: providerReports,
+              filter: (item) => item['status'] == 'PENDING',
+              itemTitle: (item) => item['name'] as String? ?? 'طلب نشاط',
+              itemSubtitle: (item) =>
+                  '${item['kind'] == 'CLAIM' ? 'إثبات ملكية' : 'بلاغ'} · ${item['note'] ?? 'بدون ملاحظة'}',
+              onApprove: (item) async {
+                await api.moderateAdminProviderReport(
+                  id: item['id'] as String,
+                  status: 'APPROVED',
+                );
+                await _reload();
+              },
+              onReject: (item) async {
+                await api.moderateAdminProviderReport(
+                  id: item['id'] as String,
+                  status: 'REJECTED',
+                );
+                await _reload();
+              },
+            ),
+            _AdminQueue(
+              title: 'بلاغات الإعلانات المحلية',
+              future: listingReports,
+              filter: (item) => item['status'] == 'PENDING',
+              itemTitle: (item) =>
+                  item['listing']?['title'] as String? ?? 'إعلان',
+              itemSubtitle: (item) => item['reason'] as String? ?? 'بلاغ',
+              onApprove: (item) async {
+                await api.moderateAdminListingReport(
+                  id: item['id'] as String,
+                  status: 'APPROVED',
+                );
+                await _reload();
+              },
+              onReject: (item) async {
+                await api.moderateAdminListingReport(
+                  id: item['id'] as String,
+                  status: 'REJECTED',
+                );
+                await _reload();
+              },
+            ),
+            _AdminQueue(
+              title: 'طلبات الدعم',
+              future: supportTickets,
+              filter: (item) => item['status'] == 'PENDING',
+              itemTitle: (item) => item['subject'] as String? ?? 'طلب دعم',
+              itemSubtitle: (item) =>
+                  '${item['user']?['name'] ?? 'مستخدم'} · ${item['message'] ?? ''}',
+              approveTooltip: 'إغلاق كمحلول',
+              rejectTooltip: 'إغلاق دون إجراء',
+              onApprove: (item) async {
+                await api.moderateAdminSupportTicket(
+                  id: item['id'] as String,
+                  status: 'APPROVED',
+                );
+                await _reload();
+              },
+              onReject: (item) async {
+                await api.moderateAdminSupportTicket(
+                  id: item['id'] as String,
+                  status: 'REJECTED',
+                );
+                await _reload();
               },
             ),
           ],
@@ -6282,39 +6661,159 @@ class _AdminControlPageState extends State<AdminControlPage> {
   );
 }
 
-class _AdminApprovalTile extends StatelessWidget {
+class _AdminApprovalTile extends StatefulWidget {
   const _AdminApprovalTile({
     required this.title,
     required this.subtitle,
     required this.onApprove,
     required this.onReject,
+    this.approveTooltip = 'اعتماد',
+    this.rejectTooltip = 'رفض',
   });
   final String title;
   final String subtitle;
   final Future<void> Function() onApprove;
   final Future<void> Function() onReject;
+  final String approveTooltip;
+  final String rejectTooltip;
+
+  @override
+  State<_AdminApprovalTile> createState() => _AdminApprovalTileState();
+}
+
+class _AdminApprovalTileState extends State<_AdminApprovalTile> {
+  bool busy = false;
+
+  Future<void> _run(Future<void> Function() action) async {
+    if (busy) return;
+    setState(() => busy = true);
+    try {
+      await action();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تعذر تنفيذ القرار. حاول مرة أخرى.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Card(
     elevation: 0,
     margin: const EdgeInsets.only(top: 8),
     child: ListTile(
-      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
-      subtitle: Text(subtitle),
-      trailing: Wrap(
-        spacing: 4,
-        children: [
-          IconButton(
-            onPressed: onApprove,
-            color: teal,
-            icon: const Icon(Icons.check_circle_outline),
-          ),
-          IconButton(
-            onPressed: onReject,
-            color: Colors.redAccent,
-            icon: const Icon(Icons.cancel_outlined),
-          ),
-        ],
+      title: Text(
+        widget.title,
+        style: const TextStyle(fontWeight: FontWeight.w700),
       ),
+      subtitle: Text(widget.subtitle),
+      trailing: busy
+          ? const SizedBox.square(
+              dimension: 24,
+              child: CircularProgressIndicator(strokeWidth: 2, color: teal),
+            )
+          : Wrap(
+              spacing: 4,
+              children: [
+                IconButton(
+                  tooltip: widget.approveTooltip,
+                  onPressed: () => _run(widget.onApprove),
+                  color: teal,
+                  icon: const Icon(Icons.check_circle_outline),
+                ),
+                IconButton(
+                  tooltip: widget.rejectTooltip,
+                  onPressed: () => _run(widget.onReject),
+                  color: Colors.redAccent,
+                  icon: const Icon(Icons.cancel_outlined),
+                ),
+              ],
+            ),
+    ),
+  );
+}
+
+class _AdminQueue extends StatelessWidget {
+  const _AdminQueue({
+    required this.title,
+    required this.future,
+    required this.filter,
+    required this.itemTitle,
+    required this.itemSubtitle,
+    required this.onApprove,
+    required this.onReject,
+    this.approveTooltip = 'اعتماد',
+    this.rejectTooltip = 'رفض',
+  });
+  final String title;
+  final Future<List<Map<String, dynamic>>> future;
+  final bool Function(Map<String, dynamic>) filter;
+  final String Function(Map<String, dynamic>) itemTitle;
+  final String Function(Map<String, dynamic>) itemSubtitle;
+  final Future<void> Function(Map<String, dynamic>) onApprove;
+  final Future<void> Function(Map<String, dynamic>) onReject;
+  final String approveTooltip;
+  final String rejectTooltip;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 18),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(color: deepTeal, fontWeight: FontWeight.w700),
+        ),
+        FutureBuilder<List<Map<String, dynamic>>>(
+          future: future,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Padding(
+                padding: EdgeInsets.all(14),
+                child: LinearProgressIndicator(color: teal),
+              );
+            }
+            if (snapshot.hasError) {
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: 10),
+                child: Text(
+                  'تعذر تحميل هذه الطلبات. اسحب لأسفل للمحاولة مجددًا.',
+                  style: TextStyle(color: Colors.redAccent),
+                ),
+              );
+            }
+            final items = (snapshot.data ?? const <Map<String, dynamic>>[])
+                .where(filter)
+                .toList();
+            if (items.isEmpty) {
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: 10),
+                child: Text(
+                  'لا توجد طلبات معلقة.',
+                  style: TextStyle(color: muted),
+                ),
+              );
+            }
+            return Column(
+              children: [
+                for (final item in items)
+                  _AdminApprovalTile(
+                    title: itemTitle(item),
+                    subtitle: itemSubtitle(item),
+                    onApprove: () => onApprove(item),
+                    onReject: () => onReject(item),
+                    approveTooltip: approveTooltip,
+                    rejectTooltip: rejectTooltip,
+                  ),
+              ],
+            );
+          },
+        ),
+      ],
     ),
   );
 }
