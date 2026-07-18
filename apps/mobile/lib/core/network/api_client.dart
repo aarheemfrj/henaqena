@@ -20,15 +20,19 @@ class ProviderSummary {
   final String? imageUrl;
   factory ProviderSummary.fromJson(
     Map<String, dynamic> json,
+    String baseUrl,
   ) => ProviderSummary(
     id: json['id'] as String,
     name: json['name'] as String,
     description: json['description'] as String?,
-    imageUrl: (json['images'] as List<dynamic>?)?.isNotEmpty == true
-        ? ((json['images'] as List<dynamic>).first
-                  as Map<String, dynamic>)['url']
-              as String?
-        : null,
+    imageUrl: _absoluteUrl(
+      baseUrl,
+      (json['images'] as List<dynamic>?)?.isNotEmpty == true
+          ? ((json['images'] as List<dynamic>).first
+                    as Map<String, dynamic>)['url']
+                as String?
+          : null,
+    ),
     subtitle:
         '${json['area']?['name'] ?? 'قنا'}${json['isVerified'] == true ? ' · موثق' : ''}${(json['rating'] as num? ?? 0) > 0 ? ' · ${json['rating']} ★' : ''}',
   );
@@ -67,13 +71,19 @@ class ProviderDetails {
   final List<Map<String, dynamic>> services;
   final List<Map<String, dynamic>> offers;
   final bool viewerFavorite;
-  factory ProviderDetails.fromJson(Map<String, dynamic> json) =>
+  factory ProviderDetails.fromJson(Map<String, dynamic> json, String baseUrl) =>
       ProviderDetails(
         id: json['id'] as String,
         name: json['name'] as String,
         description: json['description'] as String?,
         images: (json['images'] as List<dynamic>? ?? [])
-            .map((item) => (item as Map<String, dynamic>)['url'] as String)
+            .map(
+              (item) => _absoluteUrl(
+                baseUrl,
+                (item as Map<String, dynamic>)['url'] as String?,
+              ),
+            )
+            .whereType<String>()
             .toList(),
         reviews: (json['reviews'] as List<dynamic>? ?? [])
             .map((item) => Map<String, dynamic>.from(item as Map))
@@ -113,6 +123,13 @@ class AreaOption {
       AreaOption(id: json['id'] as String, name: json['name'] as String);
 }
 
+String? _absoluteUrl(String baseUrl, String? value) {
+  if (value == null || value.isEmpty) return null;
+  final parsed = Uri.tryParse(value);
+  if (parsed?.hasScheme == true) return value;
+  return '${baseUrl.replaceFirst(RegExp(r'/$'), '')}/${value.replaceFirst(RegExp(r'^/'), '')}';
+}
+
 class ApiClient {
   ApiClient({String? baseUrl})
     : baseUrl =
@@ -127,12 +144,25 @@ class ApiClient {
     final uri = Uri.parse(
       '$baseUrl/api/ads',
     ).replace(queryParameters: {if (areaId != null) 'areaId': areaId});
-    final response = await http.get(uri).timeout(const Duration(seconds: 5));
+    final response = await http
+        .get(uri, headers: _jsonHeaders)
+        .timeout(const Duration(seconds: 5));
     if (response.statusCode != 200)
       throw Exception('API error ${response.statusCode}');
-    return (jsonDecode(response.body) as List<dynamic>)
-        .map((item) => Map<String, dynamic>.from(item as Map))
-        .toList();
+    return (jsonDecode(response.body) as List<dynamic>).map((item) {
+      final ad = Map<String, dynamic>.from(item as Map);
+      ad['imageUrl'] = _absoluteUrl(baseUrl, ad['imageUrl'] as String?);
+      return ad;
+    }).toList();
+  }
+
+  Future<Map<String, dynamic>> toggleAdReaction(String adId) async {
+    final response = await http
+        .post(Uri.parse('$baseUrl/api/ads/$adId/react'), headers: _jsonHeaders)
+        .timeout(const Duration(seconds: 8));
+    if (response.statusCode == 401) throw Exception('unauthorized');
+    if (response.statusCode != 200) throw Exception('ad_reaction_error');
+    return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
   }
 
   Future<List<Map<String, dynamic>>> fetchPrices({String? areaId}) async {
@@ -362,12 +392,15 @@ class ApiClient {
     await _saveAuthenticatedSession(response);
   }
 
-  Future<void> login({required String phone, required String password}) async {
+  Future<void> login({
+    required String identifier,
+    required String password,
+  }) async {
     final response = await http
         .post(
           Uri.parse('$baseUrl/api/auth/login'),
           headers: _jsonHeaders,
-          body: jsonEncode({'phone': phone, 'password': password}),
+          body: jsonEncode({'identifier': identifier, 'password': password}),
         )
         .timeout(const Duration(seconds: 8));
     await _saveAuthenticatedSession(response);
@@ -445,6 +478,14 @@ class ApiClient {
       newToken: body['token'] as String,
       userName: (body['user'] as Map<String, dynamic>)['name'] as String,
     );
+    final admin = body['admin'] as Map<String, dynamic>?;
+    if (admin != null) {
+      await AuthSession.saveAdmin(
+        newToken: admin['token'] as String,
+        userName: admin['name'] as String,
+        role: admin['role'] as String,
+      );
+    }
   }
 
   Future<List<CategoryOption>> fetchCategories() async {
@@ -598,7 +639,10 @@ class ApiClient {
       throw Exception('API error ${response.statusCode}');
     final data = jsonDecode(response.body) as List<dynamic>;
     return data
-        .map((item) => ProviderSummary.fromJson(item as Map<String, dynamic>))
+        .map(
+          (item) =>
+              ProviderSummary.fromJson(item as Map<String, dynamic>, baseUrl),
+        )
         .toList();
   }
 
@@ -610,6 +654,7 @@ class ApiClient {
       throw Exception('API error ${response.statusCode}');
     return ProviderDetails.fromJson(
       jsonDecode(response.body) as Map<String, dynamic>,
+      baseUrl,
     );
   }
 
@@ -714,7 +759,7 @@ class ApiClient {
     final response = await http.get(uri).timeout(const Duration(seconds: 5));
     if (response.statusCode != 200) throw Exception('listings_error');
     return (jsonDecode(response.body) as List<dynamic>)
-        .map((item) => Map<String, dynamic>.from(item as Map))
+        .map((item) => _normalizeMedia(Map<String, dynamic>.from(item as Map)))
         .toList();
   }
 
@@ -723,7 +768,21 @@ class ApiClient {
         .get(Uri.parse('$baseUrl/api/listings/$id'), headers: _jsonHeaders)
         .timeout(const Duration(seconds: 5));
     if (response.statusCode != 200) throw Exception('listing_error');
-    return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+    return _normalizeMedia(
+      Map<String, dynamic>.from(jsonDecode(response.body) as Map),
+    );
+  }
+
+  Map<String, dynamic> _normalizeMedia(Map<String, dynamic> item) {
+    final images = item['images'] as List<dynamic>?;
+    if (images != null) {
+      item['images'] = images.map((value) {
+        final image = Map<String, dynamic>.from(value as Map);
+        image['url'] = _absoluteUrl(baseUrl, image['url'] as String?);
+        return image;
+      }).toList();
+    }
+    return item;
   }
 
   Future<void> reportListing(String id, String reason) async {
@@ -767,7 +826,14 @@ class ApiClient {
         .timeout(const Duration(seconds: 8));
     if (response.statusCode == 401) throw Exception('unauthorized');
     if (response.statusCode != 200) throw Exception('favorites_error');
-    return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+    final data = Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+    data['providers'] = (data['providers'] as List<dynamic>? ?? [])
+        .map((item) => _normalizeMedia(Map<String, dynamic>.from(item as Map)))
+        .toList();
+    data['listings'] = (data['listings'] as List<dynamic>? ?? [])
+        .map((item) => _normalizeMedia(Map<String, dynamic>.from(item as Map)))
+        .toList();
+    return data;
   }
 
   Future<void> renewListing(String id) async {
@@ -844,6 +910,32 @@ class ApiClient {
     return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
   }
 
+  Future<Map<String, dynamic>> fetchPublicProfile(String userId) async {
+    final response = await http
+        .get(Uri.parse('$baseUrl/api/users/$userId'))
+        .timeout(const Duration(seconds: 5));
+    if (response.statusCode != 200) throw Exception('profile_error');
+    final profile = Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+    final contributions = profile['contributions'] as Map<String, dynamic>?;
+    if (contributions != null) {
+      contributions['listings'] =
+          (contributions['listings'] as List<dynamic>? ?? [])
+              .map(
+                (item) =>
+                    _normalizeMedia(Map<String, dynamic>.from(item as Map)),
+              )
+              .toList();
+      contributions['providers'] =
+          (contributions['providers'] as List<dynamic>? ?? [])
+              .map(
+                (item) =>
+                    _normalizeMedia(Map<String, dynamic>.from(item as Map)),
+              )
+              .toList();
+    }
+    return profile;
+  }
+
   Future<Map<String, dynamic>> fetchContributions() async {
     final response = await http
         .get(Uri.parse('$baseUrl/api/me/contributions'), headers: _jsonHeaders)
@@ -856,9 +948,12 @@ class ApiClient {
   Future<void> updatePreferences({
     required bool profilePrivate,
     required String notificationScope,
+    bool notificationsEnabled = true,
     required bool notificationDigest,
     List<String>? preferredAreaIds,
     List<String>? interests,
+    String? ageRange,
+    String? gender,
   }) async {
     final response = await http
         .patch(
@@ -867,10 +962,13 @@ class ApiClient {
           body: jsonEncode({
             'isProfilePrivate': profilePrivate,
             'notificationScope': notificationScope,
+            'notificationsEnabled': notificationsEnabled,
             'notificationDigest': notificationDigest,
             if (preferredAreaIds != null)
               'preferredAreaIds': preferredAreaIds.take(3).toList(),
             if (interests != null) 'interests': interests.take(5).toList(),
+            'ageRange': ageRange,
+            'gender': gender,
           }),
         )
         .timeout(const Duration(seconds: 8));

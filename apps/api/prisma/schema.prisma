@@ -35,41 +35,45 @@ enum AdminRole {
 }
 
 model User {
-  id                 String             @id @default(cuid())
-  name               String
-  phone              String?            @unique
-  email              String?            @unique
-  avatarUrl          String?
-  isProfilePrivate   Boolean            @default(false)
-  points             Int                @default(0)
-  level              UserLevel          @default(QENAWY)
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
-  passwordHash       String?
-  phoneVerifiedAt    DateTime?
-  emailVerifiedAt    DateTime?
-  authProvider       String?
-  preferredAreaIds   String[]           @default([])
-  interests          String[]           @default([])
-  notificationScope  String             @default("all")
-  notificationDigest Boolean            @default(false)
-  role               String             @default("USER")
-  providers          Provider[]
-  listings           Listing[]
-  reviews            Review[]
-  replies            ReviewReply[]
-  notifications      Notification[]
-  sessions           Session[]
-  verificationCodes  VerificationCode[]
-  auditLogs          AuditLog[]
-  providerReports    ProviderReport[]   @relation("reportedBy")
-  providerFavorites  ProviderFavorite[]
-  listingFavorites   ListingFavorite[]
-  listingInterests   ListingInterest[]
-  helpfulReviews     ReviewHelpful[]
-  listingReports     ListingReport[]
-  nowHelpfulVotes    NowHelpful[]
-  supportTickets     SupportTicket[]
+  id                   String             @id @default(cuid())
+  name                 String
+  phone                String?            @unique
+  email                String?            @unique
+  avatarUrl            String?
+  isProfilePrivate     Boolean            @default(false)
+  points               Int                @default(0)
+  level                UserLevel          @default(QENAWY)
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  passwordHash         String?
+  phoneVerifiedAt      DateTime?
+  emailVerifiedAt      DateTime?
+  authProvider         String?
+  preferredAreaIds     String[]           @default([])
+  interests            String[]           @default([])
+  ageRange             String?
+  gender               String?
+  notificationScope    String             @default("all")
+  notificationsEnabled Boolean            @default(true)
+  notificationDigest   Boolean            @default(false)
+  role                 String             @default("USER")
+  providers            Provider[]
+  listings             Listing[]
+  reviews              Review[]
+  replies              ReviewReply[]
+  notifications        Notification[]
+  sessions             Session[]
+  verificationCodes    VerificationCode[]
+  auditLogs            AuditLog[]
+  providerReports      ProviderReport[]   @relation("reportedBy")
+  providerFavorites    ProviderFavorite[]
+  listingFavorites     ListingFavorite[]
+  listingInterests     ListingInterest[]
+  helpfulReviews       ReviewHelpful[]
+  listingReports       ListingReport[]
+  nowHelpfulVotes      NowHelpful[]
+  supportTickets       SupportTicket[]
+  adReactions          AdReaction[]
 }
 
 model AdminAccount {
@@ -382,7 +386,19 @@ model Ad {
   startsAt    DateTime
   endsAt      DateTime
   area        Area?        @relation(fields: [areaId], references: [id])
+  reactions   AdReaction[]
   createdAt   DateTime     @default(now())
+}
+
+model AdReaction {
+  userId    String
+  adId      String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ad        Ad       @relation(fields: [adId], references: [id], onDelete: Cascade)
+
+  @@id([userId, adId])
+  @@index([adId])
 }
 
 model PriceGuide {

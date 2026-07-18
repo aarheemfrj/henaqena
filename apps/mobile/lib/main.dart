@@ -14,6 +14,17 @@ Future<void> main() async {
   runApp(const HenaQenaApp());
 }
 
+String _relativeTime(dynamic raw) {
+  final date = raw is String ? DateTime.tryParse(raw)?.toLocal() : null;
+  if (date == null) return '';
+  final difference = DateTime.now().difference(date);
+  if (difference.inMinutes < 1) return 'الآن';
+  if (difference.inHours < 1) return 'منذ ${difference.inMinutes} د';
+  if (difference.inDays < 1) return 'منذ ${difference.inHours} س';
+  if (difference.inDays < 7) return 'منذ ${difference.inDays} ي';
+  return '${date.day}/${date.month}/${date.year}';
+}
+
 class HenaQenaApp extends StatelessWidget {
   const HenaQenaApp({super.key});
 
@@ -250,10 +261,14 @@ class AuthPage extends StatefulWidget {
     this.createAccount = false,
     this.setupAreas = const [],
     this.setupInterests = const [],
+    this.setupAge,
+    this.setupGender,
   });
   final bool createAccount;
   final List<String> setupAreas;
   final List<String> setupInterests;
+  final String? setupAge;
+  final String? setupGender;
 
   @override
   State<AuthPage> createState() => _AuthPageState();
@@ -295,7 +310,7 @@ class _AuthPageState extends State<AuthPage> {
           email: email.text.trim(),
         );
       } else {
-        await api.login(phone: phone.text.trim(), password: password.text);
+        await api.login(identifier: phone.text.trim(), password: password.text);
       }
       if (widget.setupAreas.isNotEmpty || widget.setupInterests.isNotEmpty) {
         final availableAreas = await api.fetchAreas();
@@ -310,6 +325,8 @@ class _AuthPageState extends State<AuthPage> {
           notificationDigest: false,
           preferredAreaIds: areaIds,
           interests: widget.setupInterests,
+          ageRange: widget.setupAge,
+          gender: widget.setupGender,
         );
       }
       if (!mounted) return;
@@ -368,15 +385,28 @@ class _AuthPageState extends State<AuthPage> {
             ],
             TextFormField(
               controller: phone,
-              keyboardType: TextInputType.phone,
-              decoration: const InputDecoration(
-                labelText: 'رقم الموبايل المصري *',
+              keyboardType: createAccount
+                  ? TextInputType.phone
+                  : TextInputType.emailAddress,
+              decoration: InputDecoration(
+                labelText: createAccount
+                    ? 'رقم الموبايل المصري *'
+                    : 'رقم الموبايل أو البريد الإلكتروني *',
               ),
-              validator: (value) =>
-                  value == null ||
-                      !RegExp(r'^01[0125][0-9]{8}$').hasMatch(value)
-                  ? 'اكتب رقم مصري صحيح'
-                  : null,
+              validator: (value) {
+                final input = value?.trim() ?? '';
+                final validPhone = RegExp(
+                  r'^01[0125][0-9]{8}$',
+                ).hasMatch(input);
+                final validEmail = RegExp(
+                  r'^[^@\s]+@[^@\s]+\.[^@\s]+$',
+                ).hasMatch(input);
+                if (createAccount && !validPhone) return 'اكتب رقم مصري صحيح';
+                if (!createAccount && !validPhone && !validEmail) {
+                  return 'اكتب رقم مصري أو بريد صحيح';
+                }
+                return null;
+              },
             ),
             const SizedBox(height: 12),
             if (createAccount) ...[
@@ -865,6 +895,163 @@ class _ContributionTile extends StatelessWidget {
   );
 }
 
+class UserProfilePage extends StatelessWidget {
+  const UserProfilePage({super.key, required this.userId});
+  final String userId;
+
+  String _levelLabel(String? level) => level == 'QENAWY_ASIL'
+      ? 'قناوي أصيل'
+      : level == 'QENAWY_RAYEQ'
+      ? 'قناوي رايق'
+      : 'قناوي';
+
+  @override
+  Widget build(BuildContext context) => Directionality(
+    textDirection: TextDirection.rtl,
+    child: Scaffold(
+      appBar: AppBar(title: const Text('صفحة القناوي')),
+      body: FutureBuilder<Map<String, dynamic>>(
+        future: ApiClient().fetchPublicProfile(userId),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator(color: teal));
+          }
+          if (snapshot.hasError || !snapshot.hasData) {
+            return const _StateMessage(
+              icon: Icons.person_off_outlined,
+              title: 'الصفحة غير متاحة',
+              subtitle: 'قد يكون الحساب محذوفًا أو تعذر الاتصال.',
+            );
+          }
+          final data = snapshot.data!;
+          final name = data['name'] as String? ?? 'قناوي';
+          final contributions = data['contributions'] as Map<String, dynamic>?;
+          final reviews = contributions?['reviews'] as List<dynamic>? ?? [];
+          final listings = contributions?['listings'] as List<dynamic>? ?? [];
+          final providers = contributions?['providers'] as List<dynamic>? ?? [];
+          return ListView(
+            padding: const EdgeInsets.all(18),
+            children: [
+              Card(
+                elevation: 0,
+                child: Padding(
+                  padding: const EdgeInsets.all(18),
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 34,
+                        backgroundColor: const Color(0xFFD8EFEC),
+                        backgroundImage: data['avatarUrl'] == null
+                            ? null
+                            : NetworkImage(data['avatarUrl'] as String),
+                        child: data['avatarUrl'] == null
+                            ? Text(
+                                name.isEmpty ? 'ق' : name.characters.first,
+                                style: const TextStyle(
+                                  color: deepTeal,
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              )
+                            : null,
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              name,
+                              style: const TextStyle(
+                                color: deepTeal,
+                                fontSize: 20,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 5),
+                            Text(
+                              '${_levelLabel(data['level'] as String?)} · ${data['points'] ?? 0} نقطة',
+                              style: const TextStyle(color: teal),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              if (contributions == null)
+                const _StateMessage(
+                  icon: Icons.lock_outline,
+                  title: 'الصفحة خاصة',
+                  subtitle: 'مساهمات هذا المستخدم غير معروضة على صفحته.',
+                )
+              else ...[
+                const SizedBox(height: 14),
+                SectionTitle(title: 'الأنشطة (${providers.length})'),
+                ...providers.map((value) {
+                  final item = value as Map<String, dynamic>;
+                  return _ContributionTile(
+                    title: item['name'] as String? ?? 'نشاط',
+                    subtitle: item['area']?['name'] as String? ?? 'قنا',
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ProviderDetailPage(
+                          providerId: item['id'] as String,
+                          title: item['name'] as String? ?? 'نشاط',
+                          icon: Icons.storefront_outlined,
+                          subtitle: item['area']?['name'] as String? ?? 'قنا',
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+                const SizedBox(height: 14),
+                SectionTitle(title: 'الإعلانات (${listings.length})'),
+                ...listings.map((value) {
+                  final item = value as Map<String, dynamic>;
+                  return _ContributionTile(
+                    title: item['title'] as String? ?? 'إعلان',
+                    subtitle: '${item['price']} جنيه',
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            ListingDetailPage(listingId: item['id'] as String),
+                      ),
+                    ),
+                  );
+                }),
+                const SizedBox(height: 14),
+                SectionTitle(title: 'التقييمات (${reviews.length})'),
+                ...reviews.map((value) {
+                  final item = value as Map<String, dynamic>;
+                  return _ContributionTile(
+                    title: item['provider']?['name'] as String? ?? 'تقييم',
+                    subtitle: item['comment'] as String? ?? 'تقييم بالنجوم',
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ProviderDetailPage(
+                          providerId: item['providerId'] as String,
+                          title: item['provider']?['name'] as String? ?? 'نشاط',
+                          icon: Icons.storefront_outlined,
+                          subtitle: 'قنا',
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+              ],
+            ],
+          );
+        },
+      ),
+    ),
+  );
+}
+
 class SetupFlow extends StatefulWidget {
   const SetupFlow({super.key});
   @override
@@ -1150,6 +1337,8 @@ class _SetupFlowState extends State<SetupFlow> {
                 createAccount: true,
                 setupAreas: areas.toList(),
                 setupInterests: interests.toList(),
+                setupAge: age.isEmpty ? null : age,
+                setupGender: gender.isEmpty ? null : gender,
               ),
             ),
           ),
@@ -1163,6 +1352,8 @@ class _SetupFlowState extends State<SetupFlow> {
               builder: (_) => AuthPage(
                 setupAreas: areas.toList(),
                 setupInterests: interests.toList(),
+                setupAge: age.isEmpty ? null : age,
+                setupGender: gender.isEmpty ? null : gender,
               ),
             ),
           ),
@@ -1432,6 +1623,75 @@ class _HomePageState extends State<HomePage> {
   String selectedArea = 'قنا كلها';
   String? selectedAreaId;
   late Future<List<ProviderSummary>> featured = ApiClient().fetchProviders();
+  List<String> categoryItems = const [
+    'صيدليات',
+    'مطاعم',
+    'فنيين',
+    'سوبر ماركت',
+    'تعليم',
+    'ترفيه',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    if (AuthSession.isSignedIn) _loadRecommendations();
+  }
+
+  Future<void> _loadRecommendations() async {
+    try {
+      final results = await Future.wait([
+        ApiClient().fetchMe(),
+        ApiClient().fetchAreas(),
+      ]);
+      final profile = results[0] as Map<String, dynamic>;
+      final areas = results[1] as List<AreaOption>;
+      final preferredIds = (profile['preferredAreaIds'] as List<dynamic>? ?? [])
+          .cast<String>();
+      final interests = (profile['interests'] as List<dynamic>? ?? [])
+          .cast<String>();
+      final mappedInterests = interests.map((interest) {
+        if (interest == 'خدمات طبية') return 'صيدليات';
+        if (interest == 'مطاعم وكافيهات') return 'مطاعم';
+        if (interest == 'صيانة وفنيين') return 'فنيين';
+        if (interest == 'ترفيه ومناسبات') return 'ترفيه';
+        if (interest == 'تعليم ودروس') return 'تعليم';
+        return interest;
+      });
+      final defaults = [
+        'صيدليات',
+        'مطاعم',
+        'فنيين',
+        'سوبر ماركت',
+        'تعليم',
+        'ترفيه',
+      ];
+      final ordered = <String>{
+        ...mappedInterests,
+        ...defaults,
+      }.take(6).toList();
+      AreaOption? preferredArea;
+      if (preferredIds.isNotEmpty) {
+        for (final area in areas) {
+          if (area.id == preferredIds.first) {
+            preferredArea = area;
+            break;
+          }
+        }
+      }
+      if (!mounted) return;
+      setState(() {
+        categoryItems = ordered;
+        if (preferredArea != null) {
+          selectedAreaId = preferredArea.id;
+          selectedArea = preferredArea.name;
+          featured = ApiClient().fetchProviders(areaId: preferredArea.id);
+        }
+      });
+    } catch (_) {
+      // The public home remains usable with the default order if preferences fail.
+    }
+  }
 
   void _openDirectory(String query) => Navigator.of(
     context,
@@ -1547,10 +1807,7 @@ class _HomePageState extends State<HomePage> {
         const SectionTitle(title: 'فئات قريبة منك'),
         const SizedBox(height: 9),
         const SizedBox(height: 2),
-        CategoryRail(
-          items: ['صيدليات', 'مطاعم', 'فنيين', 'سوبر ماركت', 'تعليم', 'ترفيه'],
-          onSelected: _openDirectory,
-        ),
+        CategoryRail(items: categoryItems, onSelected: _openDirectory),
         const SizedBox(height: 20),
         const SectionTitle(title: 'مختارات قنا'),
         const SizedBox(height: 9),
@@ -1825,6 +2082,32 @@ class _PromoCarouselState extends State<PromoCarousel> {
         .catchError((_) {});
   }
 
+  Future<void> _react(int index) async {
+    if (!AuthSession.isSignedIn) {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const AuthPage()),
+      );
+      if (!AuthSession.isSignedIn || !mounted) return;
+    }
+    try {
+      final result = await ApiClient().toggleAdReaction(
+        promos[index]['id'] as String,
+      );
+      if (!mounted) return;
+      setState(() {
+        promos[index]['viewerReacted'] = result['active'];
+        promos[index]['_count'] = {'reactions': result['count']};
+      });
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تعذر حفظ التفاعل حالياً')),
+        );
+      }
+    }
+  }
+
   @override
   void dispose() {
     controller.dispose();
@@ -1903,6 +2186,20 @@ class _PromoCarouselState extends State<PromoCarousel> {
                               ),
                             ],
                           ),
+                        ),
+                        IconButton(
+                          tooltip: 'إعجاب بالإعلان',
+                          onPressed: () => _react(index),
+                          color: Colors.white,
+                          icon: Icon(
+                            promo['viewerReacted'] == true
+                                ? Icons.favorite
+                                : Icons.favorite_border,
+                          ),
+                        ),
+                        Text(
+                          '${promo['_count']?['reactions'] ?? 0}',
+                          style: const TextStyle(color: Colors.white),
                         ),
                         const Icon(Icons.chevron_left, color: Colors.white),
                       ],
@@ -2018,7 +2315,9 @@ class _MiniItemState extends State<MiniItem> {
             widget.subtitle,
             style: const TextStyle(color: muted, fontSize: 12),
           ),
-          trailing: const Icon(Icons.chevron_left, color: muted),
+          trailing: widget.onTap == null
+              ? null
+              : const Icon(Icons.chevron_left, color: muted),
         ),
       ),
     ),
@@ -2451,6 +2750,13 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
     try {
       await ApiClient().replyToReview(reviewId, text);
       _reload();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('تم إرسال الرد للمراجعة وسيظهر بعد اعتماده'),
+          ),
+        );
+      }
     } catch (error) {
       if (!mounted) return;
       if (error.toString().contains('unauthorized')) {
@@ -2486,6 +2792,13 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
           ? null
           : FloatingActionButton.extended(
               onPressed: () async {
+                if (!AuthSession.isSignedIn) {
+                  await Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const AuthPage()),
+                  );
+                  if (!AuthSession.isSignedIn || !mounted) return;
+                }
                 await Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -2753,11 +3066,15 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                             as String? ??
                         'مستخدم هنا قنا';
                     return CommentReply(
+                      userId:
+                          (reply['author'] as Map<String, dynamic>?)?['id']
+                              as String?,
                       name: replyAuthor,
                       initial: replyAuthor.isEmpty
                           ? 'هـ'
                           : replyAuthor.characters.first,
                       text: reply['text'] as String? ?? '',
+                      timeLabel: _relativeTime(reply['createdAt']),
                       onReply: () => _reply(reviewId),
                     );
                   },
@@ -2765,10 +3082,15 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                 return MotionIn(
                   delay: entry.key * 60,
                   child: CommentBubble(
+                    userId:
+                        (review['author'] as Map<String, dynamic>?)?['id']
+                            as String?,
                     name: author,
                     initial: initials,
                     text: text,
                     rating: score,
+                    timeLabel: _relativeTime(review['createdAt']),
+                    helpfulActive: review['viewerHelpful'] as bool? ?? false,
                     helpfulCount:
                         review['_count']?['helpfulVotes'] as int? ?? 0,
                     onHelpful: () => _helpful(reviewId),
@@ -2797,16 +3119,22 @@ class CommentBubble extends StatelessWidget {
     required this.initial,
     required this.text,
     required this.rating,
+    required this.timeLabel,
     required this.helpfulCount,
+    required this.helpfulActive,
     required this.onHelpful,
     required this.onReply,
     this.replies = const [],
+    this.userId,
   });
+  final String? userId;
   final String name;
   final String initial;
   final String text;
   final int rating;
+  final String timeLabel;
   final int helpfulCount;
+  final bool helpfulActive;
   final VoidCallback onHelpful;
   final VoidCallback onReply;
   final List<CommentReply> replies;
@@ -2819,14 +3147,24 @@ class CommentBubble extends StatelessWidget {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            CircleAvatar(
-              radius: 19,
-              backgroundColor: const Color(0xFFD8EFEC),
-              child: Text(
-                initial,
-                style: const TextStyle(
-                  color: deepTeal,
-                  fontWeight: FontWeight.w700,
+            GestureDetector(
+              onTap: userId == null
+                  ? null
+                  : () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => UserProfilePage(userId: userId!),
+                      ),
+                    ),
+              child: CircleAvatar(
+                radius: 19,
+                backgroundColor: const Color(0xFFD8EFEC),
+                child: Text(
+                  initial,
+                  style: const TextStyle(
+                    color: deepTeal,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
             ),
@@ -2838,16 +3176,27 @@ class CommentBubble extends StatelessWidget {
                   Row(
                     children: [
                       Expanded(
-                        child: Text(
-                          name,
-                          style: const TextStyle(
-                            color: deepTeal,
-                            fontWeight: FontWeight.w700,
+                        child: GestureDetector(
+                          onTap: userId == null
+                              ? null
+                              : () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) =>
+                                        UserProfilePage(userId: userId!),
+                                  ),
+                                ),
+                          child: Text(
+                            name,
+                            style: const TextStyle(
+                              color: deepTeal,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ),
                       ),
                       Text(
-                        'منذ يوم',
+                        timeLabel,
                         style: const TextStyle(color: muted, fontSize: 11),
                       ),
                     ],
@@ -2873,8 +3222,22 @@ class CommentBubble extends StatelessWidget {
                           minimumSize: Size.zero,
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         ),
-                        child: Text(
-                          helpfulCount == 0 ? 'مفيد' : 'مفيد · $helpfulCount',
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              helpfulActive
+                                  ? Icons.thumb_up
+                                  : Icons.thumb_up_outlined,
+                              size: 14,
+                            ),
+                            const SizedBox(width: 3),
+                            Text(
+                              helpfulCount == 0
+                                  ? 'مفيد'
+                                  : 'مفيد · $helpfulCount',
+                            ),
+                          ],
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -2910,11 +3273,15 @@ class CommentReply extends StatelessWidget {
     required this.name,
     required this.initial,
     required this.text,
+    required this.timeLabel,
     required this.onReply,
+    this.userId,
   });
+  final String? userId;
   final String name;
   final String initial;
   final String text;
+  final String timeLabel;
   final VoidCallback onReply;
   @override
   Widget build(BuildContext context) => Padding(
@@ -2922,15 +3289,25 @@ class CommentReply extends StatelessWidget {
     child: Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        CircleAvatar(
-          radius: 15,
-          backgroundColor: const Color(0xFFE8F5F2),
-          child: Text(
-            initial,
-            style: const TextStyle(
-              color: deepTeal,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
+        GestureDetector(
+          onTap: userId == null
+              ? null
+              : () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => UserProfilePage(userId: userId!),
+                  ),
+                ),
+          child: CircleAvatar(
+            radius: 15,
+            backgroundColor: const Color(0xFFE8F5F2),
+            child: Text(
+              initial,
+              style: const TextStyle(
+                color: deepTeal,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
         ),
@@ -2939,13 +3316,23 @@ class CommentReply extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                name,
-                style: const TextStyle(
-                  color: deepTeal,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                ),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      name,
+                      style: const TextStyle(
+                        color: deepTeal,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    timeLabel,
+                    style: const TextStyle(color: muted, fontSize: 10),
+                  ),
+                ],
               ),
               const SizedBox(height: 2),
               Text(
@@ -3742,10 +4129,22 @@ class _ListingsPageState extends State<ListingsPage> {
         ),
         const SizedBox(height: 8),
         FilledButton.icon(
-          onPressed: () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const CreateListingPage()),
-          ),
+          onPressed: () async {
+            if (!AuthSession.isSignedIn) {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AuthPage()),
+              );
+              if (!AuthSession.isSignedIn || !context.mounted) return;
+            }
+            if (context.mounted) {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const CreateListingPage()),
+              );
+              _reload();
+            }
+          },
           icon: const Icon(Icons.add),
           label: const Text('أضف إعلانًا'),
           style: FilledButton.styleFrom(
@@ -4006,6 +4405,15 @@ class _ListingDetailPageState extends State<ListingDetailPage> {
                 title: owner?['name'] as String? ?? 'مستخدم هنا قنا',
                 subtitle:
                     '${data['_count']?['interests'] ?? 0} مهتم · ${data['_count']?['favorites'] ?? 0} حفظ',
+                onTap: owner?['id'] == null
+                    ? null
+                    : () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              UserProfilePage(userId: owner!['id'] as String),
+                        ),
+                      ),
               ),
               const SizedBox(height: 10),
               OutlinedButton.icon(
@@ -4031,6 +4439,7 @@ class _CreateListingPageState extends State<CreateListingPage> {
   final price = TextEditingController();
   final description = TextEditingController();
   final selectedImages = <XFile>[];
+  bool submitting = false;
   @override
   void dispose() {
     title.dispose();
@@ -4053,6 +4462,7 @@ class _CreateListingPageState extends State<CreateListingPage> {
   }
 
   Future<void> next() async {
+    if (submitting) return;
     if (step < 2) {
       setState(() => step++);
       return;
@@ -4067,6 +4477,7 @@ class _CreateListingPageState extends State<CreateListingPage> {
       );
       return;
     }
+    setState(() => submitting = true);
     try {
       final resolvedArea = areaId;
       if (resolvedArea == null) {
@@ -4101,6 +4512,8 @@ class _CreateListingPageState extends State<CreateListingPage> {
           ),
         ),
       );
+    } finally {
+      if (mounted) setState(() => submitting = false);
     }
   }
 
@@ -4128,7 +4541,7 @@ class _CreateListingPageState extends State<CreateListingPage> {
           ),
           const SizedBox(height: 24),
           FilledButton(
-            onPressed: next,
+            onPressed: submitting ? null : next,
             style: FilledButton.styleFrom(
               backgroundColor: teal,
               minimumSize: const Size.fromHeight(50),
@@ -4136,7 +4549,13 @@ class _CreateListingPageState extends State<CreateListingPage> {
                 borderRadius: BorderRadius.circular(14),
               ),
             ),
-            child: Text(step == 2 ? 'إرسال للمراجعة' : 'التالي'),
+            child: Text(
+              submitting
+                  ? 'جارٍ الإرسال…'
+                  : step == 2
+                  ? 'إرسال للمراجعة'
+                  : 'التالي',
+            ),
           ),
         ],
       ),
@@ -5294,6 +5713,7 @@ class _AddActivityPageState extends State<AddActivityPage> {
   int imageCount = 0;
   final selectedImages = <XFile>[];
   bool preview = false;
+  bool submitting = false;
   late Future<List<AreaOption>> areas;
   late Future<List<CategoryOption>> categories;
 
@@ -5335,7 +5755,7 @@ class _AddActivityPageState extends State<AddActivityPage> {
             ],
             const SizedBox(height: 22),
             FilledButton(
-              onPressed: preview ? _submit : _review,
+              onPressed: submitting ? null : (preview ? _submit : _review),
               style: FilledButton.styleFrom(
                 backgroundColor: teal,
                 minimumSize: const Size.fromHeight(52),
@@ -5343,7 +5763,13 @@ class _AddActivityPageState extends State<AddActivityPage> {
                   borderRadius: BorderRadius.circular(15),
                 ),
               ),
-              child: Text(preview ? 'إرسال للمراجعة' : 'معاينة النشاط'),
+              child: Text(
+                submitting
+                    ? 'جارٍ الإرسال…'
+                    : preview
+                    ? 'إرسال للمراجعة'
+                    : 'معاينة النشاط',
+              ),
             ),
             if (preview)
               TextButton(
@@ -5682,6 +6108,8 @@ class _AddActivityPageState extends State<AddActivityPage> {
     ),
   );
   Future<void> _submit() async {
+    if (submitting) return;
+    setState(() => submitting = true);
     try {
       final category = categoryId;
       if (category == null) return;
@@ -5729,6 +6157,8 @@ class _AddActivityPageState extends State<AddActivityPage> {
           ),
         ),
       );
+    } finally {
+      if (mounted) setState(() => submitting = false);
     }
   }
 }
@@ -5745,6 +6175,7 @@ class _CommunityRequestPageState extends State<CommunityRequestPage> {
   final name = TextEditingController();
   final phone = TextEditingController();
   final note = TextEditingController();
+  bool submitting = false;
   @override
   void dispose() {
     name.dispose();
@@ -5805,7 +6236,7 @@ class _CommunityRequestPageState extends State<CommunityRequestPage> {
           ),
           const SizedBox(height: 22),
           FilledButton(
-            onPressed: _submit,
+            onPressed: submitting ? null : _submit,
             style: FilledButton.styleFrom(
               backgroundColor: teal,
               minimumSize: const Size.fromHeight(52),
@@ -5813,7 +6244,7 @@ class _CommunityRequestPageState extends State<CommunityRequestPage> {
                 borderRadius: BorderRadius.circular(15),
               ),
             ),
-            child: const Text('إرسال للمراجعة'),
+            child: Text(submitting ? 'جارٍ الإرسال…' : 'إرسال للمراجعة'),
           ),
         ],
       ),
@@ -5826,6 +6257,7 @@ class _CommunityRequestPageState extends State<CommunityRequestPage> {
       ).showSnackBar(const SnackBar(content: Text('اكتب اسم النشاط')));
       return;
     }
+    setState(() => submitting = true);
     try {
       await api.submitProviderReport(
         data: {
@@ -5851,6 +6283,8 @@ class _CommunityRequestPageState extends State<CommunityRequestPage> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('تعذر إرسال الطلب حالياً')));
+    } finally {
+      if (mounted) setState(() => submitting = false);
     }
   }
 }
@@ -5864,11 +6298,14 @@ class SettingsPage extends StatefulWidget {
 class _SettingsPageState extends State<SettingsPage> {
   final api = ApiClient();
   bool allNotifications = true;
+  bool notificationDigest = false;
   bool areaOnly = false;
   bool privateProfile = false;
   Set<String> selectedAreaIds = {};
   List<String> selectedAreaNames = const [];
   Set<String> selectedInterests = {};
+  String? ageRange;
+  String? gender;
 
   void _requireAccount(VoidCallback action) {
     if (AuthSession.isSignedIn) {
@@ -5904,7 +6341,8 @@ class _SettingsPageState extends State<SettingsPage> {
       setState(() {
         privateProfile = profile['isProfilePrivate'] as bool? ?? false;
         areaOnly = profile['notificationScope'] == 'area';
-        allNotifications = !(profile['notificationDigest'] as bool? ?? false);
+        allNotifications = profile['notificationsEnabled'] as bool? ?? true;
+        notificationDigest = profile['notificationDigest'] as bool? ?? false;
         selectedAreaIds = ids;
         selectedAreaNames = areas
             .where((area) => ids.contains(area.id))
@@ -5913,6 +6351,8 @@ class _SettingsPageState extends State<SettingsPage> {
         selectedInterests = (profile['interests'] as List<dynamic>? ?? [])
             .cast<String>()
             .toSet();
+        ageRange = profile['ageRange'] as String?;
+        gender = profile['gender'] as String?;
       });
     } catch (_) {}
   }
@@ -6033,6 +6473,80 @@ class _SettingsPageState extends State<SettingsPage> {
     );
     if (result == null || !mounted) return;
     setState(() => selectedInterests = result);
+    await _savePreferences();
+  }
+
+  Future<void> _pickDemographics() async {
+    var draftAge = ageRange;
+    var draftGender = gender;
+    final result = await showModalBottomSheet<Map<String, String?>>(
+      context: context,
+      useSafeArea: true,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setSheetState) => Directionality(
+          textDirection: TextDirection.rtl,
+          child: ListView(
+            shrinkWrap: true,
+            padding: const EdgeInsets.fromLTRB(18, 12, 18, 24),
+            children: [
+              const Text(
+                'السن والنوع (اختياري)',
+                style: TextStyle(color: deepTeal, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: draftAge,
+                decoration: const InputDecoration(labelText: 'الفئة العمرية'),
+                items:
+                    [
+                          'أقل من 18',
+                          '18–24',
+                          '25–34',
+                          '35–49',
+                          '50 أو أكثر',
+                          'أفضل عدم الإفصاح',
+                        ]
+                        .map(
+                          (item) =>
+                              DropdownMenuItem(value: item, child: Text(item)),
+                        )
+                        .toList(),
+                onChanged: (value) => setSheetState(() => draftAge = value),
+              ),
+              const SizedBox(height: 12),
+              SegmentedButton<String>(
+                segments: const [
+                  ButtonSegment(value: 'رجل', label: Text('رجل')),
+                  ButtonSegment(value: 'امرأة', label: Text('امرأة')),
+                  ButtonSegment(
+                    value: 'أفضل عدم الإفصاح',
+                    label: Text('عدم الإفصاح'),
+                  ),
+                ],
+                emptySelectionAllowed: true,
+                selected: draftGender == null ? {} : {draftGender!},
+                onSelectionChanged: (value) => setSheetState(
+                  () => draftGender = value.isEmpty ? null : value.first,
+                ),
+              ),
+              const SizedBox(height: 18),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, {
+                  'age': draftAge,
+                  'gender': draftGender,
+                }),
+                child: const Text('حفظ'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (result == null || !mounted) return;
+    setState(() {
+      ageRange = result['age'];
+      gender = result['gender'];
+    });
     await _savePreferences();
   }
 
@@ -6201,9 +6715,12 @@ class _SettingsPageState extends State<SettingsPage> {
       await api.updatePreferences(
         profilePrivate: privateProfile,
         notificationScope: areaOnly ? 'area' : 'all',
-        notificationDigest: !allNotifications,
+        notificationsEnabled: allNotifications,
+        notificationDigest: notificationDigest,
         preferredAreaIds: selectedAreaIds.toList(),
         interests: selectedInterests.toList(),
+        ageRange: ageRange,
+        gender: gender,
       );
     } catch (_) {
       if (mounted)
@@ -6333,6 +6850,22 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
+            title: const Text('ملخص دوري للإشعارات'),
+            subtitle: const Text(
+              'اجمع التنبيهات غير العاجلة في ملخص',
+              style: TextStyle(color: muted, fontSize: 12),
+            ),
+            value: notificationDigest,
+            onChanged: (value) {
+              _requireAccount(() {
+                setState(() => notificationDigest = value);
+                _savePreferences();
+              });
+            },
+            activeThumbColor: teal,
+          ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
             title: const Text('إشعارات منطقتي فقط'),
             value: areaOnly,
             onChanged: (value) {
@@ -6380,6 +6913,21 @@ class _SettingsPageState extends State<SettingsPage> {
                 ? 'لم تحدد اهتمامات'
                 : selectedInterests.join('، '),
             onTap: () => _requireAccount(_pickInterests),
+          ),
+          _AccountTile(
+            icon: Icons.tune_outlined,
+            title: 'بيانات الترشيحات',
+            subtitle:
+                [
+                  if (ageRange != null) ageRange!,
+                  if (gender != null) gender!,
+                ].isEmpty
+                ? 'لم تحدد السن أو النوع'
+                : [
+                    if (ageRange != null) ageRange!,
+                    if (gender != null) gender!,
+                  ].join(' · '),
+            onTap: () => _requireAccount(_pickDemographics),
           ),
           _AccountTile(
             icon: Icons.delete_forever_outlined,

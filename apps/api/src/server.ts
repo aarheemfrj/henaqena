@@ -80,12 +80,29 @@ app.get('/api/me', async (req, res, next) => {
   try { const session = await sessionFromRequest(req); if (!session) return res.status(401).json({ message: 'غير مسجل الدخول' }); const { passwordHash, ...user } = session.user; res.json(user); } catch (error) { next(error); }
 });
 
+app.get('/api/users/:id', async (req, res, next) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: String(req.params.id) },
+      select: { id: true, name: true, avatarUrl: true, points: true, level: true, isProfilePrivate: true, createdAt: true },
+    });
+    if (!user) return res.status(404).json({ message: 'المستخدم غير موجود' });
+    if (user.isProfilePrivate) return res.json({ ...user, contributions: null });
+    const [reviews, listings, providers] = await Promise.all([
+      prisma.review.findMany({ where: { authorId: user.id, status: ReviewStatus.APPROVED }, include: { provider: { select: { id: true, name: true } } }, orderBy: { createdAt: 'desc' }, take: 50 }),
+      prisma.listing.findMany({ where: { ownerId: user.id, status: ListingStatus.ACTIVE, expiresAt: { gt: new Date() } }, include: { area: true, images: { orderBy: { sortOrder: 'asc' }, take: 1 } }, orderBy: { createdAt: 'desc' }, take: 50 }),
+      prisma.provider.findMany({ where: { ownerId: user.id, status: ReviewStatus.APPROVED }, include: { area: true, images: { orderBy: { sortOrder: 'asc' }, take: 1 } }, orderBy: { createdAt: 'desc' }, take: 50 }),
+    ]);
+    res.json({ ...user, contributions: { reviews, listings, providers } });
+  } catch (error) { next(error); }
+});
+
 app.patch('/api/me/preferences', async (req, res, next) => {
   try {
     const session = await sessionFromRequest(req); if (!session) return res.status(401).json({ message: 'غير مسجل الدخول' });
-    const input = z.object({ preferredAreaIds: z.array(z.string()).max(3).optional(), interests: z.array(z.string()).max(5).optional(), notificationScope: z.enum(['all', 'area']).optional(), notificationDigest: z.boolean().optional(), isProfilePrivate: z.boolean().optional() }).parse(req.body);
+    const input = z.object({ preferredAreaIds: z.array(z.string()).max(3).optional(), interests: z.array(z.string()).max(5).optional(), ageRange: z.enum(['أقل من 18', '18–24', '25–34', '35–49', '50 أو أكثر', 'أفضل عدم الإفصاح']).nullable().optional(), gender: z.enum(['رجل', 'امرأة', 'أفضل عدم الإفصاح']).nullable().optional(), notificationScope: z.enum(['all', 'area']).optional(), notificationsEnabled: z.boolean().optional(), notificationDigest: z.boolean().optional(), isProfilePrivate: z.boolean().optional() }).parse(req.body);
     const user = await prisma.user.update({ where: { id: session.userId }, data: input });
-    res.json({ preferredAreaIds: user.preferredAreaIds, interests: user.interests, notificationScope: user.notificationScope, notificationDigest: user.notificationDigest });
+    res.json({ preferredAreaIds: user.preferredAreaIds, interests: user.interests, ageRange: user.ageRange, gender: user.gender, notificationScope: user.notificationScope, notificationsEnabled: user.notificationsEnabled, notificationDigest: user.notificationDigest });
   } catch (error) { next(error); }
 });
 
@@ -155,11 +172,26 @@ app.post('/api/auth/register', authLimiter, async (req, res, next) => {
 
 app.post('/api/auth/login', authLimiter, async (req, res, next) => {
   try {
-    const input = z.object({ phone: z.string().regex(/^01[0125][0-9]{8}$/), password: z.string().min(1) }).parse(req.body);
-    const user = await prisma.user.findUnique({ where: { phone: input.phone } });
-    if (!user?.passwordHash || !(await verifyPassword(input.password, user.passwordHash))) return res.status(401).json({ message: 'رقم الهاتف أو كلمة المرور غير صحيحة' });
+    const input = z.object({ identifier: z.string().trim().min(3), password: z.string().min(1) }).parse(req.body);
+    const isEmail = input.identifier.includes('@');
+    let user = isEmail
+      ? await prisma.user.findUnique({ where: { email: input.identifier.toLowerCase() } })
+      : await prisma.user.findUnique({ where: { phone: input.identifier } });
+    const admin = isEmail
+      ? await prisma.adminAccount.findUnique({ where: { email: input.identifier.toLowerCase() } })
+      : null;
+    const userPasswordValid = Boolean(user?.passwordHash && await verifyPassword(input.password, user.passwordHash));
+    const adminPasswordValid = Boolean(admin?.isActive && await verifyPassword(input.password, admin.passwordHash));
+    if (!userPasswordValid && !adminPasswordValid) return res.status(401).json({ message: 'بيانات الدخول غير صحيحة' });
+    if (!user && admin && adminPasswordValid) {
+      user = await prisma.user.create({ data: { name: admin.name, email: admin.email, passwordHash: admin.passwordHash, authProvider: 'password', role: 'ADMIN' } });
+    } else if (user && adminPasswordValid && user.role !== 'ADMIN') {
+      user = await prisma.user.update({ where: { id: user.id }, data: { role: 'ADMIN' } });
+    }
+    if (!user) return res.status(401).json({ message: 'بيانات الدخول غير صحيحة' });
     const token = await issueSession(user.id);
-    res.json({ token, user: { id: user.id, name: user.name, phone: user.phone, email: user.email, phoneVerified: Boolean(user.phoneVerifiedAt), emailVerified: Boolean(user.emailVerifiedAt) } });
+    const adminToken = adminPasswordValid && admin ? await issueAdminSession(admin.id) : null;
+    res.json({ token, user: { id: user.id, name: user.name, phone: user.phone, email: user.email, phoneVerified: Boolean(user.phoneVerifiedAt), emailVerified: Boolean(user.emailVerifiedAt), role: user.role }, ...(adminToken && admin ? { admin: { token: adminToken, name: admin.name, role: admin.role } } : {}) });
   } catch (error) { next(error); }
 });
 
@@ -387,7 +419,9 @@ app.get('/api/providers/:id', async (req, res, next) => {
     });
     if (!provider) return res.status(404).json({ message: 'Provider not found' });
     const favorite = session ? await prisma.providerFavorite.findUnique({ where: { userId_providerId: { userId: session.userId, providerId: provider.id } } }) : null;
-    res.json({ ...provider, viewer: { favorite: Boolean(favorite) } });
+    const helpful = session ? await prisma.reviewHelpful.findMany({ where: { userId: session.userId, reviewId: { in: provider.reviews.map((review) => review.id) } }, select: { reviewId: true } }) : [];
+    const helpfulIds = new Set(helpful.map((item) => item.reviewId));
+    res.json({ ...provider, reviews: provider.reviews.map((review) => ({ ...review, viewerHelpful: helpfulIds.has(review.id) })), viewer: { favorite: Boolean(favorite) } });
   } catch (error) {
     next(error);
   }
@@ -584,13 +618,31 @@ app.post('/api/listings', async (req, res, next) => {
 
 app.get('/api/ads', async (req, res, next) => {
   try {
+    const session = await sessionFromRequest(req);
     const areaId = typeof req.query.areaId === 'string' ? req.query.areaId : undefined;
     const now = new Date();
-    const ads = await prisma.ad.findMany({ where: { status: ReviewStatus.APPROVED, startsAt: { lte: now }, endsAt: { gte: now }, OR: [{ areaId: null }, ...(areaId ? [{ areaId }] : [])] }, orderBy: [{ weight: 'desc' }, { createdAt: 'desc' }] });
-    res.json(ads);
+    const ads = await prisma.ad.findMany({ where: { status: ReviewStatus.APPROVED, startsAt: { lte: now }, endsAt: { gte: now }, OR: [{ areaId: null }, ...(areaId ? [{ areaId }] : [])] }, include: { _count: { select: { reactions: true } } }, orderBy: [{ weight: 'desc' }, { reactions: { _count: 'desc' } }, { createdAt: 'desc' }] });
+    const reactions = session ? await prisma.adReaction.findMany({ where: { userId: session.userId, adId: { in: ads.map((ad) => ad.id) } }, select: { adId: true } }) : [];
+    const reactedIds = new Set(reactions.map((item) => item.adId));
+    res.json(ads.map((ad) => ({ ...ad, viewerReacted: reactedIds.has(ad.id) })));
   } catch (error) {
     next(error);
   }
+});
+
+app.post('/api/ads/:id/react', async (req, res, next) => {
+  try {
+    const session = await sessionFromRequest(req);
+    if (!session) return res.status(401).json({ message: 'سجّل الدخول أولاً' });
+    const adId = String(req.params.id);
+    const ad = await prisma.ad.findFirst({ where: { id: adId, status: ReviewStatus.APPROVED, startsAt: { lte: new Date() }, endsAt: { gte: new Date() } } });
+    if (!ad) return res.status(404).json({ message: 'الإعلان غير متاح' });
+    const existing = await prisma.adReaction.findUnique({ where: { userId_adId: { userId: session.userId, adId } } });
+    if (existing) await prisma.adReaction.delete({ where: { userId_adId: { userId: session.userId, adId } } });
+    else await prisma.adReaction.create({ data: { userId: session.userId, adId } });
+    const count = await prisma.adReaction.count({ where: { adId } });
+    res.json({ active: !existing, count });
+  } catch (error) { next(error); }
 });
 
 const adCreateSchema = z.object({ name: z.string().trim().min(2).max(120), imageUrl: z.string().url(), description: z.string().trim().max(600).optional(), targetUrl: z.string().url().optional(), weight: z.number().int().min(1).max(100).default(100), areaId: z.string().min(1).nullable().optional(), startsAt: z.coerce.date(), endsAt: z.coerce.date() });
