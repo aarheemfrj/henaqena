@@ -56,7 +56,7 @@ app.get('/api/me', async (req, res, next) => {
 app.patch('/api/me/preferences', async (req, res, next) => {
   try {
     const session = await sessionFromRequest(req); if (!session) return res.status(401).json({ message: 'غير مسجل الدخول' });
-    const input = z.object({ preferredAreaIds: z.array(z.string()).max(3).optional(), interests: z.array(z.string()).max(5).optional(), notificationScope: z.enum(['all', 'area']).optional(), notificationDigest: z.boolean().optional() }).parse(req.body);
+    const input = z.object({ preferredAreaIds: z.array(z.string()).max(3).optional(), interests: z.array(z.string()).max(5).optional(), notificationScope: z.enum(['all', 'area']).optional(), notificationDigest: z.boolean().optional(), isProfilePrivate: z.boolean().optional() }).parse(req.body);
     const user = await prisma.user.update({ where: { id: session.userId }, data: input });
     res.json({ preferredAreaIds: user.preferredAreaIds, interests: user.interests, notificationScope: user.notificationScope, notificationDigest: user.notificationDigest });
   } catch (error) { next(error); }
@@ -245,11 +245,13 @@ app.get('/api/listings', async (req, res, next) => {
   }
 });
 
-const listingCreateSchema = z.object({ title: z.string().trim().min(3).max(120), description: z.string().trim().max(1200).optional(), price: z.number().positive().max(999999999), ownerId: z.string().min(1), areaId: z.string().min(1), images: z.array(z.string().url()).min(1).max(5) });
+const listingCreateSchema = z.object({ title: z.string().trim().min(3).max(120), description: z.string().trim().max(1200).optional(), price: z.number().positive().max(999999999), areaId: z.string().min(1), images: z.array(z.string().url()).min(1).max(5) });
 app.post('/api/listings', async (req, res, next) => {
   try {
+    const session = await sessionFromRequest(req);
+    if (!session) return res.status(401).json({ message: 'سجّل الدخول أولاً لإضافة إعلان' });
     const input = listingCreateSchema.parse(req.body);
-    const listing = await prisma.listing.create({ data: { title: input.title, description: input.description, price: input.price, ownerId: input.ownerId, areaId: input.areaId, status: ListingStatus.PENDING, images: { create: input.images.map((url, index) => ({ url, sortOrder: index })) } }, include: { area: true, images: true } });
+    const listing = await prisma.listing.create({ data: { title: input.title, description: input.description, price: input.price, ownerId: session.userId, areaId: input.areaId, status: ListingStatus.PENDING, images: { create: input.images.map((url, index) => ({ url, sortOrder: index })) } }, include: { area: true, images: true } });
     res.status(201).json(listing);
   } catch (error) { next(error); }
 });
@@ -268,6 +270,8 @@ app.get('/api/ads', async (req, res, next) => {
 const adCreateSchema = z.object({ name: z.string().trim().min(2).max(120), imageUrl: z.string().url(), description: z.string().trim().max(600).optional(), targetUrl: z.string().url().optional(), weight: z.number().int().min(1).max(100).default(100), areaId: z.string().min(1).nullable().optional(), startsAt: z.coerce.date(), endsAt: z.coerce.date() });
 app.post('/api/ads', async (req, res, next) => {
   try {
+    const session = await sessionFromRequest(req);
+    if (!session) return res.status(401).json({ message: 'سجّل الدخول أولاً لإرسال إعلان' });
     const input = adCreateSchema.parse(req.body);
     if (input.endsAt <= input.startsAt) return res.status(400).json({ message: 'تاريخ الانتهاء يجب أن يكون بعد البداية' });
     const ad = await prisma.ad.create({ data: { ...input, areaId: input.areaId ?? null, status: ReviewStatus.PENDING } });
@@ -282,7 +286,15 @@ app.post('/api/reviews', async (req, res, next) => {
     const session = await sessionFromRequest(req);
     if (!session) return res.status(401).json({ message: 'غير مسجل الدخول' });
     const input = reviewSchema.parse(req.body);
-    const review = await prisma.review.create({ data: { ...input, authorId: session.userId, status: ReviewStatus.APPROVED } });
+    const existing = await prisma.review.findFirst({ where: { providerId: input.providerId, authorId: session.userId } });
+    if (existing) return res.status(409).json({ message: 'سبق لك تقييم هذا المكان' });
+    const review = await prisma.$transaction(async (tx) => {
+      const author = await tx.user.findUniqueOrThrow({ where: { id: session.userId }, select: { points: true } });
+      const points = author.points + 1;
+      const level = points >= 100 ? 'QENAWY_ASIL' : points >= 50 ? 'QENAWY_RAYEQ' : 'QENAWY';
+      await tx.user.update({ where: { id: session.userId }, data: { points, level } });
+      return tx.review.create({ data: { ...input, authorId: session.userId, status: ReviewStatus.APPROVED } });
+    });
     res.status(201).json(review);
   } catch (error) {
     next(error);
