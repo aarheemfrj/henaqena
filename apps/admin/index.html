@@ -11,6 +11,7 @@
       <div class="brand"><span class="brand-mark">ق</span><div><strong>هنا قنا</strong><small>لوحة الإدارة</small></div></div>
       <nav>
         <button class="nav-item active" data-view="overview">نظرة عامة</button>
+        <button class="nav-item" data-view="review-activity">نشاط التقييمات <span id="review-activity-badge" class="nav-badge" hidden>0</span></button>
         <button class="nav-item" data-view="reviews">المراجعات</button>
         <button class="nav-item" data-view="providers">مقدمو الخدمات</button>
         <button class="nav-item" data-view="listings">الإعلانات</button>
@@ -28,6 +29,21 @@
         <div class="grid-two"><section class="panel"><div class="panel-head"><div><h2>آخر ما يحتاج مراجعة</h2><small>طلبات جديدة من التطبيق</small></div><button class="link-btn" data-view="reviews">عرض الكل</button></div><div id="overview-queue" class="queue"></div></section><section class="panel"><div class="panel-head"><div><h2>توزيع المناطق</h2><small>مقدمو الخدمات النشطون</small></div><span class="pill">قنا كلها</span></div><div class="bars"><div><span>وسط البلد</span><b style="width:82%"></b><strong>82</strong></div><div><span>الحميدات</span><b style="width:64%"></b><strong>64</strong></div><div><span>مدينة العمال</span><b style="width:48%"></b><strong>48</strong></div><div><span>الشؤون</span><b style="width:34%"></b><strong>34</strong></div></div></section></div>
       </section>
 
+      <section id="review-activity" class="view">
+        <div class="panel">
+          <div class="panel-head">
+            <div><h2>نشاط التقييمات</h2><small>كل تقييم أو رد جديد ينزل مباشرة للمستخدمين، وهنا تتابع اللي لسه محتاج مراجعتك</small></div>
+            <div class="filters">
+              <button class="filter active" data-activity-filter="all">الكل</button>
+              <button class="filter" data-activity-filter="unread">الجديد فقط</button>
+            </div>
+          </div>
+          <div class="activity-table-head">
+            <span>الكاتب</span><span>على</span><span>النص</span><span>الوقت</span><span>الحالة</span>
+          </div>
+          <div id="review-activity-list" class="activity-list"></div>
+        </div>
+      </section>
       <section id="reviews" class="view"><div class="panel"><div class="panel-head"><div><h2>مركز المراجعات</h2><small>راجع المحتوى قبل ظهوره للمستخدمين</small></div><div class="filters"><button class="filter active">الكل</button><button class="filter">تقييمات</button><button class="filter">إعلانات</button></div></div><div id="review-queue" class="queue"></div></div></section>
       <section id="providers" class="view"><div class="panel"><div class="panel-head"><div><h2>مقدمو الخدمات</h2><small>إدارة البيانات والحالة والتوثيق</small></div><button class="primary">إضافة مقدم خدمة</button></div><div class="table"><div class="table-row header"><span>الاسم</span><span>الفئة</span><span>المنطقة</span><span>الحالة</span></div><div class="table-row"><span>كهربائي المصباح</span><span>صيانة وفنيين</span><span>قنا</span><span class="tag approved">موثق</span></div><div class="table-row"><span>مركز الشفاء الطبي</span><span>خدمات طبية</span><span>وسط البلد</span><span class="tag approved">موثق</span></div><div class="table-row"><span>صيدلية الرحمة</span><span>خدمات طبية</span><span>الحميدات</span><span class="tag pending">مراجعة</span></div></div></div></section>
       <section id="listings" class="view"><div class="panel"><div class="panel-head"><div><h2>الإعلانات</h2><small>تتبع الحالة ومدة الظهور</small></div><button class="primary">إضافة إعلان</button></div><div id="listing-queue" class="queue"></div></div></section>
