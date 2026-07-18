@@ -41,3 +41,29 @@ export async function moderateAd(formData: FormData) {
   await apiPatch(`/api/admin/ads/${id}`, { status });
   revalidatePath('/admin/ads');
 }
+
+export async function createPrice(formData: FormData) {
+  if (!await hasAdminSession()) redirect('/admin/login');
+  await apiPost('/api/admin/prices', { name: String(formData.get('name') ?? ''), category: String(formData.get('category') ?? '') || undefined, minPrice: Number(formData.get('minPrice') ?? 0), maxPrice: Number(formData.get('maxPrice') ?? 0), unit: String(formData.get('unit') ?? '') || undefined, sourceNote: String(formData.get('sourceNote') ?? '') || undefined });
+  revalidatePath('/admin/prices');
+}
+
+export async function moderatePrice(formData: FormData) {
+  if (!await hasAdminSession()) redirect('/admin/login');
+  const id = String(formData.get('id') ?? ''); const status = String(formData.get('status') ?? '');
+  if (!id || !['APPROVED', 'REJECTED'].includes(status)) return;
+  await apiPatch(`/api/admin/prices/${id}`, { status }); revalidatePath('/admin/prices');
+}
+
+export async function createNow(formData: FormData) {
+  if (!await hasAdminSession()) redirect('/admin/login');
+  await apiPost('/api/admin/now', { title: String(formData.get('title') ?? ''), body: String(formData.get('body') ?? '') || undefined, category: String(formData.get('category') ?? 'عام') });
+  revalidatePath('/admin/now');
+}
+
+export async function moderateNow(formData: FormData) {
+  if (!await hasAdminSession()) redirect('/admin/login');
+  const id = String(formData.get('id') ?? ''); const status = String(formData.get('status') ?? '');
+  if (!id || !['APPROVED', 'REJECTED'].includes(status)) return;
+  await apiPatch(`/api/admin/now/${id}`, { status }); revalidatePath('/admin/now');
+}
