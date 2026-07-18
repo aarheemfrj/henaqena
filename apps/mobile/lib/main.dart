@@ -10,7 +10,7 @@ import 'core/network/api_client.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await AuthSession.restore();
+  await Future.wait([AuthSession.restore(), AppThemeController.restore()]);
   runApp(const HenaQenaApp());
 }
 
@@ -30,87 +30,15 @@ class HenaQenaApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'هنا قنا',
-      theme: ThemeData(
-        useMaterial3: true,
-        scaffoldBackgroundColor: paper,
-        colorScheme:
-            ColorScheme.fromSeed(
-              seedColor: teal,
-              brightness: Brightness.light,
-            ).copyWith(
-              primary: teal,
-              onPrimary: Colors.white,
-              secondary: gold,
-              surface: Colors.white,
-              onSurface: ink,
-            ),
-        fontFamily: 'Tajawal',
-        textTheme: const TextTheme(
-          headlineMedium: TextStyle(
-            fontFamily: 'Cairo',
-            fontWeight: FontWeight.w700,
-            color: deepTeal,
-          ),
-          headlineSmall: TextStyle(
-            fontFamily: 'Cairo',
-            fontWeight: FontWeight.w700,
-            color: deepTeal,
-          ),
-          titleLarge: TextStyle(
-            fontFamily: 'Cairo',
-            fontWeight: FontWeight.w700,
-            color: deepTeal,
-          ),
-          titleMedium: TextStyle(fontWeight: FontWeight.w500, color: ink),
-          bodyLarge: TextStyle(fontWeight: FontWeight.w400, color: ink),
-          bodyMedium: TextStyle(fontWeight: FontWeight.w400, color: ink),
-          labelLarge: TextStyle(fontWeight: FontWeight.w500),
-        ),
-        navigationBarTheme: NavigationBarThemeData(
-          labelTextStyle: WidgetStatePropertyAll(
-            TextStyle(
-              fontFamily: 'Tajawal',
-              fontSize: 11,
-              fontWeight: FontWeight.w500,
-              color: muted,
-            ),
-          ),
-          height: 72,
-        ),
-        pageTransitionsTheme: const PageTransitionsTheme(
-          builders: {
-            TargetPlatform.android: SmoothPageTransitionsBuilder(),
-            TargetPlatform.iOS: SmoothPageTransitionsBuilder(),
-            TargetPlatform.macOS: SmoothPageTransitionsBuilder(),
-          },
-        ),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: paper,
-          foregroundColor: deepTeal,
-          elevation: 0,
-        ),
-        inputDecorationTheme: InputDecorationTheme(
-          filled: true,
-          fillColor: Colors.white,
-          hintStyle: const TextStyle(color: muted),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide.none,
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: const BorderSide(color: Color(0xFFE0E8E6)),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: const BorderSide(color: teal, width: 1.5),
-          ),
-        ),
+    return ValueListenableBuilder<String>(
+      valueListenable: AppThemeController.selectedId,
+      builder: (context, _, child) => MaterialApp(
+        debugShowCheckedModeBanner: false,
+        title: 'هنا قنا',
+        theme: AppThemeController.theme(AppThemeController.current),
+        home: child,
       ),
-      home: AuthSession.isSignedIn ? const HomeShell() : const WelcomeScreen(),
+      child: AuthSession.isSignedIn ? const HomeShell() : const WelcomeScreen(),
     );
   }
 }
@@ -1500,12 +1428,15 @@ class _HomeShellState extends State<HomeShell> {
           selectedIndex: index,
           onDestinationSelected: _select,
           backgroundColor: Colors.white,
-          indicatorColor: const Color(0xFFD8EFEC),
+          indicatorColor: Theme.of(context).colorScheme.primaryContainer,
           destinations: [
             for (var i = 0; i < labels.length; i++)
               NavigationDestination(
                 icon: Icon(icons[i]),
-                selectedIcon: Icon(icons[i], color: deepTeal),
+                selectedIcon: Icon(
+                  icons[i],
+                  color: Theme.of(context).colorScheme.primary,
+                ),
                 label: labels[i],
               ),
           ],
@@ -1529,12 +1460,13 @@ class BasePage extends StatelessWidget {
   final Future<void> Function()? onRefresh;
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     final refresh =
         onRefresh ??
         () async => Future<void>.delayed(const Duration(milliseconds: 450));
     return SafeArea(
       child: RefreshIndicator(
-        color: teal,
+        color: colors.primary,
         displacement: 24,
         onRefresh: refresh,
         child: ListView(
@@ -1549,10 +1481,10 @@ class BasePage extends StatelessWidget {
                     else if (title!.isNotEmpty)
                       Text(
                         title!,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 24,
                           fontWeight: FontWeight.w700,
-                          color: deepTeal,
+                          color: colors.primary,
                         ),
                       )
                     else
@@ -1565,9 +1497,9 @@ class BasePage extends StatelessWidget {
                               builder: (_) => const NotificationsPage(),
                             ),
                           ),
-                          icon: const Icon(
+                          icon: Icon(
                             Icons.notifications_none,
-                            color: deepTeal,
+                            color: colors.primary,
                           ),
                         ),
                         IconButton(
@@ -1576,10 +1508,10 @@ class BasePage extends StatelessWidget {
                               builder: (_) => const AccountPage(),
                             ),
                           ),
-                          icon: const CircleAvatar(
+                          icon: CircleAvatar(
                             radius: 15,
-                            backgroundColor: deepTeal,
-                            child: Text(
+                            backgroundColor: colors.primary,
+                            child: const Text(
                               'م',
                               style: TextStyle(
                                 color: Colors.white,
@@ -1604,10 +1536,10 @@ class BasePage extends StatelessWidget {
 class BrandText extends StatelessWidget {
   const BrandText({super.key});
   @override
-  Widget build(BuildContext context) => const Text(
+  Widget build(BuildContext context) => Text(
     'هنا قنا',
     style: TextStyle(
-      color: deepTeal,
+      color: Theme.of(context).colorScheme.primary,
       fontSize: 20,
       fontWeight: FontWeight.w700,
     ),
@@ -1960,88 +1892,98 @@ class _HeroBannerState extends State<HeroBanner>
   }
 
   @override
-  Widget build(BuildContext context) => AnimatedBuilder(
-    animation: controller,
-    builder: (_, child) => Container(
-      clipBehavior: Clip.antiAlias,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(22),
-        gradient: LinearGradient(
-          begin: Alignment.topRight,
-          end: Alignment.bottomLeft,
-          colors: [
-            deepTeal,
-            Color.lerp(teal, deepTeal, controller.value * .35)!,
+  Widget build(BuildContext context) {
+    final palette = AppThemeController.current;
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (_, child) => Container(
+        clipBehavior: Clip.antiAlias,
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(22),
+          gradient: LinearGradient(
+            begin: Alignment.topRight,
+            end: Alignment.bottomLeft,
+            colors: [
+              palette.deep,
+              Color.lerp(
+                palette.primary,
+                palette.deep,
+                controller.value * .35,
+              )!,
+            ],
+          ),
+        ),
+        child: Stack(
+          children: [
+            PositionedDirectional(
+              end: -24 + controller.value * 12,
+              top: -25,
+              child: Container(
+                width: 100,
+                height: 100,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withValues(alpha: .07),
+                ),
+              ),
+            ),
+            PositionedDirectional(
+              end: 38 - controller.value * 8,
+              bottom: -46,
+              child: Container(
+                width: 125,
+                height: 125,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: .08),
+                    width: 10,
+                  ),
+                ),
+              ),
+            ),
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: const [
+                      Text(
+                        'قنا كلها هنا',
+                        style: TextStyle(
+                          color: Color(0xDDF7F6F2),
+                          fontSize: 13,
+                        ),
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        'كل ما تحتاجه.. قريب منك',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      SizedBox(height: 5),
+                      Text(
+                        'اكتشف، قارن، واعرف الجديد حواليك',
+                        style: TextStyle(color: Color(0xDDF7F6F2)),
+                      ),
+                    ],
+                  ),
+                ),
+                Transform.translate(
+                  offset: Offset(0, -3 * controller.value),
+                  child: const LogoMark(dark: true, size: 47),
+                ),
+              ],
+            ),
           ],
         ),
       ),
-      child: Stack(
-        children: [
-          PositionedDirectional(
-            end: -24 + controller.value * 12,
-            top: -25,
-            child: Container(
-              width: 100,
-              height: 100,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withValues(alpha: .07),
-              ),
-            ),
-          ),
-          PositionedDirectional(
-            end: 38 - controller.value * 8,
-            bottom: -46,
-            child: Container(
-              width: 125,
-              height: 125,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: .08),
-                  width: 10,
-                ),
-              ),
-            ),
-          ),
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
-                    Text(
-                      'قنا كلها هنا',
-                      style: TextStyle(color: Color(0xDDF7F6F2), fontSize: 13),
-                    ),
-                    SizedBox(height: 8),
-                    Text(
-                      'كل ما تحتاجه.. قريب منك',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 22,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    SizedBox(height: 5),
-                    Text(
-                      'اكتشف، قارن، واعرف الجديد حواليك',
-                      style: TextStyle(color: Color(0xDDF7F6F2)),
-                    ),
-                  ],
-                ),
-              ),
-              Transform.translate(
-                offset: Offset(0, -3 * controller.value),
-                child: const LogoMark(dark: true, size: 47),
-              ),
-            ],
-          ),
-        ],
-      ),
-    ),
-  );
+    );
+  }
 }
 
 class PromoCarousel extends StatefulWidget {
@@ -2420,11 +2362,11 @@ class _DirectoryPageState extends State<DirectoryPage> {
             ),
             const Spacer(),
             OutlinedButton.icon(
-              onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text(
-                    'افتح تفاصيل المكان ثم اضغط «الخريطة» للوصول إليه',
-                  ),
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) =>
+                      ProviderMapPage(providersFuture: providersFuture),
                 ),
               ),
               icon: const Icon(Icons.map_outlined),
@@ -2460,16 +2402,6 @@ class _DirectoryPageState extends State<DirectoryPage> {
             }
             return Column(
               children: [
-                if (snapshot.connectionState == ConnectionState.waiting)
-                  const LinearProgressIndicator(minHeight: 3, color: teal),
-                if (snapshot.hasError)
-                  const Padding(
-                    padding: EdgeInsets.only(bottom: 8),
-                    child: Text(
-                      'بيانات تجريبية — سيتم تحديثها عند تشغيل الخادم',
-                      style: TextStyle(color: muted, fontSize: 11),
-                    ),
-                  ),
                 ...providers.asMap().entries.map((entry) {
                   final icon = entry.key == 0
                       ? Icons.build_outlined
@@ -2653,6 +2585,83 @@ class _FilterSheetState extends State<_FilterSheet> {
             ),
           ],
         ),
+      ),
+    ),
+  );
+}
+
+class ProviderMapPage extends StatelessWidget {
+  const ProviderMapPage({super.key, required this.providersFuture});
+
+  final Future<List<ProviderSummary>> providersFuture;
+
+  @override
+  Widget build(BuildContext context) => Directionality(
+    textDirection: TextDirection.rtl,
+    child: Scaffold(
+      appBar: AppBar(title: const Text('خريطة الخدمات')),
+      body: FutureBuilder<List<ProviderSummary>>(
+        future: providersFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return const _StateMessage(
+              icon: Icons.cloud_off_outlined,
+              title: 'تعذر تحميل الأماكن',
+              subtitle: 'ارجع للدليل وحاول مرة تانية.',
+            );
+          }
+          final mapped = (snapshot.data ?? const <ProviderSummary>[])
+              .where(
+                (item) =>
+                    item.latitude != null ||
+                    item.longitude != null ||
+                    item.address?.isNotEmpty == true,
+              )
+              .toList();
+          if (mapped.isEmpty) {
+            return const _StateMessage(
+              icon: Icons.map_outlined,
+              title: 'مفيش مواقع مسجلة للنتائج دي',
+              subtitle: 'غيّر البحث أو افتح المكان لمعرفة عنوانه.',
+            );
+          }
+          return ListView.separated(
+            padding: const EdgeInsets.all(18),
+            itemCount: mapped.length,
+            separatorBuilder: (_, _) => const SizedBox(height: 8),
+            itemBuilder: (context, index) {
+              final provider = mapped[index];
+              return Card(
+                child: ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: Theme.of(
+                      context,
+                    ).colorScheme.primaryContainer,
+                    child: const Icon(Icons.location_on_outlined),
+                  ),
+                  title: Text(provider.name),
+                  subtitle: Text(provider.address ?? provider.subtitle),
+                  trailing: const Icon(Icons.open_in_new),
+                  onTap: () async {
+                    final opened = await AppActions.map(
+                      latitude: provider.latitude,
+                      longitude: provider.longitude,
+                      address: '${provider.address ?? provider.name}، قنا',
+                    );
+                    if (!opened && context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('تعذر فتح تطبيق الخرائط')),
+                      );
+                    }
+                  },
+                ),
+              );
+            },
+          );
+        },
       ),
     ),
   );
@@ -6854,6 +6863,126 @@ class _SettingsPageState extends State<SettingsPage> {
     await _savePreferences();
   }
 
+  Future<void> _pickTheme() async {
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      builder: (context) => Directionality(
+        textDirection: TextDirection.rtl,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 12, 18, 28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 42,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.black12,
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                'اختاري شكل التطبيق',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 5),
+              const Text(
+                'الاختيار بيتحفظ على الجهاز وتقدري تغيريه في أي وقت.',
+                style: TextStyle(color: muted),
+              ),
+              const SizedBox(height: 16),
+              Flexible(
+                child: GridView.builder(
+                  shrinkWrap: true,
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    childAspectRatio: 1.5,
+                    crossAxisSpacing: 10,
+                    mainAxisSpacing: 10,
+                  ),
+                  itemCount: AppThemeController.palettes.length,
+                  itemBuilder: (context, index) {
+                    final palette = AppThemeController.palettes[index];
+                    final active =
+                        palette.id == AppThemeController.selectedId.value;
+                    return InkWell(
+                      borderRadius: BorderRadius.circular(18),
+                      onTap: () => Navigator.pop(context, palette.id),
+                      child: AnimatedContainer(
+                        duration: AppMotion.quick,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: palette.background,
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(
+                            color: active
+                                ? palette.primary
+                                : palette.primary.withValues(alpha: .16),
+                            width: active ? 2 : 1,
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                for (final color in [
+                                  palette.deep,
+                                  palette.primary,
+                                  palette.accent,
+                                  palette.surfaceTint,
+                                ])
+                                  Container(
+                                    width: 24,
+                                    height: 24,
+                                    margin: const EdgeInsetsDirectional.only(
+                                      end: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: color,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                const Spacer(),
+                                if (active)
+                                  Icon(
+                                    Icons.check_circle,
+                                    color: palette.primary,
+                                    size: 20,
+                                  ),
+                              ],
+                            ),
+                            Text(
+                              palette.name,
+                              style: TextStyle(
+                                color: palette.deep,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (selected == null) return;
+    await AppThemeController.select(selected);
+    if (mounted) setState(() {});
+  }
+
   Future<void> _adminLogin() async {
     final email = TextEditingController();
     final password = TextEditingController();
@@ -7143,6 +7272,20 @@ class _SettingsPageState extends State<SettingsPage> {
                     context,
                     MaterialPageRoute(builder: (_) => const AdminControlPage()),
                   ),
+          ),
+          const Divider(height: 26),
+          Text(
+            'شكل التطبيق',
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.primary,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          _AccountTile(
+            icon: Icons.palette_outlined,
+            title: 'الثيم والألوان',
+            subtitle: AppThemeController.current.name,
+            onTap: _pickTheme,
           ),
           const Divider(height: 26),
           const Text(

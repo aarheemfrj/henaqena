@@ -12,12 +12,18 @@ class ProviderSummary {
     required this.subtitle,
     this.description,
     this.imageUrl,
+    this.address,
+    this.latitude,
+    this.longitude,
   });
   final String id;
   final String name;
   final String subtitle;
   final String? description;
   final String? imageUrl;
+  final String? address;
+  final double? latitude;
+  final double? longitude;
   factory ProviderSummary.fromJson(
     Map<String, dynamic> json,
     String baseUrl,
@@ -25,6 +31,9 @@ class ProviderSummary {
     id: json['id'] as String,
     name: json['name'] as String,
     description: json['description'] as String?,
+    address: json['address'] as String?,
+    latitude: (json['latitude'] as num?)?.toDouble(),
+    longitude: (json['longitude'] as num?)?.toDouble(),
     imageUrl: _absoluteUrl(
       baseUrl,
       (json['images'] as List<dynamic>?)?.isNotEmpty == true
