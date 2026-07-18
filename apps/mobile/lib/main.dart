@@ -904,7 +904,7 @@ class _HomeShellState extends State<HomeShell> {
       textDirection: TextDirection.rtl,
       child: Scaffold(
         body: AnimatedSwitcher(
-          duration: AppMotion.gentle,
+          duration: AppMotion.page,
           switchInCurve: Curves.easeOutCubic,
           switchOutCurve: Curves.easeInCubic,
           transitionBuilder: (child, animation) => FadeTransition(
@@ -912,7 +912,7 @@ class _HomeShellState extends State<HomeShell> {
             child: SlideTransition(
               position:
                   Tween<Offset>(
-                    begin: Offset(forward ? 0.06 : -0.06, 0),
+                    begin: Offset(forward ? 0.12 : -0.12, 0),
                     end: Offset.zero,
                   ).animate(
                     CurvedAnimation(
@@ -921,7 +921,7 @@ class _HomeShellState extends State<HomeShell> {
                     ),
                   ),
               child: ScaleTransition(
-                scale: Tween<double>(begin: .985, end: 1).animate(
+                scale: Tween<double>(begin: .94, end: 1).animate(
                   CurvedAnimation(
                     parent: animation,
                     curve: Curves.easeOutCubic,
