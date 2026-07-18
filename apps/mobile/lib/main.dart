@@ -407,6 +407,126 @@ class _AuthPageState extends State<AuthPage> {
   );
 }
 
+class ContributionsPage extends StatefulWidget {
+  const ContributionsPage({super.key});
+  @override
+  State<ContributionsPage> createState() => _ContributionsPageState();
+}
+
+class _ContributionsPageState extends State<ContributionsPage> {
+  late Future<Map<String, dynamic>> contributions = ApiClient()
+      .fetchContributions();
+  Future<void> _reload() async =>
+      setState(() => contributions = ApiClient().fetchContributions());
+  @override
+  Widget build(BuildContext context) => Directionality(
+    textDirection: TextDirection.rtl,
+    child: Scaffold(
+      appBar: AppBar(
+        title: const Text('مساهماتي'),
+        actions: [
+          IconButton(onPressed: _reload, icon: const Icon(Icons.refresh)),
+        ],
+      ),
+      body: FutureBuilder<Map<String, dynamic>>(
+        future: contributions,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting)
+            return const Center(child: CircularProgressIndicator(color: teal));
+          final data = snapshot.data ?? {};
+          final providers = (data['providers'] as List<dynamic>? ?? []);
+          final listings = (data['listings'] as List<dynamic>? ?? []);
+          final reviews = (data['reviews'] as List<dynamic>? ?? []);
+          final reports = (data['reports'] as List<dynamic>? ?? []);
+          return RefreshIndicator(
+            onRefresh: _reload,
+            color: teal,
+            child: ListView(
+              padding: const EdgeInsets.all(18),
+              children: [
+                Text(
+                  'الأنشطة: ${providers.length}',
+                  style: const TextStyle(
+                    color: deepTeal,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                ...providers.map(
+                  (item) => _ContributionTile(
+                    title: item['name'] as String,
+                    subtitle:
+                        '${item['area']?['name'] ?? 'قنا'} · ${item['status']}',
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  'الإعلانات: ${listings.length}',
+                  style: const TextStyle(
+                    color: deepTeal,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                ...listings.map(
+                  (item) => _ContributionTile(
+                    title: item['title'] as String,
+                    subtitle: '${item['price']} جنيه · ${item['status']}',
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  'التقييمات: ${reviews.length}',
+                  style: const TextStyle(
+                    color: deepTeal,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                ...reviews.map(
+                  (item) => _ContributionTile(
+                    title: item['provider']?['name'] as String? ?? 'تقييم',
+                    subtitle: item['status'] as String? ?? 'قيد المراجعة',
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  'البلاغات: ${reports.length}',
+                  style: const TextStyle(
+                    color: deepTeal,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                ...reports.map(
+                  (item) => _ContributionTile(
+                    title:
+                        item['provider']?['name'] as String? ??
+                        item['name'] as String,
+                    subtitle: item['status'] as String? ?? 'قيد المراجعة',
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    ),
+  );
+}
+
+class _ContributionTile extends StatelessWidget {
+  const _ContributionTile({required this.title, required this.subtitle});
+  final String title;
+  final String subtitle;
+  @override
+  Widget build(BuildContext context) => Card(
+    elevation: 0,
+    margin: const EdgeInsets.only(top: 7),
+    child: ListTile(
+      title: Text(title),
+      subtitle: Text(subtitle, style: const TextStyle(color: muted)),
+      trailing: const Icon(Icons.chevron_left, color: teal),
+    ),
+  );
+}
+
 class SetupFlow extends StatefulWidget {
   const SetupFlow({super.key});
   @override
@@ -3357,7 +3477,10 @@ class AccountPage extends StatelessWidget {
               _AccountTile(
                 icon: Icons.rate_review_outlined,
                 title: 'تقييماتي ومساهماتي',
-                onTap: () {},
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ContributionsPage()),
+                ),
               ),
               _AccountTile(
                 icon: Icons.campaign_outlined,

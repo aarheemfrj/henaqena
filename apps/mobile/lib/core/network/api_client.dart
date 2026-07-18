@@ -472,6 +472,15 @@ class ApiClient {
     return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
   }
 
+  Future<Map<String, dynamic>> fetchContributions() async {
+    final response = await http
+        .get(Uri.parse('$baseUrl/api/me/contributions'), headers: _jsonHeaders)
+        .timeout(const Duration(seconds: 8));
+    if (response.statusCode == 401) throw Exception('unauthorized');
+    if (response.statusCode != 200) throw Exception('contributions_error');
+    return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+  }
+
   Future<void> updatePreferences({
     required bool profilePrivate,
     required String notificationScope,
