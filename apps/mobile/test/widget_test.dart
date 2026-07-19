@@ -106,6 +106,10 @@ void main() {
 
     expect(find.byType(TextField), findsOneWidget);
     expect(find.byType(ActionChip), findsAtLeastNWidgets(1));
+    expect(
+      tester.getCenter(find.text('فلاتر')).dx,
+      greaterThan(tester.getCenter(find.text('خريطة')).dx),
+    );
     expect(tester.takeException(), isNull);
   });
 

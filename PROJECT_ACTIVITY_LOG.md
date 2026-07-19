@@ -193,3 +193,5 @@
 2026-07-19 — Codex — بوابة التسليم «while closing eyes»: API build و15/15 اختباراً، Next.js lint/build و23 مساراً، Flutter analyze و7/7 اختبارات، iOS Simulator وAndroid APK، smoke tests، فحص PostgreSQL، تثبيت وتشغيل النسخة على iPhone Simulator دون Flutter exceptions — مكتملة — المنفذ: Codex
 
 2026-07-19 — Codex — إصلاح انهيار البحث عند فتح دليل «مين؟» كمسار مستقل بإضافة Material ancestor داخل BasePage، وإضافة اختبار رجوعي لـTextField وActionChip — مكتملة بعد Flutter analyze و8/8 اختبارات وبناء iOS Simulator — المنفذ: Codex
+
+2026-07-19 — Codex — توحيد نتائج البحث والقائمة والخريطة، إضافة مطابقة عربية احتياطية للكلمات متعددة الأجزاء، وإصلاح اتجاه أزرار فلتر/خريطة في المسار المستقل — مكتملة بعد اختبار «بنك مصر»، Flutter analyze و8/8 اختبارات وSmoke وبناء iOS وإعادة تشغيل المحاكي — المنفذ: Codex

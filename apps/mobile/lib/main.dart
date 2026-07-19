@@ -1501,71 +1501,74 @@ class BasePage extends StatelessWidget {
     final refresh =
         onRefresh ??
         () async => Future<void>.delayed(const Duration(milliseconds: 450));
-    return Material(
-      color: Theme.of(context).scaffoldBackgroundColor,
-      child: SafeArea(
-        child: RefreshIndicator(
-          color: colors.primary,
-          displacement: 24,
-          onRefresh: refresh,
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(18, 12, 18, 24),
-            children: [
-              header ??
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      if (title == null)
-                        const BrandText()
-                      else if (title!.isNotEmpty)
-                        Text(
-                          title!,
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.w700,
-                            color: colors.primary,
-                          ),
-                        )
-                      else
-                        const Spacer(),
-                      Row(
-                        children: [
-                          IconButton(
-                            onPressed: () => Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => const NotificationsPage(),
-                              ),
-                            ),
-                            icon: Icon(
-                              Icons.notifications_none,
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Material(
+        color: Theme.of(context).scaffoldBackgroundColor,
+        child: SafeArea(
+          child: RefreshIndicator(
+            color: colors.primary,
+            displacement: 24,
+            onRefresh: refresh,
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(18, 12, 18, 24),
+              children: [
+                header ??
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        if (title == null)
+                          const BrandText()
+                        else if (title!.isNotEmpty)
+                          Text(
+                            title!,
+                            style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.w700,
                               color: colors.primary,
                             ),
-                          ),
-                          IconButton(
-                            onPressed: () => Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => const AccountPage(),
+                          )
+                        else
+                          const Spacer(),
+                        Row(
+                          children: [
+                            IconButton(
+                              onPressed: () => Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => const NotificationsPage(),
+                                ),
+                              ),
+                              icon: Icon(
+                                Icons.notifications_none,
+                                color: colors.primary,
                               ),
                             ),
-                            icon: CircleAvatar(
-                              radius: 15,
-                              backgroundColor: colors.primary,
-                              child: const Text(
-                                'م',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 12,
+                            IconButton(
+                              onPressed: () => Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => const AccountPage(),
+                                ),
+                              ),
+                              icon: CircleAvatar(
+                                radius: 15,
+                                backgroundColor: colors.primary,
+                                child: const Text(
+                                  'م',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-              const SizedBox(height: 12),
-              child,
-            ],
+                          ],
+                        ),
+                      ],
+                    ),
+                const SizedBox(height: 12),
+                child,
+              ],
+            ),
           ),
         ),
       ),
@@ -2392,17 +2395,58 @@ class _DirectoryPageState extends State<DirectoryPage> {
     });
   }
 
-  Future<List<ProviderSummary>> _fetchProviders({String? searchQuery}) {
+  Future<List<ProviderSummary>> _fetchProviders({String? searchQuery}) async {
     final sort = filters.sort == 'الأعلى تقييمًا'
         ? 'rating'
         : filters.sort == 'الأحدث'
         ? 'latest'
         : 'name';
-    return api.fetchProviders(
-      searchQuery: searchQuery ?? searchController.text,
+    final query = (searchQuery ?? searchController.text).trim();
+    final results = await api.fetchProviders(
+      searchQuery: query,
       verifiedOnly: filters.verified,
       openNow: filters.openNow,
       sort: sort,
+    );
+    if (query.isEmpty || results.isNotEmpty) return results;
+
+    // Arabic keyboards can produce visually identical letters/diacritics that
+    // do not compare equally in PostgreSQL. Retry the current directory and
+    // apply a normalized token match so the visible list and map stay useful.
+    final all = await api.fetchProviders(
+      verifiedOnly: filters.verified,
+      openNow: filters.openNow,
+      sort: sort,
+    );
+    final tokens = _normalizeArabicQuery(query).split(' ');
+    return all.where((provider) {
+      final haystack = _normalizeArabicQuery(
+        '${provider.name} ${provider.description ?? ''} '
+        '${provider.address ?? ''} ${provider.subtitle}',
+      );
+      return tokens.every(haystack.contains);
+    }).toList();
+  }
+
+  String _normalizeArabicQuery(String value) => value
+      .toLowerCase()
+      .replaceAll(RegExp(r'[أإآٱ]'), 'ا')
+      .replaceAll('ى', 'ي')
+      .replaceAll('ؤ', 'و')
+      .replaceAll('ئ', 'ي')
+      .replaceAll(RegExp(r'[\u064B-\u065F\u0670]'), '')
+      .replaceAll(RegExp(r'[^a-z0-9\u0600-\u06FF]+'), ' ')
+      .trim();
+
+  Future<void> _openMap() async {
+    searchDebounce?.cancel();
+    final currentResults = _fetchProviders(searchQuery: searchController.text);
+    setState(() => providersFuture = currentResults);
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ProviderMapPage(providersFuture: currentResults),
+      ),
     );
   }
 
@@ -2451,13 +2495,7 @@ class _DirectoryPageState extends State<DirectoryPage> {
             ),
             const Spacer(),
             OutlinedButton.icon(
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) =>
-                      ProviderMapPage(providersFuture: providersFuture),
-                ),
-              ),
+              onPressed: _openMap,
               icon: const Icon(Icons.map_outlined),
               label: const Text('خريطة'),
             ),
