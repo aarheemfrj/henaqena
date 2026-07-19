@@ -186,28 +186,34 @@ db_name="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).database)' 
 unset db_json
 
 if [[ "$db_host" == "localhost" || "$db_host" == "127.0.0.1" ]] && sudo -u postgres psql -tAc 'SELECT 1' >/dev/null 2>&1; then
-  run_psql() { sudo -u postgres psql -X -q -v ON_ERROR_STOP=1 "$@"; }
+  # Manual SQL-literal/identifier escaping (doubling quotes) so this works on
+  # any psql version, instead of relying on psql's :'var' interpolation.
+  db_user_lit="${db_user//\'/\'\'}"
+  db_user_ident="${db_user//\"/\"\"}"
+  db_password_lit="${db_password//\'/\'\'}"
+  db_name_lit="${db_name//\'/\'\'}"
+  db_name_ident="${db_name//\"/\"\"}"
 
-  role_exists="$(run_psql -v db_user="$db_user" -tAc "SELECT 1 FROM pg_roles WHERE rolname = :'db_user'")"
+  role_exists="$(sudo -u postgres psql -X -q -tAc "SELECT 1 FROM pg_roles WHERE rolname = '$db_user_lit'")"
   if [[ "$role_exists" == "1" ]]; then
-    run_psql -v db_user="$db_user" -v db_password="$db_password" -c "ALTER ROLE :\"db_user\" WITH LOGIN PASSWORD :'db_password';"
+    sudo -u postgres psql -X -q -v ON_ERROR_STOP=1 -c "ALTER ROLE \"$db_user_ident\" WITH LOGIN PASSWORD '$db_password_lit';"
     ok "Synced password for PostgreSQL role: $db_user"
   else
-    run_psql -v db_user="$db_user" -v db_password="$db_password" -c "CREATE ROLE :\"db_user\" WITH LOGIN PASSWORD :'db_password';"
+    sudo -u postgres psql -X -q -v ON_ERROR_STOP=1 -c "CREATE ROLE \"$db_user_ident\" WITH LOGIN PASSWORD '$db_password_lit';"
     ok "Created PostgreSQL role: $db_user"
   fi
 
-  db_exists="$(run_psql -v db_name="$db_name" -tAc "SELECT 1 FROM pg_database WHERE datname = :'db_name'")"
+  db_exists="$(sudo -u postgres psql -X -q -tAc "SELECT 1 FROM pg_database WHERE datname = '$db_name_lit'")"
   if [[ "$db_exists" != "1" ]]; then
-    run_psql -v db_name="$db_name" -v db_user="$db_user" -c "CREATE DATABASE :\"db_name\" OWNER :\"db_user\";"
+    sudo -u postgres psql -X -q -v ON_ERROR_STOP=1 -c "CREATE DATABASE \"$db_name_ident\" OWNER \"$db_user_ident\";"
     ok "Created PostgreSQL database: $db_name"
   fi
-  run_psql -v db_name="$db_name" -v db_user="$db_user" -c "GRANT ALL PRIVILEGES ON DATABASE :\"db_name\" TO :\"db_user\";" >/dev/null
+  sudo -u postgres psql -X -q -v ON_ERROR_STOP=1 -c "GRANT ALL PRIVILEGES ON DATABASE \"$db_name_ident\" TO \"$db_user_ident\";" >/dev/null
   ok "PostgreSQL role and database verified for $db_user@$db_name"
 else
   printf '\033[1;33mSkipping automatic PostgreSQL provisioning (remote host or postgres superuser access unavailable). Ensure the role/database exist manually.\033[0m\n'
 fi
-unset db_user db_password db_host db_name role_exists db_exists
+unset db_user db_password db_host db_name role_exists db_exists db_user_lit db_user_ident db_password_lit db_name_lit db_name_ident
 
 log "Pre-deployment backup"
 if command -v pg_dump >/dev/null 2>&1; then
