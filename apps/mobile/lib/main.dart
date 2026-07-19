@@ -1506,11 +1506,13 @@ class BasePage extends StatelessWidget {
     this.title,
     this.header,
     this.onRefresh,
+    this.showBackButton = false,
   });
   final Widget child;
   final String? title;
   final Widget? header;
   final Future<void> Function()? onRefresh;
+  final bool showBackButton;
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
@@ -1533,7 +1535,15 @@ class BasePage extends StatelessWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        if (title == null)
+                        if (showBackButton)
+                          IconButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            icon: Icon(
+                              Icons.arrow_forward_outlined,
+                              color: colors.primary,
+                            ),
+                          )
+                        else if (title == null)
                           const BrandText()
                         else if (title!.isNotEmpty)
                           Text(
@@ -2553,6 +2563,7 @@ class _DirectoryPageState extends State<DirectoryPage> {
   @override
   Widget build(BuildContext context) => BasePage(
     title: '',
+    showBackButton: true,
     onRefresh: _reload,
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -4018,6 +4029,7 @@ class _PricesPageState extends State<PricesPage> {
   @override
   Widget build(BuildContext context) => BasePage(
     title: 'بكام؟',
+    showBackButton: true,
     onRefresh: _reload,
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -4186,6 +4198,7 @@ class _NowPageState extends State<NowPage> {
   @override
   Widget build(BuildContext context) => BasePage(
     title: 'دلوقتي',
+    showBackButton: true,
     onRefresh: _load,
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -4459,6 +4472,7 @@ class _ListingsPageState extends State<ListingsPage> {
   @override
   Widget build(BuildContext context) => BasePage(
     title: 'عندك؟',
+    showBackButton: true,
     onRefresh: _reload,
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
