@@ -13,12 +13,13 @@ module.exports = {
   coverageDirectory: 'coverage',
   coverageReporters: ['text', 'lcov', 'html'],
   setupFilesAfterEnv: ['<rootDir>/src/__tests__/setup.ts'],
-  globals: {
-    'ts-jest': {
+  transform: {
+    '^.+\\.tsx?$': ['ts-jest', {
       tsconfig: {
         esModuleInterop: true,
-        allowSyntheticDefaultImports: true
+        allowSyntheticDefaultImports: true,
+        isolatedModules: true
       }
-    }
+    }]
   }
 };
