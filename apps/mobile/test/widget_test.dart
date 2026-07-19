@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:mobile/main.dart';
+import 'package:mobile/core/theme/app_theme.dart';
 
 void main() {
   testWidgets('welcome screen renders', (WidgetTester tester) async {
@@ -73,4 +75,50 @@ void main() {
     expect(find.text('01012345678'), findsOneWidget);
     expect(find.text('وسط البلد'), findsOneWidget);
   });
+
+  testWidgets('all five primary tabs are available from the shared shell', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppThemeController.theme(AppThemeController.current),
+        home: const HomeShell(),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 120));
+
+    expect(find.byType(NavigationDestination), findsNWidgets(5));
+    for (final label in ['مين؟', 'بكام؟', 'دلوقتي', 'عندك؟', 'الرئيسية']) {
+      expect(find.text(label), findsOneWidget);
+    }
+  });
+
+  testWidgets(
+    'theme chooser exposes all saved palettes and persists a choice',
+    (WidgetTester tester) async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppThemeController.theme(AppThemeController.current),
+          home: const SettingsPage(),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+
+      await tester.scrollUntilVisible(
+        find.text('الثيم والألوان'),
+        260,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(find.text('الثيم والألوان'));
+      await tester.pumpAndSettle();
+    expect(find.text('اختاري شكل التطبيق'), findsOneWidget);
+      expect(find.text('نسمة النيل'), findsOneWidget);
+      expect(find.text('توت قنا'), findsOneWidget);
+
+      await tester.tap(find.text('نسمة النيل'));
+      await tester.pumpAndSettle();
+      expect(AppThemeController.selectedId.value, 'nile');
+    },
+  );
 }
