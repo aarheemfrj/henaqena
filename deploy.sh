@@ -84,7 +84,14 @@ if [[ "$APP_DIR" != "$EXPECTED_DIR" ]]; then
 fi
 
 cd "$APP_DIR"
-[[ -z "$(git status --porcelain)" ]] || die "Working tree is not clean. Commit/stash server changes before deployment."
+
+# Clean untracked .env files (they'll be recreated if needed)
+rm -f "$API_ENV" "$WEB_ENV" apps/api/.env.* apps/web/.env.* 2>/dev/null || true
+
+# Check working tree is clean (excluding .env files)
+dirty_files="$(git status --porcelain | grep -v '^\?\?' || true)"
+[[ -z "$dirty_files" ]] || die "Working tree has uncommitted changes. Commit/stash server changes before deployment."
+
 current_branch="$(git branch --show-current)"
 [[ "$current_branch" == "main" ]] || die "Deployment must run from main; current branch is $current_branch"
 ok "Git checkout is clean on main at $(git rev-parse --short HEAD)"
@@ -127,7 +134,23 @@ if [[ ! -f "$API_ENV" ]]; then
   unset database_url admin_api_key admin_session_secret dashboard_guard
   ok "Created private production environment files (mode 600)"
 else
-  [[ -f "$WEB_ENV" ]] || die "$WEB_ENV is missing while $API_ENV already exists. Restore it from the server backup or create it from apps/web/.env.example."
+  # API .env exists, ensure WEB .env exists too
+  if [[ ! -f "$WEB_ENV" ]]; then
+    admin_api_key="$(grep '^ADMIN_API_KEY=' "$API_ENV" | cut -d= -f2 | tr -d '"')"
+    admin_session_secret="$(openssl rand -hex 48)"
+    dashboard_guard="$(openssl rand -hex 24)"
+    umask 077
+    : >"$WEB_ENV"
+    write_env_value "$WEB_ENV" PORT "$WEB_PORT"
+    write_env_value "$WEB_ENV" HOSTNAME "127.0.0.1"
+    write_env_value "$WEB_ENV" NEXT_PUBLIC_API_BASE_URL "https://$DOMAIN"
+    write_env_value "$WEB_ENV" API_INTERNAL_BASE_URL "http://127.0.0.1:$API_PORT"
+    write_env_value "$WEB_ENV" ADMIN_API_KEY "$admin_api_key"
+    write_env_value "$WEB_ENV" ADMIN_DASHBOARD_PASSWORD "$dashboard_guard"
+    write_env_value "$WEB_ENV" ADMIN_SESSION_SECRET "$admin_session_secret"
+    chmod 600 "$WEB_ENV"
+    ok "Created missing web production environment file (mode 600)"
+  fi
   chmod 600 "$API_ENV" "$WEB_ENV"
   ok "Preserving existing production environment files"
 fi
