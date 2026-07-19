@@ -1,17 +1,116 @@
+# macOS
 .DS_Store
-.dart_tool/
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+.AppleDouble
+.LSOverride
+
+# Node.js & npm
 node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+.pnp
+.pnp.js
+
+# Next.js / Web Build
+.next/
+out/
 dist/
-.env
-.env.*
-!.env.example
+build/
+.turbo/
+.turbopack/
+
+# Flutter / Mobile
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
 .packages
 .pub-cache/
-build/
-.next/
-apps/api/uploads/
+.pub/
+.fvm/
 ios/Pods/
+ios/.symlinks/
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+ios/Flutter/Generated.xcconfig
+ios/Flutter/ephemeral/
+windows/flutter/generated_plugins.cmake
+.fvm/flutter_sdk
+
+# IDE & Editor
+.vscode/
+.idea/
+*.iml
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+*~
+.c9/
+*.launch
+.project
+.classpath
+.settings/
+.eclipse/
+
+# Environment
+.env
+.env.local
+.env.*.local
+.env.test
+.env.production.local
+!.env.example
+
+# Testing & Coverage
+coverage/
+.nyc_output/
+*.lcov
+
+# Logs & Temporary
+logs/
+*.log
+*.tmp
+*.temp
+*.bak
+*~
+.#*
+
+# Build artifacts
+*.tgz
+*.jar
+*.exe
+*.dmg
+*.iso
+*.zip
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# API & Server
+apps/api/uploads/
+apps/api/dist/
+apps/api/.next/
+
+# Android
 android/.gradle/
 android/local.properties
-*.iml
-.idea/
+
+# Misc
+.cache/
+.history/
+turbo.json.local
+*.pem
+*.key
+*.cert
+Thumbs.db
+docker-compose.override.yml
+ecosystem.config.js
