@@ -6,6 +6,7 @@ import { promisify } from 'node:util';
 import cors from 'cors';
 import express from 'express';
 import { PrismaClient, ReviewStatus, ListingStatus } from '@prisma/client';
+import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { z } from 'zod';
 
 type RateLimitStore = Map<string, { count: number; resetAt: number }>;
@@ -192,6 +193,42 @@ app.post('/api/auth/login', authLimiter, async (req, res, next) => {
     const token = await issueSession(user.id);
     const adminToken = adminPasswordValid && admin ? await issueAdminSession(admin.id) : null;
     res.json({ token, user: { id: user.id, name: user.name, phone: user.phone, email: user.email, phoneVerified: Boolean(user.phoneVerifiedAt), emailVerified: Boolean(user.emailVerifiedAt), role: user.role }, ...(adminToken && admin ? { admin: { token: adminToken, name: admin.name, role: admin.role } } : {}) });
+  } catch (error) { next(error); }
+});
+
+const googleJwks = createRemoteJWKSet(new URL('https://www.googleapis.com/oauth2/v3/certs'));
+const appleJwks = createRemoteJWKSet(new URL('https://appleid.apple.com/auth/keys'));
+const configuredAudiences = (provider: 'google' | 'apple') =>
+  (provider === 'google' ? process.env.GOOGLE_CLIENT_IDS : process.env.APPLE_CLIENT_IDS)
+    ?.split(',').map((item) => item.trim()).filter(Boolean) ?? [];
+
+app.post('/api/auth/federated', authLimiter, async (req, res, next) => {
+  try {
+    const input = z.object({
+      provider: z.enum(['google', 'apple']),
+      identityToken: z.string().min(100),
+      authorizationCode: z.string().optional(),
+      displayName: z.string().trim().min(2).max(80).optional(),
+    }).parse(req.body);
+    const audiences = configuredAudiences(input.provider);
+    if (audiences.length === 0) return res.status(503).json({ message: `تسجيل ${input.provider} مجهز وينتظر Client ID الإنتاج` });
+    const verified = input.provider === 'google'
+      ? await jwtVerify(input.identityToken, googleJwks, { audience: audiences, issuer: ['https://accounts.google.com', 'accounts.google.com'] })
+      : await jwtVerify(input.identityToken, appleJwks, { audience: audiences, issuer: 'https://appleid.apple.com' });
+    const subject = verified.payload.sub;
+    if (!subject) return res.status(401).json({ message: 'رمز الهوية لا يحتوي معرف مستخدم' });
+    const email = typeof verified.payload.email === 'string' ? verified.payload.email.toLowerCase() : null;
+    let user = await prisma.user.findUnique({ where: { authProvider_authSubject: { authProvider: input.provider, authSubject: subject } } });
+    if (!user && email) {
+      const existing = await prisma.user.findUnique({ where: { email } });
+      if (existing) return res.status(409).json({ message: 'البريد مرتبط بحساب موجود. ادخل للحساب أولاً ثم اربط وسيلة الدخول من الإعدادات.' });
+    }
+    if (!user) {
+      const fallbackName = input.displayName || email?.split('@')[0] || 'قناوي';
+      user = await prisma.user.create({ data: { name: fallbackName, email, emailVerifiedAt: email ? new Date() : null, authProvider: input.provider, authSubject: subject } });
+    }
+    const token = await issueSession(user.id);
+    res.json({ token, user: { id: user.id, name: user.name, phone: user.phone, email: user.email, phoneVerified: Boolean(user.phoneVerifiedAt), emailVerified: Boolean(user.emailVerifiedAt), role: user.role } });
   } catch (error) { next(error); }
 });
 

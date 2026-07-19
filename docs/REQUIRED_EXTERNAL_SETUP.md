@@ -11,9 +11,13 @@
 
 ## تسجيل الدخول الاجتماعي
 
-- Google Cloud OAuth Client لتطبيق Android.
-- Apple Developer Team ID وService ID وKey لتسجيل الدخول على iOS.
-- Bundle ID وPackage Name النهائيان قبل TestFlight وGoogle Play.
+- المعرّف الموحد المحجوز في المشروع: `com.maalsoft.henaqena` لـ iOS وAndroid.
+- Google Cloud: أنشئ OAuth Client لكل من iOS وAndroid وWeb، وضع Client IDs العامة في `GOOGLE_CLIENT_IDS` على الـ API.
+- شغّل التطبيق مع `--dart-define=GOOGLE_CLIENT_ID=... --dart-define=GOOGLE_SERVER_CLIENT_ID=...`.
+- Apple Developer: فعّل Sign in with Apple للـ App ID، وأنشئ Service ID وKey وReturn URL على دومين HTTPS.
+- ضع App ID وService ID المسموحين في `APPLE_CLIENT_IDS` على الـ API، وشغّل التطبيق مع `APPLE_SERVICE_ID` و`APPLE_REDIRECT_URI`.
+- التطبيق يرسل Identity Token للخادم؛ الخادم يتحقق من التوقيع والمصدر و`audience` من مفاتيح Google/Apple العامة قبل إنشاء جلسة هنا قنا.
+- Android/ويب يستخدمان تدفق المتصفح الآمن عند الحاجة، وiOS يستخدم شاشة النظام. لا تُقبل نتيجة الرجوع للتطبيق قبل تحقق الخادم.
 
 ## الإشعارات
 
@@ -24,8 +28,11 @@
 
 ## الخرائط
 
-- اختيار مزود الخرائط النهائي (Google Maps أو Mapbox أو بديل).
-- مفاتيح iOS وAndroid وقيود النطاق/الحزمة.
+- تم اعتماد وتجهيز Google Maps، ويظل المفتاح فقط خارج Git.
+- أنشئ مفتاح iOS مقيدًا بالـ Bundle ID `com.maalsoft.henaqena` ومفعلاً له Maps SDK for iOS فقط.
+- أنشئ مفتاح Android منفصلاً مقيدًا باسم الحزمة وبصمات SHA-1/SHA-256 ومفعلاً له Maps SDK for Android فقط.
+- ضع مفتاح Android في `~/.gradle/gradle.properties` باسم `GOOGLE_MAPS_API_KEY`، ومفتاح iOS في إعداد Build Setting بنفس الاسم.
+- فعّل واجهة الخريطة داخل التطبيق وقت توافر المفتاح باستخدام `--dart-define=GOOGLE_MAPS_ENABLED=true`؛ من دون المفتاح يظل دليل المواقع وفتح الخرائط الخارجية شغالين.
 
 ## الإنتاج والتخزين
 

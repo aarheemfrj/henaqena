@@ -3,7 +3,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'core/auth/auth_session.dart';
+import 'core/auth/social_auth_service.dart';
 import 'core/platform/app_actions.dart';
 import 'core/theme/app_theme.dart';
 import 'core/network/api_client.dart';
@@ -1290,14 +1292,18 @@ class _SetupFlowState extends State<SetupFlow> {
         _authChoice(
           Icons.g_mobiledata,
           'المتابعة باستخدام Google',
-          'قريباً',
-          () => _comingSoon('تسجيل Google'),
+          SocialAuthConfig.googleReady
+              ? 'دخول آمن بالحساب'
+              : 'ينتظر إعداد Google',
+          () => _socialSignIn('google'),
         ),
         _authChoice(
           Icons.apple,
           'المتابعة باستخدام Apple',
-          'قريباً',
-          () => _comingSoon('تسجيل Apple'),
+          SocialAuthConfig.appleReady
+              ? 'دخول آمن بالحساب'
+              : 'ينتظر إعداد Apple',
+          () => _socialSignIn('apple'),
         ),
         _authChoice(
           Icons.explore_outlined,
@@ -1330,9 +1336,40 @@ class _SetupFlowState extends State<SetupFlow> {
           : null,
     ),
   );
-  void _comingSoon(String label) => ScaffoldMessenger.of(
-    context,
-  ).showSnackBar(SnackBar(content: Text('$label هيتوفر قريباً')));
+  Future<void> _socialSignIn(String provider) async {
+    final configured = provider == 'google'
+        ? SocialAuthConfig.googleReady
+        : SocialAuthConfig.appleReady;
+    if (!configured) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'المسار جاهز ويحتاج بيانات ${provider == 'google' ? 'Google Cloud' : 'Apple Developer'} وقت النشر.',
+          ),
+        ),
+      );
+      return;
+    }
+    try {
+      final service = SocialAuthService();
+      if (provider == 'google') {
+        await service.signInWithGoogle();
+      } else {
+        await service.signInWithApple();
+      }
+      if (!mounted) return;
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const HomeShell()),
+        (_) => false,
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تعذر إكمال الدخول. حاول مرة تانية.')),
+      );
+    }
+  }
+
   Widget _authChoice(
     IconData icon,
     String title,
@@ -2677,7 +2714,7 @@ class ProviderMapPage extends StatelessWidget {
               subtitle: 'غيّر البحث أو افتح المكان لمعرفة عنوانه.',
             );
           }
-          return ListView.separated(
+          final list = ListView.separated(
             padding: const EdgeInsets.all(18),
             itemCount: mapped.length,
             separatorBuilder: (_, _) => const SizedBox(height: 8),
@@ -2709,6 +2746,39 @@ class ProviderMapPage extends StatelessWidget {
                 ),
               );
             },
+          );
+          const mapsEnabled = bool.fromEnvironment('GOOGLE_MAPS_ENABLED');
+          if (!mapsEnabled) return list;
+          final markers = mapped
+              .where((item) => item.latitude != null && item.longitude != null)
+              .map(
+                (item) => Marker(
+                  markerId: MarkerId(item.id),
+                  position: LatLng(item.latitude!, item.longitude!),
+                  infoWindow: InfoWindow(
+                    title: item.name,
+                    snippet: item.address ?? item.subtitle,
+                  ),
+                ),
+              )
+              .toSet();
+          return Column(
+            children: [
+              SizedBox(
+                height: 310,
+                child: GoogleMap(
+                  initialCameraPosition: const CameraPosition(
+                    target: LatLng(26.1551, 32.7160),
+                    zoom: 12.4,
+                  ),
+                  markers: markers,
+                  mapToolbarEnabled: true,
+                  myLocationButtonEnabled: false,
+                  zoomControlsEnabled: false,
+                ),
+              ),
+              Expanded(child: list),
+            ],
           );
         },
       ),

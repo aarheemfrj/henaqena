@@ -49,6 +49,7 @@ model User {
   phoneVerifiedAt      DateTime?
   emailVerifiedAt      DateTime?
   authProvider         String?
+  authSubject          String?
   preferredAreaIds     String[]           @default([])
   interests            String[]           @default([])
   ageRange             String?
@@ -74,6 +75,8 @@ model User {
   nowHelpfulVotes      NowHelpful[]
   supportTickets       SupportTicket[]
   adReactions          AdReaction[]
+
+  @@unique([authProvider, authSubject])
 }
 
 model AdminAccount {

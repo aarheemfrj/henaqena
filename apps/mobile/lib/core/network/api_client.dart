@@ -452,6 +452,29 @@ class ApiClient {
     await _saveAuthenticatedSession(response);
   }
 
+  Future<void> federatedLogin({
+    required String provider,
+    required String identityToken,
+    String? authorizationCode,
+    String? displayName,
+  }) async {
+    final response = await http
+        .post(
+          Uri.parse('$baseUrl/api/auth/federated'),
+          headers: _jsonHeaders,
+          body: jsonEncode({
+            'provider': provider,
+            'identityToken': identityToken,
+            if (authorizationCode?.isNotEmpty == true)
+              'authorizationCode': authorizationCode,
+            if (displayName?.trim().isNotEmpty == true)
+              'displayName': displayName!.trim(),
+          }),
+        )
+        .timeout(const Duration(seconds: 20));
+    await _saveAuthenticatedSession(response);
+  }
+
   Future<void> requestPasswordReset({
     required String identifier,
     required String channel,
