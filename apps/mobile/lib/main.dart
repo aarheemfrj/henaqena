@@ -35,13 +35,28 @@ class HenaQenaApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return ValueListenableBuilder<String>(
       valueListenable: AppThemeController.selectedId,
-      builder: (context, _, child) => MaterialApp(
+      builder: (context, themeId, _) => MaterialApp(
         debugShowCheckedModeBanner: false,
         title: 'هنا قنا',
         theme: AppThemeController.theme(AppThemeController.current),
-        home: child,
+        home: _ThemeScope(
+          key: ValueKey(themeId),
+          child: AuthSession.isSignedIn ? const HomeShell() : const WelcomeScreen(),
+        ),
       ),
-      child: AuthSession.isSignedIn ? const HomeShell() : const WelcomeScreen(),
+    );
+  }
+}
+
+class _ThemeScope extends StatelessWidget {
+  const _ThemeScope({super.key, required this.child});
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<String>(
+      valueListenable: AppThemeController.selectedId,
+      builder: (context, _, __) => child,
     );
   }
 }
