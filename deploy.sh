@@ -1,17 +1,16 @@
 #!/bin/bash
 
 # HenaQena cPanel Deployment Script
-# Run from cPanel Terminal in apps/web directory
-# cd ~/henaqena-app/apps/web && bash deploy.sh
+# Run from cPanel Terminal:
+# cd /home/henaqena/htdocs/henaqena && bash deploy.sh
 
 set -e
 
 echo "=== HenaQena Deployment Script ==="
 echo ""
 
-# Get current directory
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-APP_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
+# Get current directory (should be /home/henaqena/htdocs/henaqena)
+APP_DIR="$(pwd)"
 API_DIR="$APP_DIR/apps/api"
 WEB_DIR="$APP_DIR/apps/web"
 
@@ -47,7 +46,7 @@ cat > .env << 'ENVEOF'
 DATABASE_URL="postgresql://henaqena:VafyoU9mfkSlqLs4Doad@localhost:5432/henaqena?schema=public"
 PORT=4000
 ADMIN_API_KEY="Hleo2soAkResU7iprTLW"
-UPLOADS_DIR="/home/maalsoft-henaqena/uploads"
+UPLOADS_DIR="/home/henaqena/htdocs/henaqena/apps/api/uploads"
 PUBLIC_API_BASE_URL="https://henaqena.maalsoft.com/api"
 CORS_ORIGINS="https://henaqena.maalsoft.com"
 STORAGE_DRIVER="local"
@@ -64,8 +63,8 @@ echo "🗄️  Running Prisma migrations..."
 npm run prisma:migrate
 
 echo "📂 Creating uploads directory..."
-mkdir -p /home/maalsoft-henaqena/uploads
-chmod 755 /home/maalsoft-henaqena/uploads
+mkdir -p /home/henaqena/htdocs/henaqena/apps/api/uploads
+chmod 755 /home/henaqena/htdocs/henaqena/apps/api/uploads
 
 # Step 3: Setup Web
 echo -e "${YELLOW}=== Step 3: Setting up Web ===${NC}"
