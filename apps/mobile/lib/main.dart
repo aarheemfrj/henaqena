@@ -1985,15 +1985,6 @@ class _MergedHeroBannerState extends State<MergedHeroBanner>
               children: [
                 Row(
                   children: [
-                    IconButton(
-                      onPressed: () => Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const AccountPage()),
-                      ),
-                      color: Colors.white,
-                      icon: const Icon(Icons.person_outline),
-                      style: IconButton.styleFrom(padding: EdgeInsets.zero),
-                    ),
-                    const SizedBox(width: 8),
                     Expanded(
                       child: TextField(
                         textInputAction: TextInputAction.search,
@@ -2021,12 +2012,13 @@ class _MergedHeroBannerState extends State<MergedHeroBanner>
                       icon: const Icon(Icons.notifications_none),
                       style: IconButton.styleFrom(padding: EdgeInsets.zero),
                     ),
+                    const SizedBox(width: 4),
                     IconButton(
                       onPressed: () => Navigator.of(context).push(
                         MaterialPageRoute(builder: (_) => const AccountPage()),
                       ),
                       color: Colors.white,
-                      icon: const Icon(Icons.settings_outlined),
+                      icon: const Icon(Icons.person_outline),
                       style: IconButton.styleFrom(padding: EdgeInsets.zero),
                     ),
                   ],
