@@ -1974,34 +1974,20 @@ class _MergedHeroBannerState extends State<MergedHeroBanner>
                 ),
               ),
             ),
-            Center(
-              child: Icon(
-                isNight ? Icons.dark_mode : Icons.wb_sunny,
-                size: 80,
-                color: Colors.white.withValues(alpha: .15),
-              ),
-            ),
             Column(
               children: [
                 Row(
                   children: [
                     Expanded(
-                      child: TextField(
-                        textInputAction: TextInputAction.search,
-                        onSubmitted: (value) {
-                          if (value.trim().isNotEmpty) {
-                            widget.onOpenDirectory(value.trim());
-                          }
-                        },
-                        decoration: InputDecoration(
-                          prefixIcon: Icon(Icons.search, color: palette.primary),
-                          hintText: 'بتدور على خدمة أو مكان؟',
-                          isDense: true,
-                          fillColor: Colors.white,
+                      child: const Text(
+                        'كل ما تحتاجه في قنا..هنا',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                     ),
-                    const SizedBox(width: 8),
                     IconButton(
                       onPressed: () => Navigator.of(context).push(
                         MaterialPageRoute(
@@ -2023,30 +2009,31 @@ class _MergedHeroBannerState extends State<MergedHeroBanner>
                     ),
                   ],
                 ),
-                const SizedBox(height: 24),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'كل ما تحتاجه في قنا..هنا',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 22,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          const SizedBox(height: 5),
-                          Text(
-                            '📍 ${widget.selectedArea}',
-                            style: const TextStyle(color: Color(0xDDF7F6F2)),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                const SizedBox(height: 12),
+                TextField(
+                  textInputAction: TextInputAction.search,
+                  onSubmitted: (value) {
+                    if (value.trim().isNotEmpty) {
+                      widget.onOpenDirectory(value.trim());
+                    }
+                  },
+                  decoration: InputDecoration(
+                    prefixIcon: Icon(Icons.search, color: palette.primary),
+                    hintText: 'بتدور على خدمة أو مكان؟',
+                    isDense: true,
+                    fillColor: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 28),
+                Icon(
+                  isNight ? Icons.dark_mode : Icons.wb_sunny,
+                  size: 120,
+                  color: Colors.white.withValues(alpha: .25),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  '📍 ${widget.selectedArea}',
+                  style: const TextStyle(color: Color(0xDDF7F6F2), fontSize: 16),
                 ),
               ],
             ),
