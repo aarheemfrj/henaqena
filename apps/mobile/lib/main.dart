@@ -1974,16 +1974,26 @@ class _MergedHeroBannerState extends State<MergedHeroBanner>
                 ),
               ),
             ),
+            PositionedDirectional(
+              start: 12,
+              top: 8,
+              child: Icon(
+                isNight ? Icons.dark_mode : Icons.wb_sunny,
+                size: 60,
+                color: Colors.white.withValues(alpha: .2),
+              ),
+            ),
             Column(
               children: [
                 Row(
                   children: [
+                    const SizedBox(width: 70),
                     Expanded(
                       child: const Text(
                         'كل ما تحتاجه في قنا..هنا',
                         style: TextStyle(
                           color: Colors.white,
-                          fontSize: 18,
+                          fontSize: 16,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
@@ -2009,7 +2019,7 @@ class _MergedHeroBannerState extends State<MergedHeroBanner>
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
                 TextField(
                   textInputAction: TextInputAction.search,
                   onSubmitted: (value) {
@@ -2024,16 +2034,13 @@ class _MergedHeroBannerState extends State<MergedHeroBanner>
                     fillColor: Colors.white,
                   ),
                 ),
-                const SizedBox(height: 28),
-                Icon(
-                  isNight ? Icons.dark_mode : Icons.wb_sunny,
-                  size: 120,
-                  color: Colors.white.withValues(alpha: .25),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  '📍 ${widget.selectedArea}',
-                  style: const TextStyle(color: Color(0xDDF7F6F2), fontSize: 16),
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Text(
+                    '📍 ${widget.selectedArea}',
+                    style: const TextStyle(color: Color(0xDDF7F6F2), fontSize: 14),
+                  ),
                 ),
               ],
             ),
