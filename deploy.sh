@@ -52,6 +52,14 @@ dotenv_value() {
   printf '%s' "$value"
 }
 
+strip_schema_param() {
+  node -e '
+    const u = new URL(process.argv[1]);
+    u.searchParams.delete("schema");
+    process.stdout.write(u.toString());
+  ' "$1"
+}
+
 wait_for_url() {
   local label="$1" url="$2" attempts="${3:-30}"
   for ((i = 1; i <= attempts; i++)); do
@@ -158,12 +166,54 @@ fi
 mkdir -p "$STORAGE_DIR" "$BACKUP_DIR"
 chmod 750 "$APP_DIR/storage" "$STORAGE_DIR" "$BACKUP_DIR"
 
-log "Pre-deployment backup"
+log "Ensure PostgreSQL role and database exist"
 database_url="$(dotenv_value "$API_ENV" DATABASE_URL)"
 [[ -n "$database_url" ]] || die "DATABASE_URL is missing from $API_ENV"
+
+db_json="$(node -e '
+  const u = new URL(process.argv[1]);
+  process.stdout.write(JSON.stringify({
+    user: decodeURIComponent(u.username),
+    password: decodeURIComponent(u.password),
+    host: u.hostname,
+    database: u.pathname.replace(/^\//, "").split("?")[0],
+  }));
+' "$database_url")"
+db_user="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).user)' "$db_json")"
+db_password="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).password)' "$db_json")"
+db_host="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).host)' "$db_json")"
+db_name="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).database)' "$db_json")"
+unset db_json
+
+if [[ "$db_host" == "localhost" || "$db_host" == "127.0.0.1" ]] && sudo -u postgres psql -tAc 'SELECT 1' >/dev/null 2>&1; then
+  run_psql() { sudo -u postgres psql -X -q -v ON_ERROR_STOP=1 "$@"; }
+
+  role_exists="$(run_psql -v db_user="$db_user" -tAc "SELECT 1 FROM pg_roles WHERE rolname = :'db_user'")"
+  if [[ "$role_exists" == "1" ]]; then
+    run_psql -v db_user="$db_user" -v db_password="$db_password" -c "ALTER ROLE :\"db_user\" WITH LOGIN PASSWORD :'db_password';"
+    ok "Synced password for PostgreSQL role: $db_user"
+  else
+    run_psql -v db_user="$db_user" -v db_password="$db_password" -c "CREATE ROLE :\"db_user\" WITH LOGIN PASSWORD :'db_password';"
+    ok "Created PostgreSQL role: $db_user"
+  fi
+
+  db_exists="$(run_psql -v db_name="$db_name" -tAc "SELECT 1 FROM pg_database WHERE datname = :'db_name'")"
+  if [[ "$db_exists" != "1" ]]; then
+    run_psql -v db_name="$db_name" -v db_user="$db_user" -c "CREATE DATABASE :\"db_name\" OWNER :\"db_user\";"
+    ok "Created PostgreSQL database: $db_name"
+  fi
+  run_psql -v db_name="$db_name" -v db_user="$db_user" -c "GRANT ALL PRIVILEGES ON DATABASE :\"db_name\" TO :\"db_user\";" >/dev/null
+  ok "PostgreSQL role and database verified for $db_user@$db_name"
+else
+  printf '\033[1;33mSkipping automatic PostgreSQL provisioning (remote host or postgres superuser access unavailable). Ensure the role/database exist manually.\033[0m\n'
+fi
+unset db_user db_password db_host db_name role_exists db_exists
+
+log "Pre-deployment backup"
 if command -v pg_dump >/dev/null 2>&1; then
   backup_file="$BACKUP_DIR/henaqena-$(date '+%Y%m%d-%H%M%S').dump"
-  if pg_dump "$database_url" --format=custom --no-owner --no-privileges --file="$backup_file"; then
+  pg_dump_url="$(strip_schema_param "$database_url")"
+  if pg_dump "$pg_dump_url" --format=custom --no-owner --no-privileges --file="$backup_file"; then
     chmod 600 "$backup_file"
     ok "Database backup: $backup_file"
   else
