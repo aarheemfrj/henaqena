@@ -56,7 +56,7 @@ class _ThemeScope extends StatelessWidget {
   Widget build(BuildContext context) {
     return ValueListenableBuilder<String>(
       valueListenable: AppThemeController.selectedId,
-      builder: (context, _, __) => child,
+      builder: (context, _, _) => child,
     );
   }
 }
@@ -1749,7 +1749,6 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    final palette = AppThemeController.current;
     return BasePage(
       onRefresh: _reload,
       header: const SizedBox.shrink(),
@@ -5364,7 +5363,7 @@ class _MediaGalleryState extends State<MediaGallery>
                             size: 54,
                           ),
                         ),
-                        placeholder: (_, __) => const SizedBox.expand(),
+                        placeholder: (_, _) => const SizedBox.expand(),
                       ),
                     )
                   else
