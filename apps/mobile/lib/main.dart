@@ -1990,19 +1990,18 @@ class _MergedHeroBannerState extends State<MergedHeroBanner>
               ),
             ),
             PositionedDirectional(
-              start: 12,
+              start: 0,
               top: 8,
               child: Icon(
                 isNight ? Icons.dark_mode : Icons.wb_sunny,
-                size: 60,
-                color: Colors.white.withValues(alpha: .2),
+                size: 80,
+                color: Colors.white.withValues(alpha: .12),
               ),
             ),
             Column(
               children: [
                 Row(
                   children: [
-                    const SizedBox(width: 70),
                     Expanded(
                       child: const Text(
                         'كل ما تحتاجه في قنا..هنا',
