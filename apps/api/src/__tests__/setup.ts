@@ -15,8 +15,7 @@ beforeAll(async () => {
   try {
     await prisma.$executeRawUnsafe('SELECT 1');
   } catch (error) {
-    const dbUrl = process.env.DATABASE_URL;
-    console.error('❌ Test database connection failed:', dbUrl);
+    console.error('❌ Test database connection failed. Connection credentials are intentionally hidden.');
     console.error('   For local testing: npm run test:setup && npm test && npm run test:teardown');
     console.error('   Or ensure CI PostgreSQL service is running.');
     throw error;

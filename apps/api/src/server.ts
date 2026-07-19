@@ -30,6 +30,7 @@ const prisma = new PrismaClient();
 const app = express();
 app.set('trust proxy', 1);
 const port = Number(process.env.PORT ?? 4000);
+const host = process.env.API_HOST ?? '127.0.0.1';
 const uploadRoot = process.env.UPLOADS_DIR ?? path.join(process.cwd(), 'uploads');
 const publicApiBaseUrl = (process.env.PUBLIC_API_BASE_URL ?? `http://127.0.0.1:${port}`).replace(/\/$/, '');
 const scrypt = promisify(scryptCallback);
@@ -1098,8 +1099,8 @@ const runListingLifecycle = async () => {
   }
 };
 
-app.listen(port, () => {
-  console.log(`Hena Qena API listening on http://localhost:${port}`);
+app.listen(port, host, () => {
+  console.log(`Hena Qena API listening on http://${host}:${port}`);
   if (process.env.ENABLE_BACKGROUND_JOBS !== 'false') {
     void runListingLifecycle().catch((error) => console.error('[listing-lifecycle]', error));
     const lifecycleTimer = setInterval(() => void runListingLifecycle().catch((error) => console.error('[listing-lifecycle]', error)), 6 * 60 * 60 * 1000);

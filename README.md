@@ -80,7 +80,6 @@ flutter run
 HenaQena/
 ├── apps/
 │   ├── api/              # خادم النوى (Node.js + Express + Prisma)
-│   ├── web/              # منصة الويب والإدارة (Next.js — قيد البناء)
 │   ├── admin/            # نموذج إدارة مؤقت قديم
 │   ├── web/              # منصة الويب ولوحة الإدارة (Next.js)
 │   └── mobile/           # تطبيق الجوال (Flutter)
@@ -128,6 +127,10 @@ npm run dev
 ```
 
 تفتح المنصة على: `http://localhost:3100`
+
+### النشر على VPS
+
+تعليمات النشر الإنتاجي الآمن، إعداد المنفذ `3100`، PM2 والنسخ الاحتياطي موجودة في [`docs/VPS_DEPLOYMENT.md`](docs/VPS_DEPLOYMENT.md). لا تُحفظ كلمات المرور أو مفاتيح الإدارة داخل Git.
 
 ### التطبيق الجوال
 ```bash

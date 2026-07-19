@@ -12,6 +12,7 @@
     "test:teardown": "docker-compose -f docker-compose.test.yml down",
     "test:db": "npm run test:setup && npm test; npm run test:teardown",
     "prisma:generate": "prisma generate",
+    "admin:bootstrap": "tsx src/bootstrap-owner.ts",
     "prisma:migrate": "prisma migrate dev",
     "db:seed": "tsx src/seed.ts"
   },

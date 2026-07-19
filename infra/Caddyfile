@@ -1,8 +1,4 @@
-# استبدل الدومينات قبل التشغيل على VPS.
-henaqena.malsoft.com {
-  reverse_proxy web:3100
-}
-
-api.henaqena.malsoft.com {
-  reverse_proxy api:4000
+# عند استخدام Caddy بدلاً من Reverse Proxy الخاص بلوحة الاستضافة.
+henaqena.maalsoft.com {
+  reverse_proxy 127.0.0.1:3100
 }

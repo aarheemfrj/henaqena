@@ -14,7 +14,6 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-package-lock.json
 yarn.lock
 .pnp
 .pnp.js
@@ -114,3 +113,5 @@ turbo.json.local
 Thumbs.db
 docker-compose.override.yml
 ecosystem.config.js
+/backups/
+/storage/
