@@ -1700,6 +1700,18 @@ After that, implement the provider-directory data model and admin review workflo
 - The owner created a separate private GitHub repository for the web platform: `aarheemfrj/henaqenawebapp`.
 - Keep this repository as a deferred destination only. Do not change the current repository remote or push/migrate the web platform into it until the owner explicitly requests that action.
 
+## 35. Local Closing State (2026-07-19)
+
+- The mobile client, Express API, Next.js public/admin platform, and PostgreSQL database are connected in one working local environment.
+- The Next.js platform runs on port `3100`; the API runs on port `4000`; the database name is `henaqena` and remains isolated from MaalSoft projects.
+- The obsolete static admin preview has been removed. `apps/web` is the only supported web/admin implementation.
+- Nine persisted mobile palettes are available from account settings, including the original brand palette and the owner-supplied blue, berry, violet, coffee, sunset, calm, and peach directions.
+- The local Showcase seed is repeatable and contains multiple Qena areas/categories/users plus approved, pending, and rejected records for moderation testing. Public-source examples are labelled as demonstrations and are not asserted as verified production records.
+- Google and Apple login are implemented up to signed Identity Token verification; activation still requires the production Client IDs and Apple configuration owned by the project.
+- Google Maps has an optional in-app implementation plus a no-key external-map fallback; production activation still requires separate restricted iOS and Android keys.
+- Local release gates currently include API build and 15 tests, Next.js lint/production build, Flutter analysis and 7 widget tests, iOS Simulator build, Android debug APK, PostgreSQL readiness, route smoke tests, and simulator launch/log inspection.
+- Final local backup artifacts are created outside Git under the base name `while closing eyes` after the closing commit.
+
 ---
 
-**Last updated:** 2026-07-18
+**Last updated:** 2026-07-19
