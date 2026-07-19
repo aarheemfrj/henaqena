@@ -93,6 +93,22 @@ void main() {
     }
   });
 
+  testWidgets('directory search renders safely as a standalone route', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppThemeController.theme(AppThemeController.current),
+        home: const DirectoryPage(initialQuery: 'صيدلية'),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.byType(TextField), findsOneWidget);
+    expect(find.byType(ActionChip), findsAtLeastNWidgets(1));
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'theme chooser exposes all saved palettes and persists a choice',
     (WidgetTester tester) async {
@@ -112,7 +128,7 @@ void main() {
       );
       await tester.tap(find.text('الثيم والألوان'));
       await tester.pumpAndSettle();
-    expect(find.text('اختاري شكل التطبيق'), findsOneWidget);
+      expect(find.text('اختاري شكل التطبيق'), findsOneWidget);
       expect(find.text('نسمة النيل'), findsOneWidget);
       expect(find.text('توت قنا'), findsOneWidget);
 

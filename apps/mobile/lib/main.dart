@@ -1501,69 +1501,72 @@ class BasePage extends StatelessWidget {
     final refresh =
         onRefresh ??
         () async => Future<void>.delayed(const Duration(milliseconds: 450));
-    return SafeArea(
-      child: RefreshIndicator(
-        color: colors.primary,
-        displacement: 24,
-        onRefresh: refresh,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(18, 12, 18, 24),
-          children: [
-            header ??
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    if (title == null)
-                      const BrandText()
-                    else if (title!.isNotEmpty)
-                      Text(
-                        title!,
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.w700,
-                          color: colors.primary,
-                        ),
-                      )
-                    else
-                      const Spacer(),
-                    Row(
-                      children: [
-                        IconButton(
-                          onPressed: () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => const NotificationsPage(),
-                            ),
-                          ),
-                          icon: Icon(
-                            Icons.notifications_none,
+    return Material(
+      color: Theme.of(context).scaffoldBackgroundColor,
+      child: SafeArea(
+        child: RefreshIndicator(
+          color: colors.primary,
+          displacement: 24,
+          onRefresh: refresh,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(18, 12, 18, 24),
+            children: [
+              header ??
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      if (title == null)
+                        const BrandText()
+                      else if (title!.isNotEmpty)
+                        Text(
+                          title!,
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w700,
                             color: colors.primary,
                           ),
-                        ),
-                        IconButton(
-                          onPressed: () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => const AccountPage(),
+                        )
+                      else
+                        const Spacer(),
+                      Row(
+                        children: [
+                          IconButton(
+                            onPressed: () => Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => const NotificationsPage(),
+                              ),
+                            ),
+                            icon: Icon(
+                              Icons.notifications_none,
+                              color: colors.primary,
                             ),
                           ),
-                          icon: CircleAvatar(
-                            radius: 15,
-                            backgroundColor: colors.primary,
-                            child: const Text(
-                              'م',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
+                          IconButton(
+                            onPressed: () => Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => const AccountPage(),
+                              ),
+                            ),
+                            icon: CircleAvatar(
+                              radius: 15,
+                              backgroundColor: colors.primary,
+                              child: const Text(
+                                'م',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-            const SizedBox(height: 12),
-            child,
-          ],
+                        ],
+                      ),
+                    ],
+                  ),
+              const SizedBox(height: 12),
+              child,
+            ],
+          ),
         ),
       ),
     );
