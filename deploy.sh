@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 
 # Hena Qena production deployment for:
-#   /home/henaqena/htdocs/henaqena
+#   /home/maalsoft-henaqena/htdocs/henaqenawebapp
 #   https://henaqena.maalsoft.com
 # Run after: git pull --ff-only origin main
 
 set -Eeuo pipefail
 IFS=$'\n\t'
 
-readonly EXPECTED_DIR="/home/henaqena/htdocs/henaqena"
+readonly EXPECTED_DIR="/home/maalsoft-henaqena/htdocs/henaqenawebapp"
 readonly DOMAIN="henaqena.maalsoft.com"
 readonly WEB_PORT="3100"
 readonly API_PORT="4000"
