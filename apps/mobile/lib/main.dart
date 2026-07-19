@@ -1978,7 +1978,7 @@ class _MergedHeroBannerState extends State<MergedHeroBanner>
               child: Icon(
                 isNight ? Icons.dark_mode : Icons.wb_sunny,
                 size: 80,
-                color: Colors.white.withValues(alpha: .06),
+                color: Colors.white.withValues(alpha: .15),
               ),
             ),
             Column(
@@ -2031,15 +2031,7 @@ class _MergedHeroBannerState extends State<MergedHeroBanner>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text(
-                            'قنا كلها هنا',
-                            style: TextStyle(
-                              color: Color(0xDDF7F6F2),
-                              fontSize: 13,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          const Text(
-                            'كل ما تحتاجه.. قريب منك',
+                            'كل ما تحتاجه في قنا..هنا',
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 22,
@@ -2053,10 +2045,6 @@ class _MergedHeroBannerState extends State<MergedHeroBanner>
                           ),
                         ],
                       ),
-                    ),
-                    Transform.translate(
-                      offset: Offset(0, -3 * controller.value),
-                      child: const LogoMark(dark: true, size: 47),
                     ),
                   ],
                 ),
