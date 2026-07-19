@@ -293,17 +293,32 @@ app.get('/api/admin/auth/me', async (req, res, next) => {
   try { const session = await adminSessionFromRequest(req); if (!session) return res.status(401).json({ message: 'جلسة الإدارة منتهية' }); res.json({ id: session.admin.id, name: session.admin.name, email: session.admin.email, role: session.admin.role }); } catch (error) { next(error); }
 });
 
-app.get('/api/areas', async (_req, res, next) => {
+app.get('/api/areas', async (req, res, next) => {
   try {
-    const areas = await prisma.area.findMany({ where: { isActive: true }, orderBy: { name: 'asc' } });
-    res.json(areas);
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit ?? 100)));
+    const offset = Math.max(0, Number(req.query.offset ?? 0));
+    const [areas, total] = await Promise.all([
+      prisma.area.findMany({ where: { isActive: true }, orderBy: { name: 'asc' }, take: limit, skip: offset }),
+      prisma.area.count({ where: { isActive: true } }),
+    ]);
+    res.json({ data: areas, total, limit, offset });
   } catch (error) {
     next(error);
   }
 });
 
-app.get('/api/categories', async (_req, res, next) => {
-  try { res.json(await prisma.category.findMany({ where: { isActive: true }, orderBy: { name: 'asc' } })); } catch (error) { next(error); }
+app.get('/api/categories', async (req, res, next) => {
+  try {
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit ?? 100)));
+    const offset = Math.max(0, Number(req.query.offset ?? 0));
+    const [categories, total] = await Promise.all([
+      prisma.category.findMany({ where: { isActive: true }, orderBy: { name: 'asc' }, take: limit, skip: offset }),
+      prisma.category.count({ where: { isActive: true } }),
+    ]);
+    res.json({ data: categories, total, limit, offset });
+  } catch (error) {
+    next(error);
+  }
 });
 
 app.get('/api/providers', async (req, res, next) => {
@@ -501,22 +516,36 @@ app.get('/api/listings', async (req, res, next) => {
     const areaId = typeof req.query.areaId === 'string' ? req.query.areaId : undefined;
     const category = typeof req.query.category === 'string' ? req.query.category : undefined;
     const q = typeof req.query.q === 'string' ? req.query.q.trim() : undefined;
-    const listings = await prisma.listing.findMany({
-      where: {
-        status: ListingStatus.ACTIVE,
-        ...(areaId ? { areaId } : {}),
-        ...(category ? { category } : {}),
-        ...(q ? { OR: [{ title: { contains: q, mode: 'insensitive' } }, { description: { contains: q, mode: 'insensitive' } }] } : {}),
-      },
-      include: {
-        area: true,
-        images: { orderBy: { sortOrder: 'asc' } },
-        owner: { select: { id: true, name: true, phone: true, avatarUrl: true } },
-        _count: { select: { favorites: true, interests: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-    res.json(listings);
+    const page = Math.max(1, Number(req.query.page ?? 1));
+    const pageSize = Math.min(50, Math.max(1, Number(req.query.pageSize ?? 20)));
+    const [listings, total] = await Promise.all([
+      prisma.listing.findMany({
+        where: {
+          status: ListingStatus.ACTIVE,
+          ...(areaId ? { areaId } : {}),
+          ...(category ? { category } : {}),
+          ...(q ? { OR: [{ title: { contains: q, mode: 'insensitive' } }, { description: { contains: q, mode: 'insensitive' } }] } : {}),
+        },
+        include: {
+          area: true,
+          images: { orderBy: { sortOrder: 'asc' } },
+          owner: { select: { id: true, name: true, phone: true, avatarUrl: true } },
+          _count: { select: { favorites: true, interests: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      prisma.listing.count({
+        where: {
+          status: ListingStatus.ACTIVE,
+          ...(areaId ? { areaId } : {}),
+          ...(category ? { category } : {}),
+          ...(q ? { OR: [{ title: { contains: q, mode: 'insensitive' } }, { description: { contains: q, mode: 'insensitive' } }] } : {}),
+        },
+      }),
+    ]);
+    res.json({ data: listings, total, page, pageSize });
   } catch (error) {
     next(error);
   }
@@ -584,16 +613,36 @@ app.get('/api/me/favorites', async (req, res, next) => {
   try {
     const session = await sessionFromRequest(req);
     if (!session) return res.status(401).json({ message: 'غير مسجل الدخول' });
-    const [providers, listings] = await Promise.all([
-      prisma.providerFavorite.findMany({ where: { userId: session.userId }, include: { provider: { include: { area: true, images: { orderBy: { sortOrder: 'asc' }, take: 1 } } } }, orderBy: { createdAt: 'desc' } }),
-      prisma.listingFavorite.findMany({ where: { userId: session.userId }, include: { listing: { include: { area: true, images: { orderBy: { sortOrder: 'asc' }, take: 1 } } } }, orderBy: { createdAt: 'desc' } }),
+    const limit = Math.min(50, Math.max(1, Number(req.query.limit ?? 20)));
+    const offset = Math.max(0, Number(req.query.offset ?? 0));
+    const [providers, listings, providerCount, listingCount] = await Promise.all([
+      prisma.providerFavorite.findMany({ where: { userId: session.userId }, include: { provider: { include: { area: true, images: { orderBy: { sortOrder: 'asc' }, take: 1 } } } }, orderBy: { createdAt: 'desc' }, take: limit, skip: offset }),
+      prisma.listingFavorite.findMany({ where: { userId: session.userId }, include: { listing: { include: { area: true, images: { orderBy: { sortOrder: 'asc' }, take: 1 } } } }, orderBy: { createdAt: 'desc' }, take: limit, skip: offset }),
+      prisma.providerFavorite.count({ where: { userId: session.userId } }),
+      prisma.listingFavorite.count({ where: { userId: session.userId } }),
     ]);
-    res.json({ providers: providers.map((item) => item.provider), listings: listings.map((item) => item.listing) });
+    res.json({ providers: { data: providers.map((item) => item.provider), total: providerCount }, listings: { data: listings.map((item) => item.listing), total: listingCount }, limit, offset });
   } catch (error) { next(error); }
 });
 
 app.get('/api/me/contributions', async (req, res, next) => {
-  try { const session = await sessionFromRequest(req); if (!session) return res.status(401).json({ message: 'غير مسجل الدخول' }); const [providers, listings, reviews, reports] = await Promise.all([prisma.provider.findMany({ where: { ownerId: session.userId }, include: { area: true }, orderBy: { createdAt: 'desc' } }), prisma.listing.findMany({ where: { ownerId: session.userId }, include: { area: true, images: true }, orderBy: { createdAt: 'desc' } }), prisma.review.findMany({ where: { authorId: session.userId }, include: { provider: { select: { id: true, name: true } } }, orderBy: { createdAt: 'desc' } }), prisma.providerReport.findMany({ where: { reporterId: session.userId }, include: { provider: { select: { id: true, name: true } } }, orderBy: { createdAt: 'desc' } })]); res.json({ providers, listings, reviews, reports }); } catch (error) { next(error); }
+  try {
+    const session = await sessionFromRequest(req);
+    if (!session) return res.status(401).json({ message: 'غير مسجل الدخول' });
+    const limit = Math.min(50, Math.max(1, Number(req.query.limit ?? 20)));
+    const offset = Math.max(0, Number(req.query.offset ?? 0));
+    const [providers, listings, reviews, reports, providerCount, listingCount, reviewCount, reportCount] = await Promise.all([
+      prisma.provider.findMany({ where: { ownerId: session.userId }, include: { area: true }, orderBy: { createdAt: 'desc' }, take: limit, skip: offset }),
+      prisma.listing.findMany({ where: { ownerId: session.userId }, include: { area: true, images: true }, orderBy: { createdAt: 'desc' }, take: limit, skip: offset }),
+      prisma.review.findMany({ where: { authorId: session.userId }, include: { provider: { select: { id: true, name: true } } }, orderBy: { createdAt: 'desc' }, take: limit, skip: offset }),
+      prisma.providerReport.findMany({ where: { reporterId: session.userId }, include: { provider: { select: { id: true, name: true } } }, orderBy: { createdAt: 'desc' }, take: limit, skip: offset }),
+      prisma.provider.count({ where: { ownerId: session.userId } }),
+      prisma.listing.count({ where: { ownerId: session.userId } }),
+      prisma.review.count({ where: { authorId: session.userId } }),
+      prisma.providerReport.count({ where: { reporterId: session.userId } }),
+    ]);
+    res.json({ providers: { data: providers, total: providerCount }, listings: { data: listings, total: listingCount }, reviews: { data: reviews, total: reviewCount }, reports: { data: reports, total: reportCount }, limit, offset });
+  } catch (error) { next(error); }
 });
 
 app.patch('/api/me/reviews/:id', async (req, res, next) => {

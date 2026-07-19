@@ -1,10 +1,13 @@
 import Link from 'next/link';
 import { apiGet, type Category, type Provider } from '@/lib/api';
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 3600;
 
 export default async function HomePage() {
-  const [providersResult, categoriesResult] = await Promise.allSettled([apiGet<Provider[]>('/api/providers'), apiGet<Category[]>('/api/categories')]);
+  const [providersResult, categoriesResult] = await Promise.allSettled([
+    apiGet<Provider[]>('/api/providers', { revalidate: 3600 }),
+    apiGet<Category[]>('/api/categories', { revalidate: 86400, cache: 'force-cache' })
+  ]);
   const providers = providersResult.status === 'fulfilled' ? providersResult.value : [];
   const categories = categoriesResult.status === 'fulfilled' ? categoriesResult.value : [];
   return <>

@@ -18,7 +18,7 @@ export type AdminOverview = { providers: number; pending: number; listings: numb
 
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://127.0.0.1:4000';
 
-export async function apiGet<T>(path: string, options?: { admin?: boolean; user?: boolean }): Promise<T> {
+export async function apiGet<T>(path: string, options?: { admin?: boolean; user?: boolean; cache?: 'force-cache' | 'no-store'; revalidate?: number }): Promise<T> {
   const headers = new Headers();
   if (options?.admin) {
     const token = await getAdminApiToken();
@@ -30,7 +30,10 @@ export async function apiGet<T>(path: string, options?: { admin?: boolean; user?
     if (!token) throw new Error('User session is required');
     headers.set('authorization', `Bearer ${token}`);
   }
-  const response = await fetch(`${apiBaseUrl}${path}`, { headers, cache: 'no-store' });
+  const cacheStrategy = options?.cache ?? 'no-store';
+  const fetchOptions: any = { headers, cache: cacheStrategy };
+  if (options?.revalidate) fetchOptions.next = { revalidate: options.revalidate };
+  const response = await fetch(`${apiBaseUrl}${path}`, fetchOptions);
   if (!response.ok) throw new Error(`API request failed: ${response.status}`);
   return response.json() as Promise<T>;
 }

@@ -4,6 +4,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'core/auth/auth_session.dart';
 import 'core/auth/social_auth_service.dart';
 import 'core/platform/app_actions.dart';
@@ -874,7 +875,7 @@ class UserProfilePage extends StatelessWidget {
                         backgroundColor: const Color(0xFFD8EFEC),
                         backgroundImage: data['avatarUrl'] == null
                             ? null
-                            : NetworkImage(data['avatarUrl'] as String),
+                            : CachedNetworkImageProvider(data['avatarUrl'] as String),
                         child: data['avatarUrl'] == null
                             ? Text(
                                 name.isEmpty ? 'ق' : name.characters.first,
@@ -1736,96 +1737,17 @@ class _HomePageState extends State<HomePage> {
     final palette = AppThemeController.current;
     return BasePage(
       onRefresh: _reload,
-      header: Container(
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(26),
-          gradient: LinearGradient(
-            begin: Alignment.topRight,
-            end: Alignment.bottomLeft,
-            colors: [palette.deep, palette.primary],
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: palette.deep.withValues(alpha: .2),
-              blurRadius: 24,
-              offset: const Offset(0, 12),
-            ),
-          ],
-        ),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                IconButton.filledTonal(
-                  onPressed: _pickArea,
-                  style: IconButton.styleFrom(
-                    backgroundColor: Colors.white.withValues(alpha: .14),
-                    foregroundColor: Colors.white,
-                  ),
-                  icon: const Icon(Icons.location_on_outlined),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: InkWell(
-                    onTap: _pickArea,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'منطقتك',
-                          style: TextStyle(color: Colors.white70, fontSize: 11),
-                        ),
-                        Text(
-                          selectedArea,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                IconButton(
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const NotificationsPage(),
-                    ),
-                  ),
-                  color: Colors.white,
-                  icon: const Icon(Icons.notifications_none),
-                ),
-                IconButton(
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const AccountPage()),
-                  ),
-                  color: Colors.white,
-                  icon: const Icon(Icons.person_outline),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              textInputAction: TextInputAction.search,
-              onSubmitted: (value) {
-                if (value.trim().isNotEmpty) _openDirectory(value.trim());
-              },
-              decoration: InputDecoration(
-                prefixIcon: Icon(Icons.search, color: palette.primary),
-                hintText: 'بتدور على خدمة أو مكان؟',
-                isDense: true,
-                fillColor: Colors.white,
-              ),
-            ),
-          ],
-        ),
-      ),
+      header: const SizedBox.shrink(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const HeroBanner(),
-          const SizedBox(height: 14),
+          MergedHeroBanner(
+            selectedArea: selectedArea,
+            categoryItems: categoryItems,
+            onPickArea: _pickArea,
+            onOpenDirectory: _openDirectory,
+          ),
+          const SizedBox(height: 20),
           PromoCarousel(areaId: selectedAreaId),
           const SizedBox(height: 20),
           const SectionTitle(title: 'فئات قريبة منك'),
@@ -1962,6 +1884,197 @@ class MotionIn extends StatelessWidget {
     ),
     child: child,
   );
+}
+
+class MergedHeroBanner extends StatefulWidget {
+  const MergedHeroBanner({
+    super.key,
+    required this.selectedArea,
+    required this.categoryItems,
+    required this.onPickArea,
+    required this.onOpenDirectory,
+  });
+  final String selectedArea;
+  final List<String> categoryItems;
+  final VoidCallback onPickArea;
+  final ValueChanged<String> onOpenDirectory;
+
+  @override
+  State<MergedHeroBanner> createState() => _MergedHeroBannerState();
+}
+
+class _MergedHeroBannerState extends State<MergedHeroBanner>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController controller = AnimationController(
+    vsync: this,
+    duration: const Duration(seconds: 5),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
+  bool _isNightTime() {
+    final hour = DateTime.now().hour;
+    return hour < 6 || hour >= 18;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = AppThemeController.current;
+    final isNight = _isNightTime();
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (_, child) => Container(
+        clipBehavior: Clip.antiAlias,
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(22),
+          gradient: LinearGradient(
+            begin: Alignment.topRight,
+            end: Alignment.bottomLeft,
+            colors: [palette.deep, Color.lerp(palette.primary, palette.deep, controller.value * .35)!],
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: palette.deep.withValues(alpha: .2),
+              blurRadius: 24,
+              offset: const Offset(0, 12),
+            ),
+          ],
+        ),
+        child: Stack(
+          children: [
+            PositionedDirectional(
+              end: -24 + controller.value * 12,
+              top: -25,
+              child: Container(
+                width: 100,
+                height: 100,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withValues(alpha: .07),
+                ),
+              ),
+            ),
+            PositionedDirectional(
+              end: 38 - controller.value * 8,
+              bottom: -46,
+              child: Container(
+                width: 125,
+                height: 125,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: .08),
+                    width: 10,
+                  ),
+                ),
+              ),
+            ),
+            Center(
+              child: Icon(
+                isNight ? Icons.dark_mode : Icons.wb_sunny,
+                size: 80,
+                color: Colors.white.withValues(alpha: .06),
+              ),
+            ),
+            Column(
+              children: [
+                Row(
+                  children: [
+                    IconButton(
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const AccountPage()),
+                      ),
+                      color: Colors.white,
+                      icon: const Icon(Icons.person_outline),
+                      style: IconButton.styleFrom(padding: EdgeInsets.zero),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        textInputAction: TextInputAction.search,
+                        onSubmitted: (value) {
+                          if (value.trim().isNotEmpty) {
+                            widget.onOpenDirectory(value.trim());
+                          }
+                        },
+                        decoration: InputDecoration(
+                          prefixIcon: Icon(Icons.search, color: palette.primary),
+                          hintText: 'بتدور على خدمة أو مكان؟',
+                          isDense: true,
+                          fillColor: Colors.white,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const NotificationsPage(),
+                        ),
+                      ),
+                      color: Colors.white,
+                      icon: const Icon(Icons.notifications_none),
+                      style: IconButton.styleFrom(padding: EdgeInsets.zero),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const AccountPage()),
+                      ),
+                      color: Colors.white,
+                      icon: const Icon(Icons.settings_outlined),
+                      style: IconButton.styleFrom(padding: EdgeInsets.zero),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'قنا كلها هنا',
+                            style: TextStyle(
+                              color: Color(0xDDF7F6F2),
+                              fontSize: 13,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'كل ما تحتاجه.. قريب منك',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 22,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 5),
+                          Text(
+                            '📍 ${widget.selectedArea}',
+                            style: const TextStyle(color: Color(0xDDF7F6F2)),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Transform.translate(
+                      offset: Offset(0, -3 * controller.value),
+                      child: const LogoMark(dark: true, size: 47),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class HeroBanner extends StatefulWidget {
@@ -2182,7 +2295,7 @@ class _PromoCarouselState extends State<PromoCarousel> {
                       image: imageUrl == null
                           ? null
                           : DecorationImage(
-                              image: NetworkImage(imageUrl),
+                              image: CachedNetworkImageProvider(imageUrl),
                               fit: BoxFit.cover,
                               colorFilter: ColorFilter.mode(
                                 deepTeal.withValues(alpha: .48),
@@ -5253,16 +5366,17 @@ class _MediaGalleryState extends State<MediaGallery>
                 children: [
                   if (index < widget.imageUrls.length)
                     Positioned.fill(
-                      child: Image.network(
-                        widget.imageUrls[index],
+                      child: CachedNetworkImage(
+                        imageUrl: widget.imageUrls[index],
                         fit: BoxFit.cover,
-                        errorBuilder: (_, error, stack) => Center(
+                        errorWidget: (_, error, stack) => Center(
                           child: Icon(
                             Icons.image_outlined,
                             color: deepTeal.withValues(alpha: .45),
                             size: 54,
                           ),
                         ),
+                        placeholder: (_, __) => const SizedBox.expand(),
                       ),
                     )
                   else
@@ -5445,7 +5559,7 @@ class _AccountPageState extends State<AccountPage> {
                       backgroundColor: AppThemeController.current.primary,
                       backgroundImage: profile?['avatarUrl'] == null
                           ? null
-                          : NetworkImage(profile!['avatarUrl'] as String),
+                          : CachedNetworkImageProvider(profile!['avatarUrl'] as String),
                       child: profile?['avatarUrl'] == null
                           ? Text(
                               profileName.isEmpty
@@ -5615,7 +5729,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                   backgroundImage: avatar == null
                       ? (widget.profile?['avatarUrl'] == null
                             ? null
-                            : NetworkImage(
+                            : CachedNetworkImageProvider(
                                 widget.profile!['avatarUrl'] as String,
                               ))
                       : FileImage(File(avatar!.path)) as ImageProvider,

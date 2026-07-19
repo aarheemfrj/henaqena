@@ -94,10 +94,19 @@ export function createApp(prismaClient?: PrismaClient) {
       const formatted = error.issues.map(issue => ({ path: issue.path.join('.'), message: issue.message }));
       return res.status(400).json({ message: 'بيانات المدخلات غير صحيحة', errors: formatted });
     }
-    if (error instanceof Error && error.message.includes('Unique constraint')) {
-      return res.status(409).json({ message: 'البيانات موجودة بالفعل' });
+    if (error instanceof Error) {
+      if (error.message.includes('Unique constraint') || error.message.includes('unique')) {
+        return res.status(409).json({ message: 'البيانات موجودة بالفعل' });
+      }
+      if (error.message.includes('PrismaClientInitializationError') || error.message.includes('Can\'t reach database')) {
+        console.error('[Database Connection Error]', error.message);
+        return res.status(503).json({ message: 'خدمة قاعدة البيانات غير متاحة حالياً' });
+      }
+      if (error.message.includes('not found') || error.message.includes('Record to update not found')) {
+        return res.status(404).json({ message: 'العنصر غير موجود' });
+      }
     }
-    console.error('[API Error]', error);
+    console.error('[API Error]', error instanceof Error ? error.message : String(error));
     res.status(500).json({ message: 'خطأ في الخادم - يرجى المحاولة لاحقاً' });
   });
 
