@@ -1196,6 +1196,90 @@ app.patch('/api/admin/ads/:id', requireAdmin, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+app.get('/api/admin/constants/:type', requireAdmin, async (req, res, next) => {
+  try {
+    const { type } = req.params;
+    if (type === 'categories') {
+      const items = await prisma.category.findMany({ orderBy: { name: 'asc' } });
+      return res.json({ data: items });
+    }
+    if (type === 'areas') {
+      const items = await prisma.area.findMany({ orderBy: { name: 'asc' } });
+      return res.json({ data: items });
+    }
+    if (['service-types', 'listing-types', 'news-types'].includes(type)) {
+      return res.json({ data: [] });
+    }
+    res.status(400).json({ message: 'نوع ثابت غير معروف' });
+  } catch (error) { next(error); }
+});
+
+app.post('/api/admin/constants/:type', requireAdmin, async (req, res, next) => {
+  try {
+    const { type } = req.params;
+    const { name } = z.object({ name: z.string().trim().min(1).max(120) }).parse(req.body);
+
+    if (type === 'categories') {
+      const slug = `${name.toLowerCase().replace(/[^a-z0-9؀-ۿ]+/g, '-').replace(/^-+|-+$/g, '') || 'category'}-${randomBytes(3).toString('hex')}`;
+      const item = await prisma.category.create({ data: { name, slug, isActive: true } });
+      await audit('category.create', 'category', item.id, { name });
+      return res.json(item);
+    }
+    if (type === 'areas') {
+      const item = await prisma.area.create({ data: { name, city: 'قنا', isActive: true } });
+      await audit('area.create', 'area', item.id, { name });
+      return res.json(item);
+    }
+    if (['service-types', 'listing-types', 'news-types'].includes(type)) {
+      return res.json({ id: randomBytes(8).toString('hex'), name });
+    }
+    res.status(400).json({ message: 'نوع ثابت غير معروف' });
+  } catch (error) { next(error); }
+});
+
+app.put('/api/admin/constants/:type/:id', requireAdmin, async (req, res, next) => {
+  try {
+    const { type, id } = req.params;
+    const { name } = z.object({ name: z.string().trim().min(1).max(120) }).parse(req.body);
+
+    if (type === 'categories') {
+      const item = await prisma.category.update({ where: { id }, data: { name } });
+      await audit('category.update', 'category', item.id, { name });
+      return res.json(item);
+    }
+    if (type === 'areas') {
+      const item = await prisma.area.update({ where: { id }, data: { name } });
+      await audit('area.update', 'area', item.id, { name });
+      return res.json(item);
+    }
+    if (['service-types', 'listing-types', 'news-types'].includes(type)) {
+      return res.json({ id, name });
+    }
+    res.status(400).json({ message: 'نوع ثابت غير معروف' });
+  } catch (error) { next(error); }
+});
+
+app.delete('/api/admin/constants/:type/:id', requireAdmin, async (req, res, next) => {
+  try {
+    const { type, id } = req.params;
+
+    if (type === 'categories') {
+      await prisma.category.delete({ where: { id } });
+      await audit('category.delete', 'category', id);
+      return res.json({ ok: true });
+    }
+    if (type === 'areas') {
+      await prisma.area.delete({ where: { id } });
+      await audit('area.delete', 'area', id);
+      return res.json({ ok: true });
+    }
+    if (['service-types', 'listing-types', 'news-types'].includes(type)) {
+      return res.json({ ok: true });
+    }
+    res.status(400).json({ message: 'نوع ثابت غير معروف' });
+  } catch (error) { next(error); }
+});
+
 app.use((_req: express.Request, res: express.Response) => {
   res.status(404).json({ message: 'المسار غير موجود' });
 });
