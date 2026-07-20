@@ -5438,7 +5438,6 @@ class _CreateListingPageState extends State<CreateListingPage> {
             controller: title,
             decoration: const InputDecoration(
               labelText: 'عنوان الإعلان',
-              hintText: 'مثال: شقة غرفتين للإيجار',
             ),
           ),
           const SizedBox(height: 12),
