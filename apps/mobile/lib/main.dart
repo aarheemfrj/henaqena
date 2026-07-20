@@ -2116,9 +2116,9 @@ class _MergedHeroBannerState extends State<MergedHeroBanner>
       animation: controller,
       builder: (_, child) => Container(
         clipBehavior: Clip.antiAlias,
-        padding: const EdgeInsets.fromLTRB(22, 26, 22, 26),
+        padding: const EdgeInsets.fromLTRB(26, 34, 26, 32),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(28),
+          borderRadius: BorderRadius.circular(32),
           gradient: LinearGradient(
             begin: Alignment.topRight,
             end: Alignment.bottomLeft,
@@ -2127,19 +2127,19 @@ class _MergedHeroBannerState extends State<MergedHeroBanner>
           boxShadow: [
             BoxShadow(
               color: palette.deep.withValues(alpha: .25),
-              blurRadius: 32,
-              offset: const Offset(0, 16),
+              blurRadius: 36,
+              offset: const Offset(0, 18),
             ),
           ],
         ),
         child: Stack(
           children: [
             PositionedDirectional(
-              end: -24 + controller.value * 12,
-              top: -25,
+              end: -28 + controller.value * 14,
+              top: -30,
               child: Container(
-                width: 100,
-                height: 100,
+                width: 120,
+                height: 120,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: Colors.white.withValues(alpha: .07),
@@ -2147,44 +2147,45 @@ class _MergedHeroBannerState extends State<MergedHeroBanner>
               ),
             ),
             PositionedDirectional(
-              end: 38 - controller.value * 8,
-              bottom: -46,
+              end: 44 - controller.value * 10,
+              bottom: -54,
               child: Container(
-                width: 125,
-                height: 125,
+                width: 150,
+                height: 150,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   border: Border.all(
                     color: Colors.white.withValues(alpha: .08),
-                    width: 10,
+                    width: 12,
                   ),
                 ),
               ),
             ),
             PositionedDirectional(
               start: 0,
-              top: 8,
+              top: 10,
               child: Icon(
                 isNight ? Icons.dark_mode : Icons.wb_sunny,
-                size: 80,
+                size: 96,
                 color: Colors.white.withValues(alpha: .12),
               ),
             ),
             Column(
               children: [
                 const Padding(
-                  padding: EdgeInsets.only(left: 76),
+                  padding: EdgeInsets.only(left: 84),
                   child: Text(
                     'كل ما تحتاجه في قنا..هنا',
                     style: TextStyle(
                       color: Colors.white,
-                      fontSize: 18,
+                      fontSize: 23,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 0.3,
+                      height: 1.3,
                     ),
                   ),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 18),
                 TextField(
                   textInputAction: TextInputAction.search,
                   onSubmitted: (value) {
@@ -2192,19 +2193,20 @@ class _MergedHeroBannerState extends State<MergedHeroBanner>
                       widget.onOpenDirectory(value.trim());
                     }
                   },
+                  style: const TextStyle(fontSize: 16),
                   decoration: InputDecoration(
-                    prefixIcon: Icon(Icons.search, color: palette.primary),
+                    prefixIcon: Icon(Icons.search, color: palette.primary, size: 24),
                     hintText: 'بتدور على خدمة أو مكان؟',
-                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
                     fillColor: Colors.white,
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
                 Align(
                   alignment: Alignment.centerRight,
                   child: Text(
                     '📍 ${widget.selectedArea}',
-                    style: const TextStyle(color: Color(0xDDF7F6F2), fontSize: 14),
+                    style: const TextStyle(color: Color(0xDDF7F6F2), fontSize: 15, fontWeight: FontWeight.w500),
                   ),
                 ),
               ],
