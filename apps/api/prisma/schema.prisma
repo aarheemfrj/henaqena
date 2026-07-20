@@ -161,6 +161,8 @@ model Provider {
   description    String?
   phone          String?
   whatsapp       String?
+  socialPlatform String?
+  socialUrl      String?
   address        String?
   latitude       Float?
   longitude      Float?

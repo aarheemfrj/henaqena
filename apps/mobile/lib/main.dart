@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -26,6 +27,50 @@ String _relativeTime(dynamic raw) {
   if (difference.inDays < 1) return 'منذ ${difference.inHours} س';
   if (difference.inDays < 7) return 'منذ ${difference.inDays} ي';
   return '${date.day}/${date.month}/${date.year}';
+}
+
+class SocialPlatform {
+  const SocialPlatform({
+    required this.label,
+    required this.icon,
+    required this.color,
+  });
+  final String label;
+  final IconData icon;
+  final Color color;
+
+  static const _platforms = <String, SocialPlatform>{
+    'facebook': SocialPlatform(
+      label: 'فيسبوك',
+      icon: FontAwesomeIcons.facebook,
+      color: Color(0xFF1877F2),
+    ),
+    'instagram': SocialPlatform(
+      label: 'إنستجرام',
+      icon: FontAwesomeIcons.instagram,
+      color: Color(0xFFE1306C),
+    ),
+    'x': SocialPlatform(
+      label: 'إكس',
+      icon: FontAwesomeIcons.xTwitter,
+      color: Color(0xFF000000),
+    ),
+    'tiktok': SocialPlatform(
+      label: 'تيك توك',
+      icon: FontAwesomeIcons.tiktok,
+      color: Color(0xFF000000),
+    ),
+    'youtube': SocialPlatform(
+      label: 'يوتيوب',
+      icon: FontAwesomeIcons.youtube,
+      color: Color(0xFFFF0000),
+    ),
+  };
+
+  static SocialPlatform? of(String? key) =>
+      key == null ? null : _platforms[key];
+
+  static Map<String, SocialPlatform> get all => _platforms;
 }
 
 class HenaQenaApp extends StatelessWidget {
@@ -3400,6 +3445,28 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                       label: const Text('واتساب'),
                     ),
                   ),
+                  if (SocialPlatform.of(data?.socialPlatform) case final social?) ...[
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: social.color,
+                          side: BorderSide(color: social.color.withValues(alpha: .4)),
+                        ),
+                        onPressed: () => _external(
+                          AppActions.openUrl(data?.socialUrl),
+                          'تعذر فتح الرابط',
+                        ),
+                        icon: FaIcon(social.icon, size: 16),
+                        label: Text(social.label),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
                   Expanded(
                     child: TextButton.icon(
                       onPressed: widget.providerId == null
@@ -3413,11 +3480,18 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                       label: const Text('حفظ'),
                     ),
                   ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
+                  Expanded(
+                    child: TextButton.icon(
+                      onPressed: () => AppActions.share(
+                        context,
+                        subject: data?.name ?? widget.title,
+                        text:
+                            '${data?.name ?? widget.title}\n${data?.description ?? ''}\n${data?.address ?? data?.areaName ?? 'قنا'}\nمن تطبيق هنا قنا',
+                      ),
+                      icon: const Icon(Icons.share_outlined),
+                      label: const Text('مشاركة'),
+                    ),
+                  ),
                   Expanded(
                     child: TextButton.icon(
                       onPressed: data?.address == null && data?.latitude == null
@@ -3433,18 +3507,6 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                             ),
                       icon: const Icon(Icons.map_outlined),
                       label: const Text('الخريطة'),
-                    ),
-                  ),
-                  Expanded(
-                    child: TextButton.icon(
-                      onPressed: () => AppActions.share(
-                        context,
-                        subject: data?.name ?? widget.title,
-                        text:
-                            '${data?.name ?? widget.title}\n${data?.description ?? ''}\n${data?.address ?? data?.areaName ?? 'قنا'}\nمن تطبيق هنا قنا',
-                      ),
-                      icon: const Icon(Icons.share_outlined),
-                      label: const Text('مشاركة'),
                     ),
                   ),
                 ],
@@ -6332,6 +6394,8 @@ class _AddActivityPageState extends State<AddActivityPage> {
   final address = TextEditingController();
   final phone = TextEditingController();
   final whatsapp = TextEditingController();
+  final socialUrl = TextEditingController();
+  String? socialPlatform;
   String? areaId;
   String? categoryId;
   String mode = 'LOCAL';
@@ -6354,7 +6418,14 @@ class _AddActivityPageState extends State<AddActivityPage> {
 
   @override
   void dispose() {
-    for (final controller in [name, description, address, phone, whatsapp]) {
+    for (final controller in [
+      name,
+      description,
+      address,
+      phone,
+      whatsapp,
+      socialUrl,
+    ]) {
       controller.dispose();
     }
     super.dispose();
@@ -6557,6 +6628,44 @@ class _AddActivityPageState extends State<AddActivityPage> {
         keyboardType: TextInputType.phone,
         decoration: const InputDecoration(labelText: 'واتساب (اختياري)'),
       ),
+      const SizedBox(height: 12),
+      DropdownButtonFormField<String>(
+        initialValue: socialPlatform,
+        decoration: const InputDecoration(
+          labelText: 'سوشيال ميديا إضافية (اختياري)',
+        ),
+        items: [
+          const DropdownMenuItem(value: null, child: Text('بدون')),
+          for (final entry in SocialPlatform.all.entries)
+            DropdownMenuItem(
+              value: entry.key,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  FaIcon(entry.value.icon, size: 16, color: entry.value.color),
+                  const SizedBox(width: 8),
+                  Text(entry.value.label),
+                ],
+              ),
+            ),
+        ],
+        onChanged: (value) => setState(() => socialPlatform = value),
+      ),
+      if (socialPlatform != null) ...[
+        const SizedBox(height: 12),
+        TextFormField(
+          controller: socialUrl,
+          keyboardType: TextInputType.url,
+          decoration: InputDecoration(
+            labelText: 'رابط ${SocialPlatform.of(socialPlatform)?.label}',
+            hintText: 'https://...',
+          ),
+          validator: (value) => socialPlatform != null &&
+                  (value == null || Uri.tryParse(value.trim())?.hasScheme != true)
+              ? 'اكتب رابطًا صحيحًا'
+              : null,
+        ),
+      ],
       const SizedBox(height: 14),
       if (mode == 'LOCAL')
         Row(
@@ -6751,6 +6860,10 @@ class _AddActivityPageState extends State<AddActivityPage> {
           'whatsapp': whatsapp.text.trim().isEmpty
               ? null
               : whatsapp.text.trim(),
+          if (socialPlatform != null && socialUrl.text.trim().isNotEmpty) ...{
+            'socialPlatform': socialPlatform,
+            'socialUrl': socialUrl.text.trim(),
+          },
           'phoneType': phoneType,
           'serviceMode': mode,
           'areaId': resolvedArea,

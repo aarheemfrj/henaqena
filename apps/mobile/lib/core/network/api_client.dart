@@ -56,6 +56,8 @@ class ProviderDetails {
     required this.reviews,
     required this.phone,
     required this.whatsapp,
+    this.socialPlatform,
+    this.socialUrl,
     required this.address,
     required this.latitude,
     required this.longitude,
@@ -74,6 +76,8 @@ class ProviderDetails {
   final List<Map<String, dynamic>> reviews;
   final String? phone;
   final String? whatsapp;
+  final String? socialPlatform;
+  final String? socialUrl;
   final String? address;
   final double? latitude;
   final double? longitude;
@@ -103,6 +107,8 @@ class ProviderDetails {
             .toList(),
         phone: json['phone'] as String?,
         whatsapp: json['whatsapp'] as String?,
+        socialPlatform: json['socialPlatform'] as String?,
+        socialUrl: json['socialUrl'] as String?,
         address: json['address'] as String?,
         latitude: (json['latitude'] as num?)?.toDouble(),
         longitude: (json['longitude'] as num?)?.toDouble(),
