@@ -43,6 +43,19 @@ void showTopToast(BuildContext context, {required String message, bool isError =
   );
 }
 
+class AppTextStyles {
+  static const displayLarge = TextStyle(fontSize: 24, fontWeight: FontWeight.w700);
+  static const displayMedium = TextStyle(fontSize: 22, fontWeight: FontWeight.w700);
+  static const headlineLarge = TextStyle(fontSize: 21, fontWeight: FontWeight.w700);
+  static const headlineMedium = TextStyle(fontSize: 20, fontWeight: FontWeight.w700);
+  static const bodyLarge = TextStyle(fontSize: 16, fontWeight: FontWeight.w700);
+  static const bodyMedium = TextStyle(fontSize: 16);
+  static const bodySmall = TextStyle(fontSize: 15);
+  static const labelMedium = TextStyle(fontSize: 14);
+  static const labelSmall = TextStyle(fontSize: 12);
+  static const labelTiny = TextStyle(fontSize: 12, color: muted);
+}
+
 class SocialPlatform {
   const SocialPlatform({
     required this.label,
