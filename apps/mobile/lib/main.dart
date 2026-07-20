@@ -1422,7 +1422,6 @@ class HomeShell extends StatefulWidget {
 
 class _HomeShellState extends State<HomeShell> {
   int index = 0;
-  int previousIndex = 0;
   final pages = const [
     HomePage(),
     DirectoryPage(),
@@ -1440,45 +1439,37 @@ class _HomeShellState extends State<HomeShell> {
   ];
 
   void _select(int value) => setState(() {
-    previousIndex = index;
     index = value;
   });
 
   @override
   Widget build(BuildContext context) {
-    final forward = index >= previousIndex;
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        body: AnimatedSwitcher(
-          duration: AppMotion.page,
-          switchInCurve: Curves.easeOutCubic,
-          switchOutCurve: Curves.easeInCubic,
-          transitionBuilder: (child, animation) => FadeTransition(
-            opacity: animation,
-            child: SlideTransition(
-              position:
-                  Tween<Offset>(
-                    begin: Offset(forward ? 0.12 : -0.12, 0),
-                    end: Offset.zero,
-                  ).animate(
-                    CurvedAnimation(
-                      parent: animation,
-                      curve: Curves.easeOutCubic,
-                    ),
-                  ),
-              child: ScaleTransition(
-                scale: Tween<double>(begin: .94, end: 1).animate(
-                  CurvedAnimation(
-                    parent: animation,
-                    curve: Curves.easeOutCubic,
-                  ),
+        body: Stack(
+          children: [
+            AnimatedSwitcher(
+              duration: AppMotion.quick,
+              switchInCurve: Curves.easeOut,
+              switchOutCurve: Curves.easeIn,
+              transitionBuilder: (child, animation) =>
+                  FadeTransition(opacity: animation, child: child),
+              child: KeyedSubtree(key: ValueKey(index), child: pages[index]),
+            ),
+            const Positioned(
+              top: 0,
+              right: 0,
+              left: 0,
+              child: SafeArea(
+                bottom: false,
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(18, 10, 18, 0),
+                  child: PersistentTopActions(),
                 ),
-                child: child,
               ),
             ),
-          ),
-          child: KeyedSubtree(key: ValueKey(index), child: pages[index]),
+          ],
         ),
         bottomNavigationBar: NavigationBar(
           selectedIndex: index,
@@ -1500,6 +1491,59 @@ class _HomeShellState extends State<HomeShell> {
       ),
     );
   }
+}
+
+class PersistentTopActions extends StatelessWidget {
+  const PersistentTopActions({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = AppThemeController.current;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        _TopActionButton(
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const NotificationsPage()),
+          ),
+          child: Icon(Icons.notifications_none, color: colors.primary),
+        ),
+        const SizedBox(width: 8),
+        _TopActionButton(
+          onTap: () => Navigator.of(
+            context,
+          ).push(MaterialPageRoute(builder: (_) => const AccountPage())),
+          child: CircleAvatar(
+            radius: 15,
+            backgroundColor: colors.primary,
+            child: const Text(
+              'م',
+              style: TextStyle(color: Colors.white, fontSize: 12),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _TopActionButton extends StatelessWidget {
+  const _TopActionButton({required this.onTap, required this.child});
+  final VoidCallback onTap;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: Colors.white,
+    shape: const CircleBorder(),
+    elevation: 3,
+    shadowColor: Colors.black26,
+    child: InkWell(
+      onTap: onTap,
+      customBorder: const CircleBorder(),
+      child: Padding(padding: const EdgeInsets.all(7), child: child),
+    ),
+  );
 }
 
 class BasePage extends StatelessWidget {
@@ -1559,39 +1603,9 @@ class BasePage extends StatelessWidget {
                           )
                         else
                           const Spacer(),
-                        Row(
-                          children: [
-                            IconButton(
-                              onPressed: () => Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => const NotificationsPage(),
-                                ),
-                              ),
-                              icon: Icon(
-                                Icons.notifications_none,
-                                color: colors.primary,
-                              ),
-                            ),
-                            IconButton(
-                              onPressed: () => Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => const AccountPage(),
-                                ),
-                              ),
-                              icon: CircleAvatar(
-                                radius: 15,
-                                backgroundColor: colors.primary,
-                                child: const Text(
-                                  'م',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
+                        // Reserves space for the persistent notification/account
+                        // buttons that HomeShell floats above every tab.
+                        const SizedBox(width: 92),
                       ],
                     ),
                 const SizedBox(height: 12),
@@ -2004,38 +2018,16 @@ class _MergedHeroBannerState extends State<MergedHeroBanner>
             ),
             Column(
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: const Text(
-                        'كل ما تحتاجه في قنا..هنا',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => const NotificationsPage(),
-                        ),
-                      ),
+                const Padding(
+                  padding: EdgeInsets.only(left: 76),
+                  child: Text(
+                    'كل ما تحتاجه في قنا..هنا',
+                    style: TextStyle(
                       color: Colors.white,
-                      icon: const Icon(Icons.notifications_none),
-                      style: IconButton.styleFrom(padding: EdgeInsets.zero),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
                     ),
-                    const SizedBox(width: 4),
-                    IconButton(
-                      onPressed: () => Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const AccountPage()),
-                      ),
-                      color: Colors.white,
-                      icon: const Icon(Icons.person_outline),
-                      style: IconButton.styleFrom(padding: EdgeInsets.zero),
-                    ),
-                  ],
+                  ),
                 ),
                 const SizedBox(height: 10),
                 TextField(

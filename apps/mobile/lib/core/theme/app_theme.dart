@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -207,9 +208,9 @@ class AppThemeController {
       ),
       pageTransitionsTheme: const PageTransitionsTheme(
         builders: {
-          TargetPlatform.android: SmoothPageTransitionsBuilder(),
-          TargetPlatform.iOS: SmoothPageTransitionsBuilder(),
-          TargetPlatform.macOS: SmoothPageTransitionsBuilder(),
+          TargetPlatform.android: FadeForwardsPageTransitionsBuilder(),
+          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
         },
       ),
       appBarTheme: AppBarTheme(
@@ -258,55 +259,4 @@ class AppMotion {
   static const standard = Duration(milliseconds: 240);
   static const gentle = Duration(milliseconds: 320);
   static const page = Duration(milliseconds: 420);
-}
-
-class SmoothPageTransitionsBuilder extends PageTransitionsBuilder {
-  const SmoothPageTransitionsBuilder();
-  @override
-  Widget buildTransitions<T>(
-    PageRoute<T> route,
-    BuildContext context,
-    Animation<double> animation,
-    Animation<double> secondaryAnimation,
-    Widget child,
-  ) {
-    final curved = CurvedAnimation(
-      parent: animation,
-      curve: Curves.easeOutCubic,
-      reverseCurve: Curves.easeInCubic,
-    );
-    final incomingSlide = Tween<Offset>(
-      begin: const Offset(.12, 0),
-      end: Offset.zero,
-    ).animate(curved);
-    final incomingScale = Tween<double>(begin: .94, end: 1).animate(curved);
-
-    // Give the page underneath a subtle push-back while the new page arrives.
-    // This creates the shared-axis feeling from the visual references without
-    // making navigation feel slow or theatrical.
-    return AnimatedBuilder(
-      animation: secondaryAnimation,
-      child: child,
-      builder: (context, page) {
-        final pushed = secondaryAnimation.value;
-        return Opacity(
-          opacity: 1 - (pushed * .12),
-          child: Transform.translate(
-            offset: Offset(-18 * pushed, 0),
-            child: Transform.scale(
-              alignment: Alignment.center,
-              scale: 1 - (pushed * .025),
-              child: FadeTransition(
-                opacity: curved,
-                child: SlideTransition(
-                  position: incomingSlide,
-                  child: ScaleTransition(scale: incomingScale, child: page),
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
 }

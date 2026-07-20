@@ -1152,8 +1152,11 @@ app.delete('/api/admin/reviews/:id', requireAdmin, async (req, res, next) => {
 app.patch('/api/admin/replies/:id', requireAdmin, async (req, res, next) => {
   try {
     const { status, note } = moderationWithNoteSchema.parse(req.body);
-    const reply = await prisma.reviewReply.update({ where: { id: String(req.params.id) }, data: { status, moderatedAt: new Date() } });
+    const reply = await prisma.reviewReply.update({ where: { id: String(req.params.id) }, data: { status, moderatedAt: new Date() }, include: { review: { select: { authorId: true } } } });
     await prisma.notification.create({ data: { userId: reply.authorId, title: status === ReviewStatus.APPROVED ? 'تم اعتماد ردك' : 'لم يتم اعتماد ردك', body: status === ReviewStatus.APPROVED ? 'ردك ظاهر الآن ضمن التقييمات.' : `سبب الرفض: ${note ?? 'يرجى مراجعة محتوى الرد.'}` } });
+    if (status === ReviewStatus.APPROVED && reply.review.authorId !== reply.authorId) {
+      await prisma.notification.create({ data: { userId: reply.review.authorId, title: 'رد جديد على تقييمك', body: 'حد رد على تقييمك في هنا قنا، افتح التقييمات لو حابب ترد.' } });
+    }
     await audit(`reply.${status.toLowerCase()}`, 'reviewReply', reply.id, { status, note });
     res.json(reply);
   } catch (error) { next(error); }
