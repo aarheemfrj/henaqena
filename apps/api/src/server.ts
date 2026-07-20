@@ -415,7 +415,10 @@ app.patch('/api/me/profile', async (req, res, next) => {
 });
 
 const socialPlatformSchema = z.enum(['facebook', 'instagram', 'x', 'tiktok', 'youtube']);
-const providerCreateSchema = z.object({ name: z.string().trim().min(2).max(120), description: z.string().trim().max(1000).optional(), phone: z.string().regex(/^01[0125][0-9]{8}$/).optional(), whatsapp: z.string().regex(/^01[0125][0-9]{8}$/).optional(), socialPlatform: socialPlatformSchema.optional(), socialUrl: z.string().trim().url().max(300).optional(), phoneType: z.enum(['BUSINESS', 'PERSONAL']).default('BUSINESS'), address: z.string().trim().max(240).optional(), areaId: z.string().min(1), serviceMode: z.enum(['LOCAL', 'ONLINE']).default('LOCAL'), openingTime: z.string().max(10).optional(), closingTime: z.string().max(10).optional(), categoryIds: z.array(z.string().min(1)).min(1).max(5), images: z.array(z.object({ url: z.string().url(), kind: z.string().max(30).optional() })).min(1).max(10) }).refine((value) => !value.socialUrl || value.socialPlatform, { message: 'اختر نوع السوشيال ميديا', path: ['socialPlatform'] });
+const requireSocialPlatformWithUrl = (value: { socialUrl?: string; socialPlatform?: string }) => !value.socialUrl || value.socialPlatform;
+const requireSocialPlatformRefinement = { message: 'اختر نوع السوشيال ميديا', path: ['socialPlatform'] };
+const providerBaseSchema = z.object({ name: z.string().trim().min(2).max(120), description: z.string().trim().max(1000).optional(), phone: z.string().regex(/^01[0125][0-9]{8}$/).optional(), whatsapp: z.string().regex(/^01[0125][0-9]{8}$/).optional(), socialPlatform: socialPlatformSchema.optional(), socialUrl: z.string().trim().url().max(300).optional(), phoneType: z.enum(['BUSINESS', 'PERSONAL']).default('BUSINESS'), address: z.string().trim().max(240).optional(), areaId: z.string().min(1), serviceMode: z.enum(['LOCAL', 'ONLINE']).default('LOCAL'), openingTime: z.string().max(10).optional(), closingTime: z.string().max(10).optional(), categoryIds: z.array(z.string().min(1)).min(1).max(5), images: z.array(z.object({ url: z.string().url(), kind: z.string().max(30).optional() })).min(1).max(10) });
+const providerCreateSchema = providerBaseSchema.refine(requireSocialPlatformWithUrl, requireSocialPlatformRefinement);
 app.post('/api/providers', async (req, res, next) => {
   try {
     const session = await sessionFromRequest(req);
@@ -428,7 +431,7 @@ app.post('/api/providers', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-const providerEditSchema = providerCreateSchema.partial().omit({ categoryIds: true, images: true }).extend({ categoryIds: z.array(z.string().min(1)).min(1).max(5).optional(), images: z.array(z.object({ url: z.string().url(), kind: z.string().max(30).optional() })).min(1).max(10).optional() });
+const providerEditSchema = providerBaseSchema.partial().omit({ categoryIds: true, images: true }).extend({ categoryIds: z.array(z.string().min(1)).min(1).max(5).optional(), images: z.array(z.object({ url: z.string().url(), kind: z.string().max(30).optional() })).min(1).max(10).optional() }).refine(requireSocialPlatformWithUrl, requireSocialPlatformRefinement);
 app.patch('/api/providers/:id', async (req, res, next) => {
   try {
     const session = await sessionFromRequest(req);
