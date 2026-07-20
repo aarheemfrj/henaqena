@@ -343,10 +343,12 @@ class AuthPage extends StatefulWidget {
 class _AuthPageState extends State<AuthPage> {
   final formKey = GlobalKey<FormState>();
   final api = ApiClient();
+  final imagePicker = ImagePicker();
   final name = TextEditingController();
   final phone = TextEditingController();
   final password = TextEditingController();
   final email = TextEditingController();
+  XFile? profileImage;
   late bool createAccount;
   bool submitting = false;
 
@@ -375,6 +377,19 @@ class _AuthPageState extends State<AuthPage> {
           password: password.text,
           email: email.text.trim(),
         );
+        if (profileImage != null && mounted) {
+          try {
+            final uploaded = await api.uploadProviderImages([profileImage!]);
+            if (uploaded.isNotEmpty && uploaded.first['url'] is String) {
+              await api.updateProfile(
+                name: name.text.trim(),
+                avatarUrl: uploaded.first['url'] as String,
+              );
+            }
+          } catch (e) {
+            // Image upload optional, don't block registration
+          }
+        }
       } else {
         await api.login(identifier: phone.text.trim(), password: password.text);
       }
@@ -493,6 +508,19 @@ class _AuthPageState extends State<AuthPage> {
                   ? 'كلمة المرور 8 حروف على الأقل'
                   : null,
             ),
+            if (createAccount) ...[
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: submitting
+                    ? null
+                    : () async {
+                        final image = await imagePicker.pickImage(source: ImageSource.gallery);
+                        if (image != null) setState(() => profileImage = image);
+                      },
+                icon: const Icon(Icons.photo_library),
+                label: Text(profileImage == null ? 'أضف صورتك (اختياري)' : 'صورة مختارة ✓'),
+              ),
+            ],
             const SizedBox(height: 22),
             FilledButton(
               onPressed: submitting ? null : submit,
