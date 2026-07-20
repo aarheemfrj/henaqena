@@ -30,6 +30,15 @@ export async function moderateProvider(formData: FormData) {
   revalidatePath('/providers');
 }
 
+export async function deleteProvider(formData: FormData) {
+  if (!await hasAdminSession()) redirect('/admin/login');
+  const id = String(formData.get('id') ?? ''); if (!id) return;
+  await apiDelete(`/api/admin/providers/${id}`);
+  revalidatePath('/admin/providers');
+  revalidatePath('/providers');
+  revalidatePath('/');
+}
+
 export async function createAd(formData: FormData) {
   if (!await hasAdminSession()) redirect('/admin/login');
   await apiPost('/api/ads', { name: String(formData.get('name') ?? ''), imageUrl: String(formData.get('imageUrl') ?? ''), description: String(formData.get('description') ?? '') || undefined, targetUrl: String(formData.get('targetUrl') ?? '') || undefined, weight: Number(formData.get('weight') ?? 100), startsAt: String(formData.get('startsAt') ?? ''), endsAt: String(formData.get('endsAt') ?? '') });

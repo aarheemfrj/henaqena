@@ -86,7 +86,7 @@ class LogoMark extends StatelessWidget {
           Container(
             width: size * .18,
             height: size * .18,
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               color: gold,
               shape: BoxShape.circle,
             ),
@@ -167,7 +167,7 @@ class WelcomeScreen extends StatelessWidget {
                   style: OutlinedButton.styleFrom(
                     foregroundColor: deepTeal,
                     minimumSize: const Size.fromHeight(52),
-                    side: const BorderSide(color: teal),
+                    side: BorderSide(color: teal),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
                     ),
@@ -181,7 +181,7 @@ class WelcomeScreen extends StatelessWidget {
                   onPressed: () => Navigator.of(context).pushReplacement(
                     MaterialPageRoute(builder: (_) => const HomeShell()),
                   ),
-                  child: const Text(
+                  child: Text(
                     'التكملة كزائر',
                     style: TextStyle(color: deepTeal),
                   ),
@@ -312,7 +312,7 @@ class _AuthPageState extends State<AuthPage> {
               createAccount
                   ? 'أهلاً بيك في مجتمع هنا قنا'
                   : 'سجّل دخولك عشان تقدر تضيف وتتابع مساهماتك',
-              style: const TextStyle(
+              style: TextStyle(
                 color: deepTeal,
                 fontSize: 21,
                 fontWeight: FontWeight.w700,
@@ -669,7 +669,7 @@ class _ContributionsPageState extends State<ContributionsPage> {
         future: contributions,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator(color: teal));
+            return Center(child: CircularProgressIndicator(color: teal));
           }
           if (snapshot.hasError) {
             return _StateMessage(
@@ -687,10 +687,13 @@ class _ContributionsPageState extends State<ContributionsPage> {
             );
           }
           final data = snapshot.data ?? {};
-          final providers = (data['providers'] as List<dynamic>? ?? []);
-          final listings = (data['listings'] as List<dynamic>? ?? []);
-          final reviews = (data['reviews'] as List<dynamic>? ?? []);
-          final reports = (data['reports'] as List<dynamic>? ?? []);
+          List<dynamic> section(String key) =>
+              (data[key] as Map<String, dynamic>?)?['data'] as List<dynamic>? ??
+              [];
+          final providers = section('providers');
+          final listings = section('listings');
+          final reviews = section('reviews');
+          final reports = section('reports');
           return RefreshIndicator(
             onRefresh: _reload,
             color: teal,
@@ -699,7 +702,7 @@ class _ContributionsPageState extends State<ContributionsPage> {
               children: [
                 Text(
                   'الأنشطة: ${providers.length}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: deepTeal,
                     fontWeight: FontWeight.w700,
                   ),
@@ -725,7 +728,7 @@ class _ContributionsPageState extends State<ContributionsPage> {
                 const SizedBox(height: 14),
                 Text(
                   'الإعلانات: ${listings.length}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: deepTeal,
                     fontWeight: FontWeight.w700,
                   ),
@@ -746,7 +749,7 @@ class _ContributionsPageState extends State<ContributionsPage> {
                 const SizedBox(height: 14),
                 Text(
                   'التقييمات: ${reviews.length}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: deepTeal,
                     fontWeight: FontWeight.w700,
                   ),
@@ -779,7 +782,7 @@ class _ContributionsPageState extends State<ContributionsPage> {
                 const SizedBox(height: 14),
                 Text(
                   'البلاغات: ${reports.length}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: deepTeal,
                     fontWeight: FontWeight.w700,
                   ),
@@ -837,7 +840,7 @@ class _ContributionTile extends StatelessWidget {
       subtitle: Text(subtitle, style: const TextStyle(color: muted)),
       trailing: onTap == null
           ? null
-          : const Icon(Icons.chevron_left, color: teal),
+          : Icon(Icons.chevron_left, color: teal),
     ),
   );
 }
@@ -861,7 +864,7 @@ class UserProfilePage extends StatelessWidget {
         future: ApiClient().fetchPublicProfile(userId),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator(color: teal));
+            return Center(child: CircularProgressIndicator(color: teal));
           }
           if (snapshot.hasError || !snapshot.hasData) {
             return const _StateMessage(
@@ -894,7 +897,7 @@ class UserProfilePage extends StatelessWidget {
                         child: data['avatarUrl'] == null
                             ? Text(
                                 name.isEmpty ? 'ق' : name.characters.first,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   color: deepTeal,
                                   fontSize: 22,
                                   fontWeight: FontWeight.w700,
@@ -909,7 +912,7 @@ class UserProfilePage extends StatelessWidget {
                           children: [
                             Text(
                               name,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 color: deepTeal,
                                 fontSize: 20,
                                 fontWeight: FontWeight.w700,
@@ -918,7 +921,7 @@ class UserProfilePage extends StatelessWidget {
                             const SizedBox(height: 5),
                             Text(
                               '${_levelLabel(data['level'] as String?)} · ${data['points'] ?? 0} نقطة',
-                              style: const TextStyle(color: teal),
+                              style: TextStyle(color: teal),
                             ),
                           ],
                         ),
@@ -1170,7 +1173,7 @@ class _SetupFlowState extends State<SetupFlow> {
               foregroundColor: deepTeal,
               alignment: Alignment.centerRight,
               padding: const EdgeInsets.all(15),
-              side: const BorderSide(color: teal),
+              side: BorderSide(color: teal),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(14),
               ),
@@ -1203,7 +1206,7 @@ class _SetupFlowState extends State<SetupFlow> {
     if (step == 1) {
       return ListView(
         children: [
-          const Text(
+          Text(
             'السن',
             style: TextStyle(color: deepTeal, fontWeight: FontWeight.w700),
           ),
@@ -1231,7 +1234,7 @@ class _SetupFlowState extends State<SetupFlow> {
                     .toList(),
           ),
           const SizedBox(height: 24),
-          const Text(
+          Text(
             'النوع',
             style: TextStyle(color: deepTeal, fontWeight: FontWeight.w700),
           ),
@@ -1338,7 +1341,7 @@ class _SetupFlowState extends State<SetupFlow> {
     elevation: 0,
     shape: RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(14),
-      side: BorderSide(color: selected ? teal : const Color(0xFFE0E8E6)),
+      side: BorderSide(color: selected ? teal : Color(0xFFE0E8E6)),
     ),
     child: ListTile(
       onTap: onTap,
@@ -1625,19 +1628,25 @@ class _HomePageState extends State<HomePage> {
   String selectedArea = 'قنا كلها';
   String? selectedAreaId;
   late Future<List<ProviderSummary>> featured = ApiClient().fetchProviders();
-  List<String> categoryItems = const [
-    'صيدليات',
-    'مطاعم',
-    'فنيين',
-    'سوبر ماركت',
-    'تعليم',
-    'ترفيه',
-  ];
+  List<String> categoryItems = const [];
 
   @override
   void initState() {
     super.initState();
+    _loadCategories();
     if (AuthSession.isSignedIn) _loadRecommendations();
+  }
+
+  Future<void> _loadCategories() async {
+    try {
+      final categories = await ApiClient().fetchCategories();
+      if (!mounted) return;
+      setState(() {
+        categoryItems = categories.map((item) => item.name).toList();
+      });
+    } catch (_) {
+      // Home stays usable without the category rail if the platform is unreachable.
+    }
   }
 
   Future<void> _loadRecommendations() async {
@@ -1652,26 +1661,6 @@ class _HomePageState extends State<HomePage> {
           .cast<String>();
       final interests = (profile['interests'] as List<dynamic>? ?? [])
           .cast<String>();
-      final mappedInterests = interests.map((interest) {
-        if (interest == 'خدمات طبية') return 'صيدليات';
-        if (interest == 'مطاعم وكافيهات') return 'مطاعم';
-        if (interest == 'صيانة وفنيين') return 'فنيين';
-        if (interest == 'ترفيه ومناسبات') return 'ترفيه';
-        if (interest == 'تعليم ودروس') return 'تعليم';
-        return interest;
-      });
-      final defaults = [
-        'صيدليات',
-        'مطاعم',
-        'فنيين',
-        'سوبر ماركت',
-        'تعليم',
-        'ترفيه',
-      ];
-      final ordered = <String>{
-        ...mappedInterests,
-        ...defaults,
-      }.take(6).toList();
       AreaOption? preferredArea;
       if (preferredIds.isNotEmpty) {
         for (final area in areas) {
@@ -1683,7 +1672,13 @@ class _HomePageState extends State<HomePage> {
       }
       if (!mounted) return;
       setState(() {
-        categoryItems = ordered;
+        if (interests.isNotEmpty && categoryItems.isNotEmpty) {
+          final ordered = <String>{
+            ...interests.where(categoryItems.contains),
+            ...categoryItems,
+          }.toList();
+          categoryItems = ordered;
+        }
         if (preferredArea != null) {
           selectedAreaId = preferredArea.id;
           selectedArea = preferredArea.name;
@@ -1720,7 +1715,7 @@ class _HomePageState extends State<HomePage> {
           shrinkWrap: true,
           padding: const EdgeInsets.symmetric(vertical: 12),
           children: [
-            const ListTile(
+            ListTile(
               title: Text(
                 'اختار المنطقة',
                 style: TextStyle(color: deepTeal, fontWeight: FontWeight.w700),
@@ -1785,7 +1780,7 @@ class _HomePageState extends State<HomePage> {
             future: featured,
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
-                return const LinearProgressIndicator(color: teal);
+                return LinearProgressIndicator(color: teal);
               }
               final items = snapshot.data ?? const <ProviderSummary>[];
               if (snapshot.hasError || items.isEmpty) {
@@ -1837,7 +1832,7 @@ class SectionTitle extends StatelessWidget {
     children: [
       Text(
         title,
-        style: const TextStyle(
+        style: TextStyle(
           color: deepTeal,
           fontSize: 16,
           fontWeight: FontWeight.w700,
@@ -1873,7 +1868,7 @@ class _StateMessage extends StatelessWidget {
         Text(
           title,
           textAlign: TextAlign.center,
-          style: const TextStyle(color: deepTeal, fontWeight: FontWeight.w700),
+          style: TextStyle(color: deepTeal, fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: 5),
         Text(
@@ -2366,7 +2361,7 @@ class _PromoCarouselState extends State<PromoCarousel> {
                 height: 6,
                 margin: const EdgeInsets.symmetric(horizontal: 3),
                 decoration: BoxDecoration(
-                  color: i == active ? teal : const Color(0xFFD6E3E0),
+                  color: i == active ? teal : Color(0xFFD6E3E0),
                   borderRadius: BorderRadius.circular(6),
                 ),
               ),
@@ -2384,21 +2379,33 @@ class CategoryRail extends StatelessWidget {
   @override
   Widget build(BuildContext context) => SizedBox(
     height: 42,
-    child: ListView.separated(
-      scrollDirection: Axis.horizontal,
-      physics: const BouncingScrollPhysics(),
-      itemCount: items.length,
-      separatorBuilder: (_, index) => const SizedBox(width: 8),
-      itemBuilder: (_, index) => ActionChip(
-        onPressed: onSelected == null ? null : () => onSelected!(items[index]),
-        avatar: const Icon(Icons.circle, size: 8, color: gold),
-        label: Text(items[index]),
-        backgroundColor: Colors.white,
-        side: const BorderSide(color: Color(0xFFE0E8E6)),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-      ),
-    ),
+    child: items.isEmpty
+        ? Align(
+            alignment: Alignment.centerRight,
+            child: Text(
+              'يتم تحميل الفئات من المنصة…',
+              style: TextStyle(color: muted, fontSize: 12),
+            ),
+          )
+        : ListView.separated(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            itemCount: items.length,
+            separatorBuilder: (_, index) => const SizedBox(width: 8),
+            itemBuilder: (_, index) => ActionChip(
+              onPressed: onSelected == null
+                  ? null
+                  : () => onSelected!(items[index]),
+              avatar: Icon(Icons.circle, size: 8, color: gold),
+              label: Text(items[index]),
+              backgroundColor: Colors.white,
+              side: const BorderSide(color: Color(0xFFE0E8E6)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(13),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+            ),
+          ),
   );
 }
 
@@ -2482,11 +2489,22 @@ class _DirectoryPageState extends State<DirectoryPage> {
   final searchController = TextEditingController();
   Timer? searchDebounce;
   DirectoryFilters filters = const DirectoryFilters();
+  List<String> categoryItems = const [];
   @override
   void initState() {
     super.initState();
     searchController.text = widget.initialQuery ?? '';
     providersFuture = _fetchProviders();
+    api
+        .fetchCategories()
+        .then((categories) {
+          if (mounted) {
+            setState(
+              () => categoryItems = categories.map((c) => c.name).toList(),
+            );
+          }
+        })
+        .catchError((_) {});
   }
 
   @override
@@ -2563,7 +2581,6 @@ class _DirectoryPageState extends State<DirectoryPage> {
   @override
   Widget build(BuildContext context) => BasePage(
     title: '',
-    showBackButton: true,
     onRefresh: _reload,
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2574,26 +2591,32 @@ class _DirectoryPageState extends State<DirectoryPage> {
         ),
         const SizedBox(height: 10),
         CategoryRail(
-          items: [
-            'خدمات طبية',
-            'مطاعم وكافيهات',
-            'صيانة وفنيين',
-            'سوبر ماركت',
-            'تعليم ودروس',
-            'ترفيه',
-          ],
+          items: categoryItems,
           onSelected: (value) {
             searchController.text = value;
             _search(value);
           },
         ),
         const SizedBox(height: 16),
-        TextField(
-          controller: searchController,
-          onChanged: _search,
-          decoration: InputDecoration(
-            prefixIcon: Icon(Icons.search, color: teal),
-            hintText: 'اكتب اسم الخدمة أو المكان',
+        ValueListenableBuilder<TextEditingValue>(
+          valueListenable: searchController,
+          builder: (context, value, _) => TextField(
+            controller: searchController,
+            onChanged: _search,
+            decoration: InputDecoration(
+              prefixIcon: Icon(Icons.search, color: teal),
+              hintText: 'اكتب اسم الخدمة أو المكان',
+              suffixIcon: value.text.isEmpty
+                  ? null
+                  : IconButton(
+                      icon: Icon(Icons.close, color: muted),
+                      tooltip: 'مسح البحث',
+                      onPressed: () {
+                        searchController.clear();
+                        _search('');
+                      },
+                    ),
+            ),
           ),
         ),
         const SizedBox(height: 10),
@@ -2616,7 +2639,7 @@ class _DirectoryPageState extends State<DirectoryPage> {
           future: providersFuture,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Padding(
+              return Padding(
                 padding: EdgeInsets.all(28),
                 child: Center(child: CircularProgressIndicator(color: teal)),
               );
@@ -2752,7 +2775,7 @@ class _FilterSheetState extends State<_FilterSheet> {
             const SizedBox(height: 18),
             Row(
               children: [
-                const Expanded(
+                Expanded(
                   child: Text(
                     'فلترة النتائج',
                     style: TextStyle(
@@ -2769,7 +2792,7 @@ class _FilterSheetState extends State<_FilterSheet> {
               ],
             ),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               'الترتيب',
               style: TextStyle(color: deepTeal, fontWeight: FontWeight.w700),
             ),
@@ -3266,7 +3289,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
             padding: const EdgeInsets.fromLTRB(18, 8, 18, 90),
             children: [
               if (snapshot.connectionState == ConnectionState.waiting)
-                const LinearProgressIndicator(color: teal),
+                LinearProgressIndicator(color: teal),
               MediaGallery(
                 imageCount: imageUrls.isEmpty ? 1 : imageUrls.length,
                 imageUrls: imageUrls,
@@ -3298,7 +3321,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                           children: [
                             Text(
                               data?.name ?? widget.title,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 color: deepTeal,
                                 fontSize: 20,
                                 fontWeight: FontWeight.w700,
@@ -3321,7 +3344,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                                 ),
                                 const SizedBox(width: 10),
                                 if (data?.isVerified == true)
-                                  const Text(
+                                  Text(
                                     'موثق',
                                     style: TextStyle(
                                       color: teal,
@@ -3596,7 +3619,7 @@ class CommentBubble extends StatelessWidget {
                 backgroundColor: const Color(0xFFD8EFEC),
                 child: Text(
                   initial,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: deepTeal,
                     fontWeight: FontWeight.w700,
                   ),
@@ -3623,7 +3646,7 @@ class CommentBubble extends StatelessWidget {
                                 ),
                           child: Text(
                             name,
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: deepTeal,
                               fontWeight: FontWeight.w700,
                             ),
@@ -3643,12 +3666,12 @@ class CommentBubble extends StatelessWidget {
                     children: [
                       Text(
                         '$rating',
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: teal,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
-                      const Icon(Icons.star, color: gold, size: 15),
+                      Icon(Icons.star, color: gold, size: 15),
                       const SizedBox(width: 12),
                       TextButton(
                         onPressed: onHelpful,
@@ -3738,7 +3761,7 @@ class CommentReply extends StatelessWidget {
             backgroundColor: const Color(0xFFE8F5F2),
             child: Text(
               initial,
-              style: const TextStyle(
+              style: TextStyle(
                 color: deepTeal,
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
@@ -3756,7 +3779,7 @@ class CommentReply extends StatelessWidget {
                   Expanded(
                     child: Text(
                       name,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: deepTeal,
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
@@ -3844,7 +3867,7 @@ class _ReviewPageState extends State<ReviewPage> {
         children: [
           Text(
             'قيّم ${widget.providerName}',
-            style: const TextStyle(
+            style: TextStyle(
               color: deepTeal,
               fontSize: 21,
               fontWeight: FontWeight.w700,
@@ -3966,7 +3989,7 @@ class _ScorePicker extends StatelessWidget {
           width: 82,
           child: Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               fontWeight: FontWeight.w700,
               color: deepTeal,
             ),
@@ -4029,7 +4052,6 @@ class _PricesPageState extends State<PricesPage> {
   @override
   Widget build(BuildContext context) => BasePage(
     title: 'بكام؟',
-    showBackButton: true,
     onRefresh: _reload,
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -4074,7 +4096,7 @@ class _PricesPageState extends State<PricesPage> {
                   future: offersFuture,
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(
+                      return Center(
                         child: CircularProgressIndicator(color: teal),
                       );
                     }
@@ -4198,7 +4220,6 @@ class _NowPageState extends State<NowPage> {
   @override
   Widget build(BuildContext context) => BasePage(
     title: 'دلوقتي',
-    showBackButton: true,
     onRefresh: _load,
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -4249,7 +4270,7 @@ class _NowPageState extends State<NowPage> {
 
   List<Widget> _items() {
     if (loading) {
-      return const [
+      return [
         Padding(
           padding: EdgeInsets.all(24),
           child: Center(child: CircularProgressIndicator(color: teal)),
@@ -4338,7 +4359,7 @@ class _LivePulseState extends State<LivePulse>
               child: Container(
                 width: 6,
                 height: 6,
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   color: teal,
                   shape: BoxShape.circle,
                 ),
@@ -4346,7 +4367,7 @@ class _LivePulseState extends State<LivePulse>
             ),
           ),
           const SizedBox(width: 5),
-          const Text(
+          Text(
             'مباشر',
             style: TextStyle(
               color: deepTeal,
@@ -4472,7 +4493,6 @@ class _ListingsPageState extends State<ListingsPage> {
   @override
   Widget build(BuildContext context) => BasePage(
     title: 'عندك؟',
-    showBackButton: true,
     onRefresh: _reload,
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -4482,13 +4502,26 @@ class _ListingsPageState extends State<ListingsPage> {
           style: TextStyle(color: muted),
         ),
         const SizedBox(height: 14),
-        TextField(
-          controller: search,
-          onChanged: _search,
-          textInputAction: TextInputAction.search,
-          decoration: const InputDecoration(
-            prefixIcon: Icon(Icons.search, color: teal),
-            hintText: 'ابحث في الإعلانات',
+        ValueListenableBuilder<TextEditingValue>(
+          valueListenable: search,
+          builder: (context, value, _) => TextField(
+            controller: search,
+            onChanged: _search,
+            textInputAction: TextInputAction.search,
+            decoration: InputDecoration(
+              prefixIcon: Icon(Icons.search, color: teal),
+              hintText: 'ابحث في الإعلانات',
+              suffixIcon: value.text.isEmpty
+                  ? null
+                  : IconButton(
+                      icon: Icon(Icons.close, color: muted),
+                      tooltip: 'مسح البحث',
+                      onPressed: () {
+                        search.clear();
+                        _search('');
+                      },
+                    ),
+            ),
           ),
         ),
         const SizedBox(height: 10),
@@ -4525,7 +4558,7 @@ class _ListingsPageState extends State<ListingsPage> {
           future: listings,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Padding(
+              return Padding(
                 padding: EdgeInsets.all(28),
                 child: Center(child: CircularProgressIndicator(color: teal)),
               );
@@ -4780,7 +4813,7 @@ class _ListingDetailPageState extends State<ListingDetailPage> {
         child: ListView(
           shrinkWrap: true,
           children: [
-            const ListTile(
+            ListTile(
               title: Text(
                 'سبب الإبلاغ',
                 style: TextStyle(color: deepTeal, fontWeight: FontWeight.w700),
@@ -4794,7 +4827,7 @@ class _ListingDetailPageState extends State<ListingDetailPage> {
             ])
               ListTile(
                 title: Text(item),
-                leading: const Icon(Icons.flag_outlined, color: teal),
+                leading: Icon(Icons.flag_outlined, color: teal),
                 onTap: () => Navigator.pop(context, item),
               ),
           ],
@@ -4832,7 +4865,7 @@ class _ListingDetailPageState extends State<ListingDetailPage> {
         future: listing,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator(color: teal));
+            return Center(child: CircularProgressIndicator(color: teal));
           }
           if (snapshot.hasError || !snapshot.hasData) {
             return _StateMessage(
@@ -4870,14 +4903,14 @@ class _ListingDetailPageState extends State<ListingDetailPage> {
                   Expanded(
                     child: Text(
                       title,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: deepTeal,
                         fontSize: 21,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
                   ),
-                  const Chip(
+                  Chip(
                     label: Text('مراجع'),
                     avatar: Icon(
                       Icons.verified_outlined,
@@ -5132,7 +5165,7 @@ class _CreateListingPageState extends State<CreateListingPage> {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text(
+          Text(
             'بيانات الإعلان',
             style: TextStyle(
               color: deepTeal,
@@ -5146,7 +5179,7 @@ class _CreateListingPageState extends State<CreateListingPage> {
             style: TextStyle(color: muted),
           ),
           const SizedBox(height: 18),
-          const Text(
+          Text(
             'القسم',
             style: TextStyle(color: deepTeal, fontWeight: FontWeight.w700),
           ),
@@ -5169,7 +5202,7 @@ class _CreateListingPageState extends State<CreateListingPage> {
             future: areas,
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
-                return const LinearProgressIndicator(color: teal);
+                return LinearProgressIndicator(color: teal);
               }
               if (snapshot.hasError) {
                 return const Text(
@@ -5216,7 +5249,7 @@ class _CreateListingPageState extends State<CreateListingPage> {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text(
+          Text(
             'صور ووصف',
             style: TextStyle(
               color: deepTeal,
@@ -5268,7 +5301,7 @@ class _CreateListingPageState extends State<CreateListingPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Text(
+        Text(
           'المراجعة والإرسال',
           style: TextStyle(
             color: deepTeal,
@@ -5402,7 +5435,7 @@ class _MediaGalleryState extends State<MediaGallery>
                       ),
                       child: Text(
                         '${index + 1} / ${widget.imageCount}',
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: deepTeal,
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
@@ -5431,7 +5464,7 @@ class _MediaGalleryState extends State<MediaGallery>
                 height: 6,
                 margin: const EdgeInsets.symmetric(horizontal: 3),
                 decoration: BoxDecoration(
-                  color: i == active ? teal : const Color(0xFFD6E3E0),
+                  color: i == active ? teal : Color(0xFFD6E3E0),
                   borderRadius: BorderRadius.circular(8),
                 ),
               ),
@@ -5455,7 +5488,7 @@ class _MediaGalleryState extends State<MediaGallery>
                     ? Transform.translate(
                         key: const ValueKey('swipe-hint'),
                         offset: Offset(-4 * hintController.value, 0),
-                        child: const Icon(Icons.swipe, color: teal, size: 17),
+                        child: Icon(Icons.swipe, color: teal, size: 17),
                       )
                     : const SizedBox.shrink(key: ValueKey('swipe-hidden')),
               ),
@@ -5499,7 +5532,7 @@ class _AccountPageState extends State<AccountPage> {
         future: ApiClient().fetchMe(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator(color: teal));
+            return Center(child: CircularProgressIndicator(color: teal));
           }
           if (snapshot.hasError || !AuthSession.isSignedIn) {
             return _StateMessage(
@@ -5735,7 +5768,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                               ))
                       : FileImage(File(avatar!.path)) as ImageProvider,
                   child: avatar == null && widget.profile?['avatarUrl'] == null
-                      ? const Icon(
+                      ? Icon(
                           Icons.person_outline,
                           color: deepTeal,
                           size: 42,
@@ -5801,7 +5834,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
         future: favorites,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator(color: teal));
+            return Center(child: CircularProgressIndicator(color: teal));
           }
           if (snapshot.hasError) {
             return _StateMessage(
@@ -5968,9 +6001,12 @@ class _MyListingsPageState extends State<MyListingsPage> {
         future: contributions,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator(color: teal));
+            return Center(child: CircularProgressIndicator(color: teal));
           }
-          final items = snapshot.data?['listings'] as List<dynamic>? ?? [];
+          final items =
+              (snapshot.data?['listings'] as Map<String, dynamic>?)?['data']
+                  as List<dynamic>? ??
+              [];
           if (snapshot.hasError || items.isEmpty) {
             return const _StateMessage(
               icon: Icons.campaign_outlined,
@@ -6182,7 +6218,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
         future: notifications,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator(color: teal));
+            return Center(child: CircularProgressIndicator(color: teal));
           }
           final items = snapshot.data ?? const <Map<String, dynamic>>[];
           if (items.isEmpty) {
@@ -6209,7 +6245,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
             child: ListView(
               padding: const EdgeInsets.all(18),
               children: [
-                const Text(
+                Text(
                   'الإشعارات',
                   style: TextStyle(
                     color: deepTeal,
@@ -6283,7 +6319,7 @@ class _NotificationCard extends StatelessWidget {
               curve: Curves.easeOutBack,
               builder: (_, value, child) =>
                   Transform.scale(scale: value, child: child),
-              child: const Icon(Icons.circle, size: 9, color: teal),
+              child: Icon(Icons.circle, size: 9, color: teal),
             )
           : null,
     ),
@@ -6384,7 +6420,7 @@ class _AddActivityPageState extends State<AddActivityPage> {
 
   Widget _intro() => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: const [
+    children: [
       Text(
         'ساعد أهل قنا يعرفوا نشاطك',
         style: TextStyle(
@@ -6416,7 +6452,7 @@ class _AddActivityPageState extends State<AddActivityPage> {
         future: categories,
         builder: (_, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const LinearProgressIndicator(color: teal);
+            return LinearProgressIndicator(color: teal);
           }
           if (snapshot.hasError) {
             return const Text(
@@ -6460,7 +6496,7 @@ class _AddActivityPageState extends State<AddActivityPage> {
         future: areas,
         builder: (_, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const LinearProgressIndicator(color: teal);
+            return LinearProgressIndicator(color: teal);
           }
           if (snapshot.hasError) {
             return const Text(
@@ -6533,7 +6569,7 @@ class _AddActivityPageState extends State<AddActivityPage> {
       if (mode == 'LOCAL')
         Row(
           children: [
-            const Expanded(
+            Expanded(
               child: Text(
                 'مواعيد العمل',
                 style: TextStyle(color: deepTeal, fontWeight: FontWeight.w700),
@@ -6550,7 +6586,7 @@ class _AddActivityPageState extends State<AddActivityPage> {
           Expanded(
             child: Text(
               'الصور ${selectedImages.isEmpty ? imageCount : selectedImages.length} / 10',
-              style: const TextStyle(
+              style: TextStyle(
                 color: deepTeal,
                 fontWeight: FontWeight.w700,
               ),
@@ -6558,7 +6594,7 @@ class _AddActivityPageState extends State<AddActivityPage> {
           ),
           IconButton(
             onPressed: selectedImages.length >= 10 ? null : _pickImages,
-            icon: const Icon(Icons.add_a_photo_outlined, color: teal),
+            icon: Icon(Icons.add_a_photo_outlined, color: teal),
           ),
         ],
       ),
@@ -6653,7 +6689,7 @@ class _AddActivityPageState extends State<AddActivityPage> {
                 ? Container(
                     height: 130,
                     color: const Color(0xFFD8EFEC),
-                    child: const Icon(
+                    child: Icon(
                       Icons.image_outlined,
                       color: deepTeal,
                       size: 52,
@@ -6668,7 +6704,7 @@ class _AddActivityPageState extends State<AddActivityPage> {
           const SizedBox(height: 14),
           Text(
             name.text,
-            style: const TextStyle(
+            style: TextStyle(
               color: deepTeal,
               fontSize: 20,
               fontWeight: FontWeight.w700,
@@ -6677,7 +6713,7 @@ class _AddActivityPageState extends State<AddActivityPage> {
           const SizedBox(height: 6),
           Text(
             '${mode == 'LOCAL' ? 'محلي' : 'أونلاين'} · ${phoneType == 'BUSINESS' ? 'رقم نشاط' : 'رقم شخصي'}',
-            style: const TextStyle(color: teal),
+            style: TextStyle(color: teal),
           ),
           if (address.text.isNotEmpty)
             Padding(
@@ -6693,7 +6729,7 @@ class _AddActivityPageState extends State<AddActivityPage> {
               ),
             ),
           const SizedBox(height: 12),
-          const Row(
+          Row(
             children: [
               Icon(Icons.hourglass_top_outlined, size: 16, color: gold),
               SizedBox(width: 5),
@@ -6798,7 +6834,7 @@ class _CommunityRequestPageState extends State<CommunityRequestPage> {
             widget.kind == 'CLAIM'
                 ? 'أثبت ملكيتك لنشاط موجود'
                 : 'ساعدنا نراجع بيانات نشاط',
-            style: const TextStyle(
+            style: TextStyle(
               color: deepTeal,
               fontSize: 21,
               fontWeight: FontWeight.w700,
@@ -6973,7 +7009,7 @@ class _SettingsPageState extends State<SettingsPage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text(
+                Text(
                   'اختار حتى 3 مناطق',
                   style: TextStyle(
                     color: deepTeal,
@@ -7017,16 +7053,19 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _pickInterests() async {
-    const options = [
-      'خدمات طبية',
-      'مطاعم وكافيهات',
-      'صيانة وفنيين',
-      'سوبر ماركت',
-      'تعليم ودروس',
-      'ترفيه ومناسبات',
-      'عقارات',
-      'سيارات',
-    ];
+    List<String> options;
+    try {
+      options = (await ApiClient().fetchCategories())
+          .map((item) => item.name)
+          .toList();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('تعذر تحميل الفئات حالياً')));
+      return;
+    }
+    if (!mounted) return;
     final draft = {...selectedInterests};
     final result = await showModalBottomSheet<Set<String>>(
       context: context,
@@ -7040,7 +7079,7 @@ class _SettingsPageState extends State<SettingsPage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text(
+                Text(
                   'اختار حتى 5 اهتمامات',
                   style: TextStyle(
                     color: deepTeal,
@@ -7089,7 +7128,7 @@ class _SettingsPageState extends State<SettingsPage> {
             shrinkWrap: true,
             padding: const EdgeInsets.fromLTRB(18, 12, 18, 24),
             children: [
-              const Text(
+              Text(
                 'السن والنوع (اختياري)',
                 style: TextStyle(color: deepTeal, fontWeight: FontWeight.w700),
               ),
@@ -7480,11 +7519,11 @@ class _SettingsPageState extends State<SettingsPage> {
                   MaterialPageRoute(builder: (_) => const AddActivityPage()),
                 ),
               ),
-              leading: const CircleAvatar(
+              leading: CircleAvatar(
                 backgroundColor: teal,
                 child: Icon(Icons.add_business_outlined, color: Colors.white),
               ),
-              title: const Text(
+              title: Text(
                 'أضف نشاط',
                 style: TextStyle(color: deepTeal, fontWeight: FontWeight.w700),
               ),
@@ -7492,7 +7531,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 'ساعدنا نضيف نشاط موثوق لقنا',
                 style: TextStyle(color: muted),
               ),
-              trailing: const Icon(Icons.chevron_left, color: deepTeal),
+              trailing: Icon(Icons.chevron_left, color: deepTeal),
             ),
           ),
           const SizedBox(height: 18),
@@ -7575,7 +7614,7 @@ class _SettingsPageState extends State<SettingsPage> {
             onTap: _pickTheme,
           ),
           const Divider(height: 26),
-          const Text(
+          Text(
             'الإشعارات',
             style: TextStyle(color: deepTeal, fontWeight: FontWeight.w700),
           ),
@@ -7620,7 +7659,7 @@ class _SettingsPageState extends State<SettingsPage> {
             activeThumbColor: teal,
           ),
           const Divider(height: 26),
-          const Text(
+          Text(
             'الخصوصية',
             style: TextStyle(color: deepTeal, fontWeight: FontWeight.w700),
           ),
@@ -7767,7 +7806,7 @@ class _AdminControlPageState extends State<AdminControlPage> {
           children: [
             Text(
               'مرحباً ${AuthSession.adminName ?? ''}',
-              style: const TextStyle(
+              style: TextStyle(
                 color: deepTeal,
                 fontWeight: FontWeight.w700,
               ),
@@ -7942,7 +7981,7 @@ class _AdminControlPageState extends State<AdminControlPage> {
               },
             ),
             const Divider(height: 30),
-            const Text(
+            Text(
               'تعديل المحتوى المنشور',
               style: TextStyle(
                 color: deepTeal,
@@ -8040,7 +8079,7 @@ class _AdminApprovalTileState extends State<_AdminApprovalTile> {
       ),
       subtitle: Text(widget.subtitle),
       trailing: busy
-          ? const SizedBox.square(
+          ? SizedBox.square(
               dimension: 24,
               child: CircularProgressIndicator(strokeWidth: 2, color: teal),
             )
@@ -8095,13 +8134,13 @@ class _AdminQueue extends StatelessWidget {
       children: [
         Text(
           title,
-          style: const TextStyle(color: deepTeal, fontWeight: FontWeight.w700),
+          style: TextStyle(color: deepTeal, fontWeight: FontWeight.w700),
         ),
         FutureBuilder<List<Map<String, dynamic>>>(
           future: future,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Padding(
+              return Padding(
                 padding: EdgeInsets.all(14),
                 child: LinearProgressIndicator(color: teal),
               );
@@ -8174,7 +8213,7 @@ class _AdminBrowseSection extends StatelessWidget {
           future: future,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return const LinearProgressIndicator(color: teal);
+              return LinearProgressIndicator(color: teal);
             }
             final items = (snapshot.data ?? const <Map<String, dynamic>>[])
                 .where(filter)

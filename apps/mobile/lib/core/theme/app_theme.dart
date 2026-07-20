@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-const teal = Color(0xFF0D8F8A);
-const deepTeal = Color(0xFF085E5A);
-const gold = Color(0xFFE9B44C);
+// Mutable shorthand for the *currently selected* theme's colors. Many widgets
+// across the app reference `teal`/`deepTeal`/`gold` directly instead of
+// threading BuildContext, so AppThemeController keeps these in sync with the
+// active palette on every restore()/select() call.
+Color teal = const Color(0xFF0D8F8A);
+Color deepTeal = const Color(0xFF085E5A);
+Color gold = const Color(0xFFE9B44C);
 const paper = Color(0xFFF7F6F2);
 const ink = Color(0xFF1F2933);
 const muted = Color(0xFF66737A);
@@ -33,9 +37,9 @@ class AppThemeController {
     AppPalette(
       id: 'qena',
       name: 'قنا الأصلية',
-      primary: teal,
-      deep: deepTeal,
-      accent: gold,
+      primary: Color(0xFF0D8F8A),
+      deep: Color(0xFF085E5A),
+      accent: Color(0xFFE9B44C),
       background: paper,
       surfaceTint: Color(0xFFD8EFEC),
     ),
@@ -119,17 +123,26 @@ class AppThemeController {
     orElse: () => palettes.first,
   );
 
+  static void _syncGlobals() {
+    final palette = current;
+    teal = palette.primary;
+    deepTeal = palette.deep;
+    gold = palette.accent;
+  }
+
   static Future<void> restore() async {
     final preferences = await SharedPreferences.getInstance();
     final stored = preferences.getString(_storageKey);
     if (stored != null && palettes.any((item) => item.id == stored)) {
       selectedId.value = stored;
     }
+    _syncGlobals();
   }
 
   static Future<void> select(String id) async {
     if (!palettes.any((item) => item.id == id)) return;
     selectedId.value = id;
+    _syncGlobals();
     final preferences = await SharedPreferences.getInstance();
     await preferences.setString(_storageKey, id);
   }

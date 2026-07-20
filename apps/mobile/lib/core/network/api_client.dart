@@ -123,11 +123,16 @@ class ProviderDetails {
 }
 
 class CategoryOption {
-  const CategoryOption({required this.id, required this.name});
+  const CategoryOption({required this.id, required this.name, this.slug});
   final String id;
   final String name;
+  final String? slug;
   factory CategoryOption.fromJson(Map<String, dynamic> json) =>
-      CategoryOption(id: json['id'] as String, name: json['name'] as String);
+      CategoryOption(
+        id: json['id'] as String,
+        name: json['name'] as String,
+        slug: json['slug'] as String?,
+      );
 }
 
 class AreaOption {
@@ -566,7 +571,8 @@ class ApiClient {
     if (response.statusCode != 200) {
       throw Exception('API error ${response.statusCode}');
     }
-    return (jsonDecode(response.body) as List<dynamic>)
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    return (body['data'] as List<dynamic>)
         .map((item) => CategoryOption.fromJson(item as Map<String, dynamic>))
         .toList();
   }
@@ -578,7 +584,8 @@ class ApiClient {
     if (response.statusCode != 200) {
       throw Exception('API error ${response.statusCode}');
     }
-    return (jsonDecode(response.body) as List<dynamic>)
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    return (body['data'] as List<dynamic>)
         .map((item) => AreaOption.fromJson(item as Map<String, dynamic>))
         .toList();
   }
@@ -835,7 +842,8 @@ class ApiClient {
     );
     final response = await http.get(uri).timeout(const Duration(seconds: 5));
     if (response.statusCode != 200) throw Exception('listings_error');
-    return (jsonDecode(response.body) as List<dynamic>)
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    return (body['data'] as List<dynamic>)
         .map((item) => _normalizeMedia(Map<String, dynamic>.from(item as Map)))
         .toList();
   }
@@ -904,10 +912,12 @@ class ApiClient {
     if (response.statusCode == 401) throw Exception('unauthorized');
     if (response.statusCode != 200) throw Exception('favorites_error');
     final data = Map<String, dynamic>.from(jsonDecode(response.body) as Map);
-    data['providers'] = (data['providers'] as List<dynamic>? ?? [])
+    List<dynamic> section(String key) =>
+        (data[key] as Map<String, dynamic>?)?['data'] as List<dynamic>? ?? [];
+    data['providers'] = section('providers')
         .map((item) => _normalizeMedia(Map<String, dynamic>.from(item as Map)))
         .toList();
-    data['listings'] = (data['listings'] as List<dynamic>? ?? [])
+    data['listings'] = section('listings')
         .map((item) => _normalizeMedia(Map<String, dynamic>.from(item as Map)))
         .toList();
     return data;

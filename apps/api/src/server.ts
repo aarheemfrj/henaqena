@@ -1096,6 +1096,16 @@ app.patch('/api/admin/providers/:id', requireAdmin, async (req, res, next) => {
     res.json(provider);
   } catch (error) { next(error); }
 });
+app.delete('/api/admin/providers/:id', requireAdmin, async (req, res, next) => {
+  try {
+    const provider = await prisma.provider.findUnique({ where: { id: String(req.params.id) } });
+    if (!provider) return res.status(404).json({ message: 'النشاط غير موجود' });
+    await prisma.provider.delete({ where: { id: provider.id } });
+    await audit('provider.deleted', 'provider', provider.id, { name: provider.name });
+    res.json({ deleted: true });
+  } catch (error) { next(error); }
+});
+
 app.patch('/api/admin/providers/:id/content', requireAdmin, async (req, res, next) => {
   try {
     const input = z.object({ name: z.string().trim().min(2).max(120).optional(), description: z.string().trim().max(1000).nullable().optional(), phone: z.union([z.string().regex(/^01[0125][0-9]{8}$/), z.literal('')]).optional(), whatsapp: z.union([z.string().regex(/^01[0125][0-9]{8}$/), z.literal('')]).optional(), address: z.string().trim().max(240).nullable().optional(), openingTime: z.string().regex(/^\d{2}:\d{2}$/).nullable().optional(), closingTime: z.string().regex(/^\d{2}:\d{2}$/).nullable().optional(), isVerified: z.boolean().optional() }).parse(req.body);
