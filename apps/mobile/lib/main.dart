@@ -5,7 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'core/auth/auth_session.dart';
 import 'core/auth/social_auth_service.dart';
 import 'core/platform/app_actions.dart';
@@ -801,8 +804,11 @@ class ContributionsPage extends StatefulWidget {
 class _ContributionsPageState extends State<ContributionsPage> {
   late Future<Map<String, dynamic>> contributions = ApiClient()
       .fetchContributions();
-  Future<void> _reload() async =>
-      setState(() => contributions = ApiClient().fetchContributions());
+  Future<void> _reload() async {
+    setState(() {
+      contributions = ApiClient().fetchContributions();
+    });
+  }
   @override
   Widget build(BuildContext context) => Directionality(
     textDirection: TextDirection.rtl,
@@ -1908,9 +1914,9 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _reload() async {
-    setState(
-      () => featured = ApiClient().fetchProviders(areaId: selectedAreaId),
-    );
+    setState(() {
+      featured = ApiClient().fetchProviders(areaId: selectedAreaId);
+    });
     await featured;
   }
 
@@ -2659,7 +2665,9 @@ class _DirectoryPageState extends State<DirectoryPage> {
     searchDebounce?.cancel();
     searchDebounce = Timer(const Duration(milliseconds: 350), () {
       if (mounted) {
-        setState(() => providersFuture = _fetchProviders(searchQuery: value));
+        setState(() {
+          providersFuture = _fetchProviders(searchQuery: value);
+        });
       }
     });
   }
@@ -2710,7 +2718,9 @@ class _DirectoryPageState extends State<DirectoryPage> {
   Future<void> _openMap() async {
     searchDebounce?.cancel();
     final currentResults = _fetchProviders(searchQuery: searchController.text);
-    setState(() => providersFuture = currentResults);
+    setState(() {
+      providersFuture = currentResults;
+    });
     await Navigator.push(
       context,
       MaterialPageRoute(
@@ -2829,7 +2839,9 @@ class _DirectoryPageState extends State<DirectoryPage> {
   );
 
   Future<void> _reload() async {
-    setState(() => providersFuture = _fetchProviders());
+    setState(() {
+      providersFuture = _fetchProviders();
+    });
     await providersFuture;
   }
 
@@ -2993,6 +3005,246 @@ class _FilterSheetState extends State<_FilterSheet> {
   );
 }
 
+class PickedLocation {
+  const PickedLocation({
+    required this.latitude,
+    required this.longitude,
+    required this.address,
+  });
+  final double latitude;
+  final double longitude;
+  final String address;
+}
+
+class LocationPickerPage extends StatefulWidget {
+  const LocationPickerPage({super.key, this.initialLatitude, this.initialLongitude});
+  final double? initialLatitude;
+  final double? initialLongitude;
+
+  @override
+  State<LocationPickerPage> createState() => _LocationPickerPageState();
+}
+
+class _LocationPickerPageState extends State<LocationPickerPage> {
+  static const _defaultCenter = LatLng(26.1551, 32.7160);
+  GoogleMapController? mapController;
+  LatLng center = _defaultCenter;
+  String address = '';
+  bool resolvingAddress = false;
+  bool searching = false;
+  final searchController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialLatitude != null && widget.initialLongitude != null) {
+      center = LatLng(widget.initialLatitude!, widget.initialLongitude!);
+    }
+    _resolveAddress(center);
+  }
+
+  @override
+  void dispose() {
+    searchController.dispose();
+    mapController?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _resolveAddress(LatLng position) async {
+    setState(() => resolvingAddress = true);
+    try {
+      final placemarks = await placemarkFromCoordinates(
+        position.latitude,
+        position.longitude,
+      );
+      if (!mounted) return;
+      final place = placemarks.isNotEmpty ? placemarks.first : null;
+      setState(() {
+        address = [
+          place?.street,
+          place?.subLocality,
+          place?.locality,
+        ].where((part) => part != null && part.trim().isNotEmpty).join('، ');
+        if (address.isEmpty) address = 'قنا';
+      });
+    } catch (_) {
+      if (mounted) setState(() => address = 'قنا');
+    } finally {
+      if (mounted) setState(() => resolvingAddress = false);
+    }
+  }
+
+  Future<void> _useMyLocation() async {
+    try {
+      final permission = await Geolocator.checkPermission();
+      var granted = permission;
+      if (granted == LocationPermission.denied) {
+        granted = await Geolocator.requestPermission();
+      }
+      if (granted == LocationPermission.denied ||
+          granted == LocationPermission.deniedForever) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('يرجى السماح بالوصول للموقع')),
+          );
+        }
+        return;
+      }
+      final position = await Geolocator.getCurrentPosition();
+      final target = LatLng(position.latitude, position.longitude);
+      if (!mounted) return;
+      setState(() => center = target);
+      mapController?.animateCamera(CameraUpdate.newLatLng(target));
+      await _resolveAddress(target);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تعذر تحديد موقعك الحالي')),
+        );
+      }
+    }
+  }
+
+  Future<void> _search(String query) async {
+    if (query.trim().isEmpty) return;
+    setState(() => searching = true);
+    try {
+      final locations = await locationFromAddress('$query، قنا، مصر');
+      if (!mounted || locations.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('لم يتم العثور على هذا العنوان')),
+          );
+        }
+        return;
+      }
+      final target = LatLng(locations.first.latitude, locations.first.longitude);
+      setState(() => center = target);
+      mapController?.animateCamera(CameraUpdate.newLatLng(target));
+      await _resolveAddress(target);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تعذر البحث عن هذا العنوان')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => searching = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Directionality(
+    textDirection: TextDirection.rtl,
+    child: Scaffold(
+      appBar: AppBar(title: const Text('حدد الموقع على الخريطة')),
+      body: Stack(
+        children: [
+          GoogleMap(
+            initialCameraPosition: CameraPosition(target: center, zoom: 15),
+            onMapCreated: (controller) => mapController = controller,
+            onCameraMove: (position) => center = position.target,
+            onCameraIdle: () => _resolveAddress(center),
+            myLocationButtonEnabled: false,
+            zoomControlsEnabled: false,
+          ),
+          const IgnorePointer(
+            child: Center(
+              child: Padding(
+                padding: EdgeInsets.only(bottom: 40),
+                child: Icon(Icons.location_on, size: 44, color: Colors.redAccent),
+              ),
+            ),
+          ),
+          Positioned(
+            top: 12,
+            left: 16,
+            right: 16,
+            child: Material(
+              elevation: 4,
+              borderRadius: BorderRadius.circular(14),
+              child: TextField(
+                controller: searchController,
+                textInputAction: TextInputAction.search,
+                onSubmitted: _search,
+                decoration: InputDecoration(
+                  hintText: 'ابحث عن عنوان أو منطقة',
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: searching
+                      ? const Padding(
+                          padding: EdgeInsets.all(12),
+                          child: SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        )
+                      : IconButton(
+                          icon: const Icon(Icons.my_location),
+                          tooltip: 'موقعي الحالي',
+                          onPressed: _useMyLocation,
+                        ),
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: 18,
+            left: 16,
+            right: 16,
+            child: Material(
+              elevation: 6,
+              borderRadius: BorderRadius.circular(16),
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.place_outlined, color: teal),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            resolvingAddress ? 'جارٍ تحديد العنوان…' : address,
+                            style: AppTextStyles.bodySmall,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    FilledButton(
+                      onPressed: resolvingAddress
+                          ? null
+                          : () => Navigator.pop(
+                              context,
+                              PickedLocation(
+                                latitude: center.latitude,
+                                longitude: center.longitude,
+                                address: address,
+                              ),
+                            ),
+                      style: FilledButton.styleFrom(backgroundColor: teal),
+                      child: const Text('تأكيد الموقع'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
 class ProviderMapPage extends StatelessWidget {
   const ProviderMapPage({super.key, required this.providersFuture});
 
@@ -3064,8 +3316,6 @@ class ProviderMapPage extends StatelessWidget {
               );
             },
           );
-          const mapsEnabled = bool.fromEnvironment('GOOGLE_MAPS_ENABLED');
-          if (!mapsEnabled) return list;
           final markers = mapped
               .where((item) => item.latitude != null && item.longitude != null)
               .map(
@@ -6559,8 +6809,29 @@ class _AddActivityPageState extends State<AddActivityPage> {
   final selectedImages = <XFile>[];
   bool preview = false;
   bool submitting = false;
+  double? latitude;
+  double? longitude;
   late Future<List<AreaOption>> areas;
   late Future<List<CategoryOption>> categories;
+
+  Future<void> _pickLocation() async {
+    final picked = await Navigator.push<PickedLocation>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => LocationPickerPage(
+          initialLatitude: latitude,
+          initialLongitude: longitude,
+        ),
+      ),
+    );
+    if (picked != null && mounted) {
+      setState(() {
+        latitude = picked.latitude;
+        longitude = picked.longitude;
+        if (address.text.trim().isEmpty) address.text = picked.address;
+      });
+    }
+  }
 
   @override
   void initState() {
@@ -6798,7 +7069,7 @@ class _AddActivityPageState extends State<AddActivityPage> {
         },
       ),
       const SizedBox(height: 12),
-      if (mode == 'LOCAL')
+      if (mode == 'LOCAL') ...[
         TextFormField(
           controller: address,
           decoration: const InputDecoration(labelText: 'العنوان بالتفصيل *'),
@@ -6807,6 +7078,18 @@ class _AddActivityPageState extends State<AddActivityPage> {
               ? 'اكتب العنوان'
               : null,
         ),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed: _pickLocation,
+          icon: Icon(
+            latitude == null ? Icons.map_outlined : Icons.check_circle_outline,
+            color: latitude == null ? null : teal,
+          ),
+          label: Text(
+            latitude == null ? 'حدد الموقع على الخريطة (اختياري)' : 'تم تحديد الموقع على الخريطة',
+          ),
+        ),
+      ],
       if (mode == 'LOCAL') const SizedBox(height: 12),
       TextFormField(
         controller: description,
@@ -7085,6 +7368,8 @@ class _AddActivityPageState extends State<AddActivityPage> {
           'openingTime': opening,
           'closingTime': closing,
           'address': address.text.trim(),
+          if (latitude != null) 'latitude': latitude,
+          if (longitude != null) 'longitude': longitude,
           'images': uploadedImages,
         },
       );
