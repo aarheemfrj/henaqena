@@ -2722,7 +2722,7 @@ class _DirectoryPageState extends State<DirectoryPage> {
   @override
   Widget build(BuildContext context) => BasePage(
     title: '',
-    showBackButton: widget.initialQuery != null,
+    showBackButton: true,
     onRefresh: _reload,
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
