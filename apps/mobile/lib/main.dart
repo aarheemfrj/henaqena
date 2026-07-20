@@ -276,7 +276,7 @@ class WelcomeScreen extends StatelessWidget {
                   ),
                   child: const Text(
                     'ابدأ الآن',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                    style: AppTextStyles.bodyLarge,
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -294,7 +294,7 @@ class WelcomeScreen extends StatelessWidget {
                   ),
                   child: const Text(
                     'تسجيل الدخول',
-                    style: TextStyle(fontSize: 15),
+                    style: AppTextStyles.bodySmall,
                   ),
                 ),
                 TextButton(
@@ -1232,7 +1232,7 @@ class _SetupFlowState extends State<SetupFlow> {
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(
-          title: Text('${step + 1} من 4', style: const TextStyle(fontSize: 14)),
+          title: Text('${step + 1} من 4', style: AppTextStyles.labelMedium),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pushReplacement(
@@ -3970,7 +3970,7 @@ class CommentReply extends StatelessWidget {
                       minimumSize: Size.zero,
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
-                    child: const Text('رد', style: TextStyle(fontSize: 12)),
+                    child: const Text('رد', style: AppTextStyles.labelSmall),
                   ),
                 ],
               ),
