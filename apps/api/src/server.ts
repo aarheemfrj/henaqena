@@ -135,16 +135,17 @@ app.get('/api/users/:id', async (req, res, next) => {
   try {
     const user = await prisma.user.findUnique({
       where: { id: String(req.params.id) },
-      select: { id: true, name: true, avatarUrl: true, points: true, level: true, isProfilePrivate: true, createdAt: true },
+      select: { id: true, name: true, avatarUrl: true, points: true, level: true, isProfilePrivate: true, createdAt: true, role: true },
     });
-    if (!user) return res.status(404).json({ message: 'المستخدم غير موجود' });
-    if (user.isProfilePrivate) return res.json({ ...user, contributions: null });
+    if (!user || user.role === 'SYSTEM') return res.status(404).json({ message: 'المستخدم غير موجود' });
+    const { role, ...publicUser } = user;
+    if (publicUser.isProfilePrivate) return res.json({ ...publicUser, contributions: null });
     const [reviews, listings, providers] = await Promise.all([
       prisma.review.findMany({ where: { authorId: user.id, status: ReviewStatus.APPROVED }, include: { provider: { select: { id: true, name: true } } }, orderBy: { createdAt: 'desc' }, take: 50 }),
       prisma.listing.findMany({ where: { ownerId: user.id, status: ListingStatus.ACTIVE, expiresAt: { gt: new Date() } }, include: { area: true, images: { orderBy: { sortOrder: 'asc' }, take: 1 } }, orderBy: { createdAt: 'desc' }, take: 50 }),
       prisma.provider.findMany({ where: { ownerId: user.id, status: ReviewStatus.APPROVED }, include: { area: true, images: { orderBy: { sortOrder: 'asc' }, take: 1 } }, orderBy: { createdAt: 'desc' }, take: 50 }),
     ]);
-    res.json({ ...user, contributions: { reviews, listings, providers } });
+    res.json({ ...publicUser, contributions: { reviews, listings, providers } });
   } catch (error) { next(error); }
 });
 
