@@ -9,7 +9,7 @@
 	<key>CFBundleDisplayName</key>
 	<string>هنا قنا</string>
 	<key>GOOGLE_MAPS_API_KEY</key>
-	<string>$(GOOGLE_MAPS_API_KEY)</string>
+	<string>AIzaSyDkYzCKncbEOYw7zZ5rMB2K44rpes3qphw</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
