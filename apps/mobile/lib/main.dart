@@ -56,6 +56,54 @@ class AppTextStyles {
   static const labelTiny = TextStyle(fontSize: 12, color: muted);
 }
 
+class FullScreenImageViewer extends StatefulWidget {
+  const FullScreenImageViewer({super.key, required this.imageUrl});
+  final String imageUrl;
+  @override
+  State<FullScreenImageViewer> createState() => _FullScreenImageViewerState();
+}
+
+class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
+  late TransformationController controller;
+  @override
+  void initState() {
+    super.initState();
+    controller = TransformationController();
+  }
+
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    backgroundColor: Colors.black,
+    appBar: AppBar(
+      backgroundColor: Colors.black,
+      elevation: 0,
+      leading: IconButton(
+        icon: const Icon(Icons.close, color: Colors.white),
+        onPressed: Navigator.of(context).pop,
+      ),
+    ),
+    body: Center(
+      child: InteractiveViewer(
+        transformationController: controller,
+        minScale: 0.5,
+        maxScale: 3.0,
+        child: CachedNetworkImage(
+          imageUrl: widget.imageUrl,
+          fit: BoxFit.contain,
+          placeholder: (context, url) => const CircularProgressIndicator(),
+          errorWidget: (context, url, error) => const Icon(Icons.error, color: Colors.white),
+        ),
+      ),
+    ),
+  );
+}
+
 class SocialPlatform {
   const SocialPlatform({
     required this.label,
