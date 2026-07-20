@@ -29,6 +29,20 @@ String _relativeTime(dynamic raw) {
   return '${date.day}/${date.month}/${date.year}';
 }
 
+void showTopToast(BuildContext context, {required String message, bool isError = false}) {
+  final colors = AppThemeController.current;
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(message),
+      backgroundColor: isError ? Colors.redAccent : colors.primary,
+      duration: const Duration(seconds: 3),
+      behavior: SnackBarBehavior.floating,
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      elevation: 6,
+    ),
+  );
+}
+
 class SocialPlatform {
   const SocialPlatform({
     required this.label,
@@ -6877,9 +6891,7 @@ class _AddActivityPageState extends State<AddActivityPage> {
       );
       if (!mounted) return;
       Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تم إرسال النشاط وصوره للمراجعة')),
-      );
+      showTopToast(context, message: 'تم إرسال النشاط وصوره للمراجعة');
     } catch (error) {
       if (!mounted) return;
       if (error.toString().contains('unauthorized')) {
@@ -6888,17 +6900,12 @@ class _AddActivityPageState extends State<AddActivityPage> {
         ).push(MaterialPageRoute(builder: (_) => const AuthPage()));
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            error.toString().contains('duplicate')
-                ? 'النشاط موجود بالفعل أو قيد المراجعة'
-                : error.toString().contains('upload_error')
-                ? 'تعذر رفع الصور، جرّب صوراً أصغر'
-                : 'تعذر إرسال النشاط حالياً',
-          ),
-        ),
-      );
+      final errorMsg = error.toString().contains('duplicate')
+          ? 'النشاط موجود بالفعل أو قيد المراجعة'
+          : error.toString().contains('upload_error')
+          ? 'تعذر رفع الصور، جرّب صوراً أصغر'
+          : 'تعذر إرسال النشاط حالياً';
+      showTopToast(context, message: errorMsg, isError: true);
     } finally {
       if (mounted) setState(() => submitting = false);
     }
@@ -6994,9 +7001,7 @@ class _CommunityRequestPageState extends State<CommunityRequestPage> {
   );
   Future<void> _submit() async {
     if (name.text.trim().length < 2) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('اكتب اسم النشاط')));
+      showTopToast(context, message: 'اكتب اسم النشاط', isError: true);
       return;
     }
     setState(() => submitting = true);
@@ -7011,9 +7016,7 @@ class _CommunityRequestPageState extends State<CommunityRequestPage> {
       );
       if (!mounted) return;
       Navigator.pop(context);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('تم إرسال الطلب للمراجعة')));
+      showTopToast(context, message: 'تم إرسال الطلب للمراجعة');
     } catch (error) {
       if (!mounted) return;
       if (error.toString().contains('unauthorized')) {
@@ -7022,9 +7025,7 @@ class _CommunityRequestPageState extends State<CommunityRequestPage> {
         ).push(MaterialPageRoute(builder: (_) => const AuthPage()));
         return;
       }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('تعذر إرسال الطلب حالياً')));
+      showTopToast(context, message: 'تعذر إرسال الطلب حالياً', isError: true);
     } finally {
       if (mounted) setState(() => submitting = false);
     }
