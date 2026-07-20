@@ -602,7 +602,17 @@ class ApiClient {
     }
   }
 
-  Future<List<CategoryOption>> fetchCategories() async {
+  Future<List<CategoryOption>> fetchCategories({bool skipCache = false}) async {
+    const cacheKey = 'categories';
+    if (!skipCache) {
+      final cached = await _cacheGet(cacheKey);
+      if (cached != null) {
+        return (cached as List<dynamic>)
+            .map((item) => CategoryOption.fromJson(item as Map<String, dynamic>))
+            .toList();
+      }
+    }
+
     final response = await http
         .get(Uri.parse('$baseUrl/api/categories'))
         .timeout(const Duration(seconds: 3));
@@ -610,12 +620,26 @@ class ApiClient {
       throw Exception('API error ${response.statusCode}');
     }
     final body = jsonDecode(response.body) as Map<String, dynamic>;
-    return (body['data'] as List<dynamic>)
+    final data = (body['data'] as List<dynamic>)
+        .map((item) => Map<String, dynamic>.from(item as Map))
+        .toList();
+    await _cacheSet(cacheKey, data);
+    return data
         .map((item) => CategoryOption.fromJson(item as Map<String, dynamic>))
         .toList();
   }
 
-  Future<List<AreaOption>> fetchAreas() async {
+  Future<List<AreaOption>> fetchAreas({bool skipCache = false}) async {
+    const cacheKey = 'areas';
+    if (!skipCache) {
+      final cached = await _cacheGet(cacheKey);
+      if (cached != null) {
+        return (cached as List<dynamic>)
+            .map((item) => AreaOption.fromJson(item as Map<String, dynamic>))
+            .toList();
+      }
+    }
+
     final response = await http
         .get(Uri.parse('$baseUrl/api/areas'))
         .timeout(const Duration(seconds: 3));
@@ -623,7 +647,11 @@ class ApiClient {
       throw Exception('API error ${response.statusCode}');
     }
     final body = jsonDecode(response.body) as Map<String, dynamic>;
-    return (body['data'] as List<dynamic>)
+    final data = (body['data'] as List<dynamic>)
+        .map((item) => Map<String, dynamic>.from(item as Map))
+        .toList();
+    await _cacheSet(cacheKey, data);
+    return data
         .map((item) => AreaOption.fromJson(item as Map<String, dynamic>))
         .toList();
   }
@@ -739,7 +767,18 @@ class ApiClient {
     bool verifiedOnly = false,
     bool openNow = false,
     String sort = 'name',
+    bool skipCache = false,
   }) async {
+    final cacheKey = 'providers_${areaId}_${category}_${searchQuery}_${page}_${verifiedOnly}_${openNow}_${sort}';
+    if (!skipCache) {
+      final cached = await _cacheGet(cacheKey);
+      if (cached != null) {
+        return (cached as List<dynamic>)
+            .map((item) => ProviderSummary.fromJson(item as Map<String, dynamic>, baseUrl))
+            .toList();
+      }
+    }
+
     final params = <String, String>{
       ...?(areaId == null ? null : {'areaId': areaId}),
       ...?(category == null ? null : {'category': category}),
@@ -759,6 +798,7 @@ class ApiClient {
       throw Exception('API error ${response.statusCode}');
     }
     final data = jsonDecode(response.body) as List<dynamic>;
+    await _cacheSet(cacheKey, data);
     return data
         .map(
           (item) =>
@@ -870,7 +910,18 @@ class ApiClient {
     String? areaId,
     String? category,
     String? query,
+    bool skipCache = false,
   }) async {
+    final cacheKey = 'listings_${areaId}_${category}_${query}';
+    if (!skipCache) {
+      final cached = await _cacheGet(cacheKey);
+      if (cached != null) {
+        return (cached as List<dynamic>)
+            .map((item) => _normalizeMedia(Map<String, dynamic>.from(item as Map<String, dynamic>)))
+            .toList();
+      }
+    }
+
     final uri = Uri.parse('$baseUrl/api/listings').replace(
       queryParameters: {
         'areaId': ?areaId,
@@ -881,9 +932,11 @@ class ApiClient {
     final response = await http.get(uri).timeout(const Duration(seconds: 5));
     if (response.statusCode != 200) throw Exception('listings_error');
     final body = jsonDecode(response.body) as Map<String, dynamic>;
-    return (body['data'] as List<dynamic>)
+    final data = (body['data'] as List<dynamic>)
         .map((item) => _normalizeMedia(Map<String, dynamic>.from(item as Map)))
         .toList();
+    await _cacheSet(cacheKey, data);
+    return data;
   }
 
   Future<Map<String, dynamic>> fetchListing(String id) async {

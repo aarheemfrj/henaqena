@@ -518,7 +518,7 @@ class _AuthPageState extends State<AuthPage> {
                         if (image != null) setState(() => profileImage = image);
                       },
                 icon: const Icon(Icons.photo_library),
-                label: Text(profileImage == null ? 'أضف صورتك (اختياري)' : 'صورة مختارة ✓'),
+                label: const Text('أضف صورتك (اختياري)'),
               ),
             ],
             const SizedBox(height: 22),
