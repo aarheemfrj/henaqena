@@ -78,6 +78,55 @@ app.get('/ready', async (_req, res) => {
   try { await prisma.$queryRaw`SELECT 1`; res.json({ ok: true, database: 'ready' }); } catch { res.status(503).json({ ok: false, database: 'unavailable' }); }
 });
 
+app.post('/dev/seed-ads', async (_req, res, next) => {
+  if (process.env.NODE_ENV === 'production') return res.status(403).json({ message: 'forbidden' });
+  try {
+    const areas = await prisma.area.findMany({ take: 2 });
+    const now = new Date();
+    const ads = await Promise.all([
+      prisma.ad.create({
+        data: {
+          name: 'عرض خاص على خدمات التنظيف',
+          imageUrl: '/uploads/ads/cleaning-promo.jpg',
+          description: 'احصل على 30% خصم على خدمات التنظيف المنزلي',
+          targetUrl: 'https://example.com',
+          weight: 100,
+          status: ReviewStatus.APPROVED,
+          startsAt: new Date(now.getTime() - 24 * 60 * 60 * 1000),
+          endsAt: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000),
+          areaId: areas[0]?.id ?? null,
+        },
+      }),
+      prisma.ad.create({
+        data: {
+          name: 'إطلاق خدمة التوصيل الجديدة',
+          imageUrl: '/uploads/ads/delivery-launch.jpg',
+          description: 'خدمة توصيل سريعة وآمنة لكل احتياجاتك',
+          targetUrl: 'https://example.com',
+          weight: 90,
+          status: ReviewStatus.APPROVED,
+          startsAt: new Date(now.getTime() - 12 * 60 * 60 * 1000),
+          endsAt: new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000),
+          areaId: areas[1]?.id ?? null,
+        },
+      }),
+      prisma.ad.create({
+        data: {
+          name: 'حملة صيفية للخدمات المختلفة',
+          imageUrl: '/uploads/ads/summer-campaign.jpg',
+          description: 'عروض صيفية رائعة على جميع الخدمات',
+          weight: 80,
+          status: ReviewStatus.APPROVED,
+          startsAt: new Date(now.getTime() - 6 * 60 * 60 * 1000),
+          endsAt: new Date(now.getTime() + 21 * 24 * 60 * 60 * 1000),
+          areaId: null,
+        },
+      }),
+    ]);
+    res.json({ message: 'تم إنشاء 3 إعلانات تجريبية', ads });
+  } catch (error) { next(error); }
+});
+
 app.get('/api/me', async (req, res, next) => {
   try { const session = await sessionFromRequest(req); if (!session) return res.status(401).json({ message: 'غير مسجل الدخول' }); const { passwordHash, ...user } = session.user; res.json(user); } catch (error) { next(error); }
 });
