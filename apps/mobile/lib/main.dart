@@ -3458,11 +3458,16 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                                 ),
                                 const SizedBox(width: 10),
                                 if (data?.isVerified == true)
-                                  Text(
-                                    'موثق',
-                                    style: TextStyle(
+                                  Container(
+                                    padding: const EdgeInsets.all(3),
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
                                       color: teal,
-                                      fontWeight: FontWeight.w700,
+                                    ),
+                                    child: const Icon(
+                                      Icons.check,
+                                      size: 14,
+                                      color: Colors.white,
                                     ),
                                   )
                                 else if (data != null)
