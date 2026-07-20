@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../auth/auth_session.dart';
 
@@ -165,6 +166,37 @@ class ApiClient {
             defaultValue: 'https://henaqena.maalsoft.com',
           );
   final String baseUrl;
+
+  Future<void> _cacheSet(String key, List<dynamic> data) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('cache_$key', jsonEncode(data));
+    } catch (e) {
+      // Cache failure is non-fatal
+    }
+  }
+
+  Future<List<dynamic>?> _cacheGet(String key) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cached = prefs.getString('cache_$key');
+      return cached != null ? jsonDecode(cached) as List<dynamic> : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  Future<void> clearCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final keys = prefs.getKeys();
+      for (final key in keys) {
+        if (key.startsWith('cache_')) await prefs.remove(key);
+      }
+    } catch (e) {
+      // Ignore cache clear errors
+    }
+  }
 
   Future<List<Map<String, dynamic>>> fetchAds({String? areaId}) async {
     final uri = Uri.parse(
