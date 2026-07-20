@@ -36,7 +36,7 @@ class SocialPlatform {
     required this.color,
   });
   final String label;
-  final IconData icon;
+  final FaIconData icon;
   final Color color;
 
   static const _platforms = <String, SocialPlatform>{
@@ -2618,6 +2618,7 @@ class _DirectoryPageState extends State<DirectoryPage> {
   @override
   Widget build(BuildContext context) => BasePage(
     title: '',
+    showBackButton: widget.initialQuery != null,
     onRefresh: _reload,
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
