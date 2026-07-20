@@ -19,7 +19,7 @@ export type Paginated<T> = { data: T[]; total: number; limit: number; offset: nu
 
 const apiBaseUrl = process.env.API_INTERNAL_BASE_URL ?? process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://127.0.0.1:4000';
 
-export async function apiGet<T>(path: string, options?: { admin?: boolean; user?: boolean; cache?: 'force-cache' | 'no-store'; revalidate?: number }): Promise<T> {
+export async function apiGet<T>(path: string, options?: { admin?: boolean; user?: boolean; optionalUser?: boolean; cache?: 'force-cache' | 'no-store'; revalidate?: number }): Promise<T> {
   const headers = new Headers();
   if (options?.admin) {
     const token = await getAdminApiToken();
@@ -30,6 +30,10 @@ export async function apiGet<T>(path: string, options?: { admin?: boolean; user?
     const token = await getUserApiToken();
     if (!token) throw new Error('User session is required');
     headers.set('authorization', `Bearer ${token}`);
+  }
+  if (options?.optionalUser) {
+    const token = await getUserApiToken();
+    if (token) headers.set('authorization', `Bearer ${token}`);
   }
   const cacheStrategy = options?.cache ?? 'no-store';
   const fetchOptions: RequestInit & { next?: { revalidate: number } } = { headers, cache: cacheStrategy };
@@ -50,6 +54,22 @@ export async function userPost<T>(path: string, body: Record<string, unknown>): 
 export async function apiPatch<T>(path: string, body: Record<string, unknown>): Promise<T> {
   const token = await getAdminApiToken();
   if (!token) throw new Error('Admin session is required');
+  const response = await fetch(`${apiBaseUrl}${path}`, { method: 'PATCH', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify(body), cache: 'no-store' });
+  if (!response.ok) throw new Error(`API request failed: ${response.status} ${await response.text()}`);
+  return response.json() as Promise<T>;
+}
+
+export async function apiDelete<T>(path: string, body?: Record<string, unknown>): Promise<T> {
+  const token = await getAdminApiToken();
+  if (!token) throw new Error('Admin session is required');
+  const response = await fetch(`${apiBaseUrl}${path}`, { method: 'DELETE', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: body ? JSON.stringify(body) : undefined, cache: 'no-store' });
+  if (!response.ok) throw new Error(`API request failed: ${response.status} ${await response.text()}`);
+  return response.json() as Promise<T>;
+}
+
+export async function userPatch<T>(path: string, body: Record<string, unknown>): Promise<T> {
+  const token = await getUserApiToken();
+  if (!token) throw new Error('User session is required');
   const response = await fetch(`${apiBaseUrl}${path}`, { method: 'PATCH', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify(body), cache: 'no-store' });
   if (!response.ok) throw new Error(`API request failed: ${response.status} ${await response.text()}`);
   return response.json() as Promise<T>;

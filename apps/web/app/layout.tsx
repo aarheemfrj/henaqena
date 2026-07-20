@@ -4,9 +4,10 @@ import '@fontsource/cairo/700.css';
 import './globals.css';
 import type { Metadata } from 'next';
 import { PlatformShell } from '@/components/platform-shell';
+import { DesktopMotionLayer } from '@/components/desktop-motion-layer';
 
 export const metadata: Metadata = { title: 'هنا قنا', description: 'كل ما تحتاجه.. قريب منك' };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="ar" dir="rtl" data-scroll-behavior="smooth" suppressHydrationWarning><body><PlatformShell>{children}</PlatformShell></body></html>;
+  return <html lang="ar" dir="rtl" data-scroll-behavior="smooth" suppressHydrationWarning><body><DesktopMotionLayer /><PlatformShell>{children}</PlatformShell></body></html>;
 }

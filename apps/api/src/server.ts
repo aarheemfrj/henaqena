@@ -371,7 +371,8 @@ const uploadedImageSchema = z.object({
 app.post('/api/uploads/provider-images', async (req, res, next) => {
   try {
     const session = await sessionFromRequest(req);
-    if (!session) return res.status(401).json({ message: 'سجّل الدخول أولاً لرفع الصور' });
+    const admin = session ? null : await adminSessionFromRequest(req);
+    if (!session && !admin) return res.status(401).json({ message: 'سجّل الدخول أولاً لرفع الصور' });
     const input = z.object({ images: z.array(uploadedImageSchema).min(1).max(10) }).parse(req.body);
     const folder = path.join(uploadRoot, 'providers');
     await mkdir(folder, { recursive: true });
@@ -552,6 +553,13 @@ app.get('/api/listings', async (req, res, next) => {
   }
 });
 
+app.get('/api/listings/categories', async (req, res, next) => {
+  try {
+    const rows = await prisma.listing.findMany({ select: { category: true }, distinct: ['category'], orderBy: { category: 'asc' } });
+    res.json({ data: rows.map((row) => row.category) });
+  } catch (error) { next(error); }
+});
+
 app.get('/api/listings/:id', async (req, res, next) => {
   try {
     const session = await sessionFromRequest(req);
@@ -692,7 +700,7 @@ app.post('/api/jobs/expire-listings', requireAdmin, async (_req, res, next) => {
   try { const result = await prisma.listing.updateMany({ where: { status: ListingStatus.ACTIVE, expiresAt: { lt: new Date() } }, data: { status: ListingStatus.EXPIRED } }); res.json({ expired: result.count }); } catch (error) { next(error); }
 });
 
-const listingCreateSchema = z.object({ title: z.string().trim().min(3).max(120), description: z.string().trim().max(1200).optional(), category: z.enum(['للبيع', 'للإيجار', 'وظائف', 'سيارات', 'عقارات']), price: z.number().positive().max(999999999), areaId: z.string().min(1), images: z.array(z.string().url()).min(1).max(5) });
+const listingCreateSchema = z.object({ title: z.string().trim().min(3).max(120), description: z.string().trim().max(1200).optional(), category: z.string().trim().min(1).max(60), price: z.number().positive().max(999999999), areaId: z.string().min(1), images: z.array(z.string().url()).min(1).max(5) });
 app.post('/api/listings', async (req, res, next) => {
   try {
     const session = await sessionFromRequest(req);
@@ -812,7 +820,15 @@ app.post('/api/reviews', async (req, res, next) => {
     const input = reviewSchema.parse(req.body);
     const existing = await prisma.review.findFirst({ where: { providerId: input.providerId, authorId: session.userId } });
     if (existing) return res.status(409).json({ message: 'سبق لك تقييم هذا المكان' });
-    const review = await prisma.review.create({ data: { ...input, authorId: session.userId, status: ReviewStatus.PENDING } });
+    const review = await prisma.$transaction(async (tx) => {
+      const created = await tx.review.create({ data: { ...input, authorId: session.userId, status: ReviewStatus.APPROVED, pointsAwarded: true } });
+      const author = await tx.user.findUniqueOrThrow({ where: { id: session.userId }, select: { points: true } });
+      const points = author.points + 1;
+      const level = points >= 100 ? 'QENAWY_ASIL' : points >= 50 ? 'QENAWY_RAYEQ' : 'QENAWY';
+      await tx.user.update({ where: { id: session.userId }, data: { points, level } });
+      return created;
+    });
+    await audit('review.created', 'review', review.id, { providerId: input.providerId });
     res.status(201).json(review);
   } catch (error) {
     next(error);
@@ -959,6 +975,71 @@ app.get('/api/admin/providers', requireAdmin, async (_req, res, next) => {
   } catch (error) { next(error); }
 });
 
+const resolveAreaId = async (areaId?: string, newAreaName?: string) => {
+  if (areaId) return areaId;
+  const name = (newAreaName ?? '').trim();
+  if (!name) throw new Error('اختر منطقة موجودة أو اكتب اسم منطقة جديدة');
+  const existing = await prisma.area.findFirst({ where: { name } });
+  if (existing) return existing.id;
+  const created = await prisma.area.create({ data: { name, city: 'قنا' } });
+  return created.id;
+};
+
+const resolveCategoryId = async (categoryId?: string, newCategoryName?: string) => {
+  if (categoryId) return categoryId;
+  const name = (newCategoryName ?? '').trim();
+  if (!name) throw new Error('اختر فئة موجودة أو اكتب اسم فئة جديدة');
+  const slugBase = name.toLowerCase().replace(/[^a-z0-9؀-ۿ]+/g, '-').replace(/^-+|-+$/g, '') || 'category';
+  const existing = await prisma.category.findFirst({ where: { OR: [{ name }, { slug: slugBase }] } });
+  if (existing) return existing.id;
+  const created = await prisma.category.create({ data: { name, slug: `${slugBase}-${randomBytes(3).toString('hex')}` } });
+  return created.id;
+};
+
+const systemListingOwner = async () => {
+  const email = 'system-admin@henaqena.internal';
+  const existing = await prisma.user.findUnique({ where: { email } });
+  if (existing) return existing.id;
+  const created = await prisma.user.create({ data: { name: 'إدارة هنا قنا', email, role: 'SYSTEM' } });
+  return created.id;
+};
+
+const adminProviderCreateSchema = z.object({
+  name: z.string().trim().min(2).max(120),
+  description: z.string().trim().max(1000).optional(),
+  phone: z.string().regex(/^01[0125][0-9]{8}$/).optional(),
+  whatsapp: z.string().regex(/^01[0125][0-9]{8}$/).optional(),
+  phoneType: z.enum(['BUSINESS', 'PERSONAL']).default('BUSINESS'),
+  address: z.string().trim().max(240).optional(),
+  areaId: z.string().min(1).optional(),
+  newAreaName: z.string().trim().max(120).optional(),
+  serviceMode: z.enum(['LOCAL', 'ONLINE']).default('LOCAL'),
+  openingTime: z.string().max(10).optional(),
+  closingTime: z.string().max(10).optional(),
+  categoryId: z.string().min(1).optional(),
+  newCategoryName: z.string().trim().max(120).optional(),
+  isVerified: z.coerce.boolean().default(true),
+  images: z.array(z.object({ url: z.string().url(), kind: z.string().max(30).optional() })).min(1).max(10),
+});
+app.post('/api/admin/providers', requireAdmin, async (req, res, next) => {
+  try {
+    const input = adminProviderCreateSchema.parse(req.body);
+    const areaId = await resolveAreaId(input.areaId, input.newAreaName);
+    const categoryId = await resolveCategoryId(input.categoryId, input.newCategoryName);
+    const provider = await prisma.provider.create({
+      data: {
+        name: input.name, description: input.description, phone: input.phone, whatsapp: input.whatsapp, phoneType: input.phoneType, address: input.address, areaId, serviceMode: input.serviceMode, openingTime: input.openingTime, closingTime: input.closingTime,
+        communityAdded: false, submissionKind: 'ADMIN', status: ReviewStatus.APPROVED, isVerified: input.isVerified,
+        images: { create: input.images.map((image, index) => ({ url: image.url, kind: image.kind ?? 'work', sortOrder: index })) },
+        categories: { create: [{ categoryId }] },
+      },
+      include: { area: true, images: true, categories: { include: { category: true } } },
+    });
+    await audit('provider.admin_create', 'provider', provider.id, { name: provider.name });
+    res.status(201).json(provider);
+  } catch (error) { next(error); }
+});
+
 app.get('/api/admin/provider-reports', requireAdmin, async (_req, res, next) => {
   try { res.json(await prisma.providerReport.findMany({ include: { provider: true, reporter: true }, orderBy: { createdAt: 'desc' }, take: 100 })); } catch (error) { next(error); }
 });
@@ -970,6 +1051,30 @@ app.get('/api/admin/listings', requireAdmin, async (_req, res, next) => {
   try {
     const listings = await prisma.listing.findMany({ include: { area: true, owner: true, images: true }, orderBy: { createdAt: 'desc' }, take: 100 });
     res.json(listings);
+  } catch (error) { next(error); }
+});
+
+const adminListingCreateSchema = z.object({
+  title: z.string().trim().min(3).max(120),
+  description: z.string().trim().max(1200).optional(),
+  category: z.string().trim().min(1).max(60),
+  price: z.coerce.number().positive().max(999999999),
+  areaId: z.string().min(1).optional(),
+  newAreaName: z.string().trim().max(120).optional(),
+  expiresInDays: z.coerce.number().int().min(1).max(365).default(90),
+  images: z.array(z.string().url()).min(1).max(5),
+});
+app.post('/api/admin/listings', requireAdmin, async (req, res, next) => {
+  try {
+    const input = adminListingCreateSchema.parse(req.body);
+    const areaId = await resolveAreaId(input.areaId, input.newAreaName);
+    const ownerId = await systemListingOwner();
+    const listing = await prisma.listing.create({
+      data: { title: input.title, description: input.description, category: input.category, price: input.price, ownerId, areaId, status: ListingStatus.ACTIVE, expiresAt: new Date(Date.now() + input.expiresInDays * 24 * 60 * 60 * 1000), images: { create: input.images.map((url, index) => ({ url, sortOrder: index })) } },
+      include: { area: true, images: true, owner: true },
+    });
+    await audit('listing.admin_create', 'listing', listing.id, { title: listing.title });
+    res.status(201).json(listing);
   } catch (error) { next(error); }
 });
 
@@ -1017,6 +1122,20 @@ app.patch('/api/admin/reviews/:id', requireAdmin, async (req, res, next) => {
     await prisma.notification.create({ data: { userId: review.authorId, title: status === ReviewStatus.APPROVED ? 'تم اعتماد تقييمك' : 'لم يتم اعتماد تقييمك', body: status === ReviewStatus.APPROVED ? 'شكراً لمساهمتك في تحسين هنا قنا.' : `سبب الرفض: ${note ?? 'يرجى مراجعة محتوى التقييم.'}` } });
     await audit(`review.${status.toLowerCase()}`, 'review', review.id, { status, note });
     res.json(review);
+  } catch (error) { next(error); }
+});
+
+app.delete('/api/admin/reviews/:id', requireAdmin, async (req, res, next) => {
+  try {
+    const input = z.object({ reason: z.string().trim().max(500).optional(), notify: z.coerce.boolean().default(false) }).parse(req.body ?? {});
+    const review = await prisma.review.findUnique({ where: { id: String(req.params.id) } });
+    if (!review) return res.status(404).json({ message: 'التقييم غير موجود' });
+    await prisma.review.delete({ where: { id: review.id } });
+    if (input.notify) {
+      await prisma.notification.create({ data: { userId: review.authorId, title: 'تم حذف تقييمك', body: input.reason ? `سبب الحذف: ${input.reason}` : 'تم حذف تقييمك بواسطة الإدارة لمخالفته سياسات المنصة.' } });
+    }
+    await audit('review.deleted', 'review', review.id, { reason: input.reason, notified: input.notify });
+    res.json({ deleted: true });
   } catch (error) { next(error); }
 });
 

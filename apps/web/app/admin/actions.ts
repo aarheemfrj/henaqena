@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { apiPatch, apiPost } from '@/lib/api';
+import { apiDelete, apiPatch, apiPost } from '@/lib/api';
 import { clearAdminSession, createAdminSession, hasAdminSession } from '@/lib/admin-session';
 import { getApiBaseUrl } from '@/lib/api';
 
@@ -92,6 +92,15 @@ export async function moderateReview(formData: FormData) {
   if (!await hasAdminSession()) redirect('/admin/login'); const id = String(formData.get('id') ?? ''); const status = String(formData.get('status') ?? ''); if (!id || !['APPROVED', 'REJECTED'].includes(status)) return; await apiPatch(`/api/admin/reviews/${id}`, { status, note: String(formData.get('note') ?? '') }); revalidatePath('/admin/reviews');
 }
 
+export async function deleteReview(formData: FormData) {
+  if (!await hasAdminSession()) redirect('/admin/login');
+  const id = String(formData.get('id') ?? ''); if (!id) return;
+  const reason = String(formData.get('reason') ?? '').trim();
+  const notify = formData.get('notify') === 'true';
+  await apiDelete(`/api/admin/reviews/${id}`, { reason: reason || undefined, notify });
+  revalidatePath('/admin/reviews');
+}
+
 export async function moderateReport(formData: FormData) {
   if (!await hasAdminSession()) redirect('/admin/login'); const id = String(formData.get('id') ?? ''); const status = String(formData.get('status') ?? ''); if (!id || !['APPROVED', 'REJECTED'].includes(status)) return; await apiPatch(`/api/admin/provider-reports/${id}`, { status }); revalidatePath('/admin/reports');
 }
@@ -104,3 +113,54 @@ export async function importProviders(formData: FormData) {
 
 export async function moderateService(formData: FormData) { if (!await hasAdminSession()) redirect('/admin/login'); const id = String(formData.get('id') ?? ''); const status = String(formData.get('status') ?? ''); if (!id || !['APPROVED', 'REJECTED'].includes(status)) return; await apiPatch(`/api/admin/services/${id}`, { status }); revalidatePath('/admin/services'); }
 export async function moderateOffer(formData: FormData) { if (!await hasAdminSession()) redirect('/admin/login'); const id = String(formData.get('id') ?? ''); const status = String(formData.get('status') ?? ''); if (!id || !['APPROVED', 'REJECTED'].includes(status)) return; await apiPatch(`/api/admin/offers/${id}`, { status }); revalidatePath('/admin/services'); }
+
+export async function createProviderAdmin(formData: FormData) {
+  if (!await hasAdminSession()) redirect('/admin/providers?error=1');
+  const images = JSON.parse(String(formData.get('images') ?? '[]')) as { url: string; kind?: string }[];
+  if (images.length === 0) redirect('/admin/providers?error=images');
+  try {
+    await apiPost('/api/admin/providers', {
+      name: String(formData.get('name') ?? ''),
+      description: String(formData.get('description') ?? '') || undefined,
+      phone: String(formData.get('phone') ?? '') || undefined,
+      whatsapp: String(formData.get('whatsapp') ?? '') || undefined,
+      phoneType: String(formData.get('phoneType') ?? 'BUSINESS'),
+      address: String(formData.get('address') ?? '') || undefined,
+      areaId: String(formData.get('areaId') ?? '') || undefined,
+      newAreaName: String(formData.get('newAreaName') ?? '') || undefined,
+      serviceMode: String(formData.get('serviceMode') ?? 'LOCAL'),
+      openingTime: String(formData.get('openingTime') ?? '') || undefined,
+      closingTime: String(formData.get('closingTime') ?? '') || undefined,
+      categoryId: String(formData.get('categoryId') ?? '') || undefined,
+      newCategoryName: String(formData.get('newCategoryName') ?? '') || undefined,
+      isVerified: formData.get('isVerified') === 'true',
+      images,
+    });
+  } catch {
+    redirect('/admin/providers?error=1');
+  }
+  revalidatePath('/admin/providers'); revalidatePath('/providers'); revalidatePath('/');
+  redirect('/admin/providers?created=1');
+}
+
+export async function createListingAdmin(formData: FormData) {
+  if (!await hasAdminSession()) redirect('/admin/listings?error=1');
+  const images = (JSON.parse(String(formData.get('images') ?? '[]')) as { url: string }[]).map((image) => image.url);
+  if (images.length === 0) redirect('/admin/listings?error=images');
+  try {
+    await apiPost('/api/admin/listings', {
+      title: String(formData.get('title') ?? ''),
+      description: String(formData.get('description') ?? '') || undefined,
+      category: String(formData.get('category') ?? ''),
+      price: Number(formData.get('price') ?? 0),
+      areaId: String(formData.get('areaId') ?? '') || undefined,
+      newAreaName: String(formData.get('newAreaName') ?? '') || undefined,
+      expiresInDays: Number(formData.get('expiresInDays') ?? 90),
+      images,
+    });
+  } catch {
+    redirect('/admin/listings?error=1');
+  }
+  revalidatePath('/admin/listings'); revalidatePath('/listings');
+  redirect('/admin/listings?created=1');
+}

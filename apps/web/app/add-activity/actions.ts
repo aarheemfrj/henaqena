@@ -4,6 +4,8 @@ import { redirect } from 'next/navigation';
 import { userPost } from '@/lib/api';
 
 export async function submitActivity(formData: FormData) {
+  const images = JSON.parse(String(formData.get('images') ?? '[]')) as { url: string; kind?: string }[];
+  if (images.length === 0) redirect('/add-activity?error=1');
   try {
     await userPost('/api/providers', {
       name: String(formData.get('name') ?? ''),
@@ -17,7 +19,7 @@ export async function submitActivity(formData: FormData) {
       openingTime: String(formData.get('openingTime') ?? '') || undefined,
       closingTime: String(formData.get('closingTime') ?? '') || undefined,
       categoryIds: [String(formData.get('categoryId') ?? '')],
-      images: [{ url: String(formData.get('imageUrl') ?? ''), kind: 'work' }],
+      images,
     });
   } catch {
     redirect('/add-activity?error=1');
