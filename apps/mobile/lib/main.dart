@@ -2082,9 +2082,9 @@ class _MergedHeroBannerState extends State<MergedHeroBanner>
       animation: controller,
       builder: (_, child) => Container(
         clipBehavior: Clip.antiAlias,
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.fromLTRB(22, 26, 22, 26),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(22),
+          borderRadius: BorderRadius.circular(28),
           gradient: LinearGradient(
             begin: Alignment.topRight,
             end: Alignment.bottomLeft,
@@ -2092,9 +2092,9 @@ class _MergedHeroBannerState extends State<MergedHeroBanner>
           ),
           boxShadow: [
             BoxShadow(
-              color: palette.deep.withValues(alpha: .2),
-              blurRadius: 24,
-              offset: const Offset(0, 12),
+              color: palette.deep.withValues(alpha: .25),
+              blurRadius: 32,
+              offset: const Offset(0, 16),
             ),
           ],
         ),
@@ -2144,8 +2144,9 @@ class _MergedHeroBannerState extends State<MergedHeroBanner>
                     'كل ما تحتاجه في قنا..هنا',
                     style: TextStyle(
                       color: Colors.white,
-                      fontSize: 16,
+                      fontSize: 18,
                       fontWeight: FontWeight.w700,
+                      letterSpacing: 0.3,
                     ),
                   ),
                 ),
