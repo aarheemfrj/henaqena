@@ -1708,12 +1708,14 @@ class BasePage extends StatelessWidget {
     this.header,
     this.onRefresh,
     this.showBackButton = false,
+    this.horizontalPadding = 18,
   });
   final Widget child;
   final String? title;
   final Widget? header;
   final Future<void> Function()? onRefresh;
   final bool showBackButton;
+  final double horizontalPadding;
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
@@ -1730,9 +1732,11 @@ class BasePage extends StatelessWidget {
             displacement: 24,
             onRefresh: refresh,
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(18, 12, 18, 24),
+              padding: EdgeInsets.fromLTRB(horizontalPadding, 12, horizontalPadding, 24),
               children: [
-                header ??
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 18 - horizontalPadding),
+                  child: header ??
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -1762,6 +1766,7 @@ class BasePage extends StatelessWidget {
                         const SizedBox(width: 92),
                       ],
                     ),
+                ),
                 const SizedBox(height: 12),
                 child,
               ],
@@ -1925,6 +1930,7 @@ class _HomePageState extends State<HomePage> {
     return BasePage(
       onRefresh: _reload,
       header: const SizedBox.shrink(),
+      horizontalPadding: 0,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -1935,54 +1941,69 @@ class _HomePageState extends State<HomePage> {
             onOpenDirectory: _openDirectory,
           ),
           const SizedBox(height: 20),
-          PromoCarousel(areaId: selectedAreaId),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18),
+            child: PromoCarousel(areaId: selectedAreaId),
+          ),
           const SizedBox(height: 20),
-          const SectionTitle(title: 'فئات قريبة منك'),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 18),
+            child: SectionTitle(title: 'فئات قريبة منك'),
+          ),
           const SizedBox(height: 9),
           const SizedBox(height: 2),
-          CategoryRail(items: categoryItems, onSelected: _openDirectory),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18),
+            child: CategoryRail(items: categoryItems, onSelected: _openDirectory),
+          ),
           const SizedBox(height: 20),
-          const SectionTitle(title: 'مختارات قنا'),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 18),
+            child: SectionTitle(title: 'مختارات قنا'),
+          ),
           const SizedBox(height: 9),
-          FutureBuilder<List<ProviderSummary>>(
-            future: featured,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return LinearProgressIndicator(color: teal);
-              }
-              final items = snapshot.data ?? const <ProviderSummary>[];
-              if (snapshot.hasError || items.isEmpty) {
-                return const _StateMessage(
-                  icon: Icons.storefront_outlined,
-                  title: 'لا توجد مختارات منشورة حالياً',
-                  subtitle: 'المختارات تظهر من الأنشطة المعتمدة في الدليل.',
-                );
-              }
-              return Column(
-                children: [
-                  for (var index = 0; index < items.take(4).length; index++)
-                    MotionIn(
-                      delay: index * 50,
-                      child: MiniItem(
-                        icon: Icons.storefront_outlined,
-                        title: items[index].name,
-                        subtitle: items[index].subtitle,
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => ProviderDetailPage(
-                              providerId: items[index].id,
-                              title: items[index].name,
-                              icon: Icons.storefront_outlined,
-                              subtitle: items[index].subtitle,
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18),
+            child: FutureBuilder<List<ProviderSummary>>(
+              future: featured,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return LinearProgressIndicator(color: teal);
+                }
+                final items = snapshot.data ?? const <ProviderSummary>[];
+                if (snapshot.hasError || items.isEmpty) {
+                  return const _StateMessage(
+                    icon: Icons.storefront_outlined,
+                    title: 'لا توجد مختارات منشورة حالياً',
+                    subtitle: 'المختارات تظهر من الأنشطة المعتمدة في الدليل.',
+                  );
+                }
+                return Column(
+                  children: [
+                    for (var index = 0; index < items.take(4).length; index++)
+                      MotionIn(
+                        delay: index * 50,
+                        child: MiniItem(
+                          icon: Icons.storefront_outlined,
+                          title: items[index].name,
+                          subtitle: items[index].subtitle,
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => ProviderDetailPage(
+                                providerId: items[index].id,
+                                title: items[index].name,
+                                icon: Icons.storefront_outlined,
+                                subtitle: items[index].subtitle,
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                ],
-              );
-            },
+                  ],
+                );
+              },
+            ),
           ),
         ],
       ),
