@@ -5203,6 +5203,48 @@ class _CreateListingPageState extends State<CreateListingPage> {
   final description = TextEditingController();
   final selectedImages = <XFile>[];
   bool submitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _restoreDraft();
+  }
+
+  Future<void> _restoreDraft() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() {
+        title.text = prefs.getString('listing_draft_title') ?? '';
+        price.text = prefs.getString('listing_draft_price') ?? '';
+        description.text = prefs.getString('listing_draft_description') ?? '';
+        category = prefs.getString('listing_draft_category') ?? 'للبيع';
+        areaId = prefs.getString('listing_draft_areaId');
+      });
+    }
+  }
+
+  Future<void> _saveDraft() async {
+    final prefs = await SharedPreferences.getInstance();
+    await Future.wait([
+      prefs.setString('listing_draft_title', title.text),
+      prefs.setString('listing_draft_price', price.text),
+      prefs.setString('listing_draft_description', description.text),
+      prefs.setString('listing_draft_category', category),
+      if (areaId != null) prefs.setString('listing_draft_areaId', areaId!),
+    ]);
+  }
+
+  Future<void> _clearDraft() async {
+    final prefs = await SharedPreferences.getInstance();
+    await Future.wait([
+      prefs.remove('listing_draft_title'),
+      prefs.remove('listing_draft_price'),
+      prefs.remove('listing_draft_description'),
+      prefs.remove('listing_draft_category'),
+      prefs.remove('listing_draft_areaId'),
+    ]);
+  }
+
   @override
   void dispose() {
     title.dispose();
@@ -5251,6 +5293,7 @@ class _CreateListingPageState extends State<CreateListingPage> {
         return;
       }
       final uploaded = await api.uploadProviderImages(selectedImages);
+      await _saveDraft();
       await api.submitListing(
         title: title.text.trim(),
         category: category,
@@ -5260,6 +5303,7 @@ class _CreateListingPageState extends State<CreateListingPage> {
         description: description.text,
       );
       if (!mounted) return;
+      await _clearDraft();
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('تم إرسال الإعلان للمراجعة')),
@@ -5271,7 +5315,7 @@ class _CreateListingPageState extends State<CreateListingPage> {
           content: Text(
             error.toString().contains('unauthorized')
                 ? 'سجّل الدخول أولاً لإضافة إعلان'
-                : 'تعذر إرسال الإعلان حالياً',
+                : 'تعذر إرسال الإعلان حالياً - بيانات الإعلان محفوظة',
           ),
         ),
       );
@@ -6524,6 +6568,66 @@ class _AddActivityPageState extends State<AddActivityPage> {
     super.initState();
     areas = api.fetchAreas();
     categories = api.fetchCategories();
+    _restoreDraft();
+  }
+
+  Future<void> _restoreDraft() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() {
+        name.text = prefs.getString('provider_draft_name') ?? '';
+        description.text = prefs.getString('provider_draft_description') ?? '';
+        address.text = prefs.getString('provider_draft_address') ?? '';
+        phone.text = prefs.getString('provider_draft_phone') ?? '';
+        whatsapp.text = prefs.getString('provider_draft_whatsapp') ?? '';
+        socialUrl.text = prefs.getString('provider_draft_socialUrl') ?? '';
+        socialPlatform = prefs.getString('provider_draft_socialPlatform');
+        areaId = prefs.getString('provider_draft_areaId');
+        categoryId = prefs.getString('provider_draft_categoryId');
+        mode = prefs.getString('provider_draft_mode') ?? 'LOCAL';
+        phoneType = prefs.getString('provider_draft_phoneType') ?? 'BUSINESS';
+        opening = prefs.getString('provider_draft_opening') ?? '09:00';
+        closing = prefs.getString('provider_draft_closing') ?? '22:00';
+      });
+    }
+  }
+
+  Future<void> _saveDraft() async {
+    final prefs = await SharedPreferences.getInstance();
+    await Future.wait([
+      prefs.setString('provider_draft_name', name.text),
+      prefs.setString('provider_draft_description', description.text),
+      prefs.setString('provider_draft_address', address.text),
+      prefs.setString('provider_draft_phone', phone.text),
+      prefs.setString('provider_draft_whatsapp', whatsapp.text),
+      prefs.setString('provider_draft_socialUrl', socialUrl.text),
+      if (socialPlatform != null) prefs.setString('provider_draft_socialPlatform', socialPlatform!),
+      if (areaId != null) prefs.setString('provider_draft_areaId', areaId!),
+      if (categoryId != null) prefs.setString('provider_draft_categoryId', categoryId!),
+      prefs.setString('provider_draft_mode', mode),
+      prefs.setString('provider_draft_phoneType', phoneType),
+      prefs.setString('provider_draft_opening', opening),
+      prefs.setString('provider_draft_closing', closing),
+    ]);
+  }
+
+  Future<void> _clearDraft() async {
+    final prefs = await SharedPreferences.getInstance();
+    await Future.wait([
+      prefs.remove('provider_draft_name'),
+      prefs.remove('provider_draft_description'),
+      prefs.remove('provider_draft_address'),
+      prefs.remove('provider_draft_phone'),
+      prefs.remove('provider_draft_whatsapp'),
+      prefs.remove('provider_draft_socialUrl'),
+      prefs.remove('provider_draft_socialPlatform'),
+      prefs.remove('provider_draft_areaId'),
+      prefs.remove('provider_draft_categoryId'),
+      prefs.remove('provider_draft_mode'),
+      prefs.remove('provider_draft_phoneType'),
+      prefs.remove('provider_draft_opening'),
+      prefs.remove('provider_draft_closing'),
+    ]);
   }
 
   @override
@@ -6962,6 +7066,7 @@ class _AddActivityPageState extends State<AddActivityPage> {
       if (category == null) return;
       final resolvedArea = areaId ?? (await areas).first.id;
       final uploadedImages = await api.uploadProviderImages(selectedImages);
+      await _saveDraft();
       await api.submitProvider(
         data: {
           'name': name.text.trim(),
@@ -6985,6 +7090,7 @@ class _AddActivityPageState extends State<AddActivityPage> {
         },
       );
       if (!mounted) return;
+      await _clearDraft();
       Navigator.pop(context);
       showTopToast(context, message: 'تم إرسال النشاط وصوره للمراجعة');
     } catch (error) {
@@ -6999,7 +7105,7 @@ class _AddActivityPageState extends State<AddActivityPage> {
           ? 'النشاط موجود بالفعل أو قيد المراجعة'
           : error.toString().contains('upload_error')
           ? 'تعذر رفع الصور، جرّب صوراً أصغر'
-          : 'تعذر إرسال النشاط حالياً';
+          : 'تعذر إرسال النشاط حالياً - البيانات محفوظة';
       showTopToast(context, message: errorMsg, isError: true);
     } finally {
       if (mounted) setState(() => submitting = false);
