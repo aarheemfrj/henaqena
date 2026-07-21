@@ -751,7 +751,8 @@ app.post('/api/ads', requireAdmin, async (req, res, next) => {
   try {
     const input = adCreateSchema.parse(req.body);
     if (input.endsAt <= input.startsAt) return res.status(400).json({ message: 'تاريخ الانتهاء يجب أن يكون بعد البداية' });
-    const ad = await prisma.ad.create({ data: { ...input, areaId: input.areaId ?? null, status: ReviewStatus.PENDING } });
+    const ad = await prisma.ad.create({ data: { ...input, areaId: input.areaId ?? null, status: ReviewStatus.APPROVED } });
+    await audit('ad.created', 'ad', ad.id, { name: ad.name });
     res.status(201).json(ad);
   } catch (error) { next(error); }
 });
