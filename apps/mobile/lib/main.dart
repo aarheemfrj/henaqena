@@ -8253,10 +8253,8 @@ class _AddActivityPageState extends State<AddActivityPage> {
         data: {
           'name': name.text.trim(),
           'description': description.text.trim(),
-          'phone': phone.text.trim().isEmpty ? null : phone.text.trim(),
-          'whatsapp': whatsapp.text.trim().isEmpty
-              ? null
-              : whatsapp.text.trim(),
+          if (phone.text.trim().isNotEmpty) 'phone': phone.text.trim(),
+          if (whatsapp.text.trim().isNotEmpty) 'whatsapp': whatsapp.text.trim(),
           if (socialPlatform != null && socialUrl.text.trim().isNotEmpty) ...{
             'socialPlatform': socialPlatform,
             'socialUrl': socialUrl.text.trim(),
@@ -8412,8 +8410,8 @@ class _CommunityRequestPageState extends State<CommunityRequestPage> {
         data: {
           'kind': widget.kind,
           'name': name.text.trim(),
-          'phone': phone.text.trim().isEmpty ? null : phone.text.trim(),
-          'note': note.text.trim().isEmpty ? null : note.text.trim(),
+          if (phone.text.trim().isNotEmpty) 'phone': phone.text.trim(),
+          if (note.text.trim().isNotEmpty) 'note': note.text.trim(),
         },
       );
       if (!mounted) return;
