@@ -1816,6 +1816,10 @@ class _HomePageState extends State<HomePage> {
   String selectedArea = 'قنا كلها';
   String? selectedAreaId;
   late Future<List<ProviderSummary>> featured = ApiClient().fetchProviders();
+  late Future<List<ProviderSummary>> newPlaces = ApiClient().fetchProviders(
+    sort: 'latest',
+    pageSize: 4,
+  );
   List<String> categoryItems = const [];
 
   @override
@@ -1936,8 +1940,13 @@ class _HomePageState extends State<HomePage> {
   Future<void> _reload() async {
     setState(() {
       featured = ApiClient().fetchProviders(areaId: selectedAreaId);
+      newPlaces = ApiClient().fetchProviders(
+        areaId: selectedAreaId,
+        sort: 'latest',
+        pageSize: 4,
+      );
     });
-    await featured;
+    await Future.wait([featured, newPlaces]);
   }
 
   @override
@@ -2003,6 +2012,51 @@ class _HomePageState extends State<HomePage> {
                         delay: index * 50,
                         child: MiniItem(
                           icon: Icons.storefront_outlined,
+                          title: items[index].name,
+                          subtitle: items[index].subtitle,
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => ProviderDetailPage(
+                                providerId: items[index].id,
+                                title: items[index].name,
+                                icon: Icons.storefront_outlined,
+                                subtitle: items[index].subtitle,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 20),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 18),
+            child: SectionTitle(title: 'أماكن جديدة'),
+          ),
+          const SizedBox(height: 9),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18),
+            child: FutureBuilder<List<ProviderSummary>>(
+              future: newPlaces,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return LinearProgressIndicator(color: teal);
+                }
+                final items = snapshot.data ?? const <ProviderSummary>[];
+                if (snapshot.hasError || items.isEmpty) {
+                  return const SizedBox.shrink();
+                }
+                return Column(
+                  children: [
+                    for (var index = 0; index < items.length; index++)
+                      MotionIn(
+                        delay: index * 50,
+                        child: MiniItem(
+                          icon: Icons.fiber_new_outlined,
                           title: items[index].name,
                           subtitle: items[index].subtitle,
                           onTap: () => Navigator.push(
