@@ -8,6 +8,7 @@ import express from 'express';
 import { PrismaClient, ReviewStatus, ListingStatus } from '@prisma/client';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { z } from 'zod';
+import { createDataCollectionRouter } from './data-collection/router';
 
 type RateLimitStore = Map<string, { count: number; resetAt: number }>;
 const createRateLimiter = (maxRequests: number, windowMs: number) => {
@@ -69,6 +70,11 @@ app.use(cors({ origin: allowedOrigins.includes('*') ? true : allowedOrigins }));
 app.use((_req, res, next) => { res.set({ 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'strict-origin-when-cross-origin', 'Permissions-Policy': 'geolocation=(self)' }); next(); });
 app.use(express.json({ limit: '16mb' }));
 app.use('/uploads', express.static(uploadRoot, { maxAge: '7d', etag: true }));
+app.use(
+  '/api/admin/data-collection',
+  requireAdmin,
+  createDataCollectionRouter(prisma),
+);
 
 const authLimiter = createRateLimiter(5, 15 * 60 * 1000); // 5 attempts per 15 minutes
 const verificationLimiter = createRateLimiter(10, 60 * 60 * 1000); // 10 attempts per hour

@@ -502,6 +502,134 @@ model SupportTicket {
   @@index([status, createdAt])
 }
 
+// --- Qena Data Collection v1 ---
+// These models mirror prisma/migrations/20260721050000_data_collection_v1/migration.sql,
+// which the data-collection module (src/data-collection/*) manages entirely through
+// $queryRawUnsafe / $executeRawUnsafe rather than the generated Prisma Client API.
+// They are declared here only so `prisma migrate dev` recognizes the tables as intentional
+// and does not propose dropping them on the next schema diff. `providerId` below is a plain
+// scalar (DB-level FK only, enforced by the migration SQL) rather than a Prisma relation, so
+// the existing Provider model does not need a matching back-reference field.
+
+enum CollectionJobStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum CollectedRecordStatus {
+  NEW
+  NEEDS_REVIEW
+  APPROVED
+  REJECTED
+  MERGED
+}
+
+model DataSource {
+  id        String   @id
+  name      String   @unique
+  kind      String
+  baseUrl   String?
+  isActive  Boolean  @default(true)
+  metadata  Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  jobs      CollectionJob[]
+  businesses CollectedBusiness[]
+}
+
+model CollectionJob {
+  id             String              @id
+  sourceId       String?
+  category       String?
+  area           String?
+  query          String?
+  status         CollectionJobStatus @default(PENDING)
+  startedAt      DateTime?
+  finishedAt     DateTime?
+  foundCount     Int                 @default(0)
+  savedCount     Int                 @default(0)
+  duplicateCount Int                 @default(0)
+  failedCount    Int                 @default(0)
+  error          String?
+  metadata       Json?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  source     DataSource?         @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  businesses CollectedBusiness[]
+
+  @@index([status, createdAt])
+}
+
+model CollectedBusiness {
+  id              String                 @id
+  jobId           String?
+  sourceId        String?
+  externalId      String?
+  name            String
+  normalizedName  String
+  category        String?
+  subcategory     String?
+  city            String                 @default("قنا")
+  area            String?
+  village         String?
+  address         String?
+  latitude        Float?
+  longitude       Float?
+  phone           String?
+  normalizedPhone String?
+  whatsapp        String?
+  email           String?
+  website         String?
+  facebook        String?
+  instagram       String?
+  tiktok          String?
+  googleMapsUrl   String?
+  rating          Float?
+  reviewCount     Int?
+  openingHours    Json?
+  rawData         Json?
+  fingerprint     String                 @unique
+  qualityScore    Int                    @default(0)
+  status          CollectedRecordStatus  @default(NEW)
+  reviewNote      String?
+  reviewedAt      DateTime?
+  reviewedBy      String?
+  providerId      String?
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+
+  job    CollectionJob? @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  source DataSource?    @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+
+  duplicatesAsLeft  DuplicateCandidate[] @relation("duplicateLeft")
+  duplicatesAsRight DuplicateCandidate[] @relation("duplicateRight")
+
+  @@index([status, qualityScore])
+  @@index([normalizedPhone])
+}
+
+model DuplicateCandidate {
+  id         String    @id
+  leftId     String
+  rightId    String
+  score      Float
+  reason     String
+  resolved   Boolean   @default(false)
+  resolution String?
+  createdAt  DateTime  @default(now())
+  resolvedAt DateTime?
+
+  left  CollectedBusiness @relation("duplicateLeft", fields: [leftId], references: [id], onDelete: Cascade)
+  right CollectedBusiness @relation("duplicateRight", fields: [rightId], references: [id], onDelete: Cascade)
+
+  @@index([resolved, score])
+}
+
 model Notification {
   id        String    @id @default(cuid())
   userId    String
