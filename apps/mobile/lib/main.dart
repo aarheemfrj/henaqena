@@ -60,19 +60,20 @@ class AppTextStyles {
 }
 
 class FullScreenImageViewer extends StatefulWidget {
-  const FullScreenImageViewer({super.key, required this.imageUrl});
-  final String imageUrl;
+  const FullScreenImageViewer({
+    super.key,
+    required this.imageUrls,
+    this.initialIndex = 0,
+  });
+  final List<String> imageUrls;
+  final int initialIndex;
   @override
   State<FullScreenImageViewer> createState() => _FullScreenImageViewerState();
 }
 
 class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
-  late TransformationController controller;
-  @override
-  void initState() {
-    super.initState();
-    controller = TransformationController();
-  }
+  late final PageController controller = PageController(initialPage: widget.initialIndex);
+  late int active = widget.initialIndex;
 
   @override
   void dispose() {
@@ -90,17 +91,30 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
         icon: const Icon(Icons.close, color: Colors.white),
         onPressed: Navigator.of(context).pop,
       ),
+      title: widget.imageUrls.length > 1
+          ? Text(
+              '${active + 1} / ${widget.imageUrls.length}',
+              style: const TextStyle(color: Colors.white, fontSize: 15),
+            )
+          : null,
+      centerTitle: true,
     ),
-    body: Center(
-      child: InteractiveViewer(
-        transformationController: controller,
-        minScale: 0.5,
-        maxScale: 3.0,
-        child: CachedNetworkImage(
-          imageUrl: widget.imageUrl,
-          fit: BoxFit.contain,
-          placeholder: (context, url) => const CircularProgressIndicator(),
-          errorWidget: (context, url, error) => const Icon(Icons.error, color: Colors.white),
+    body: PageView.builder(
+      controller: controller,
+      itemCount: widget.imageUrls.length,
+      onPageChanged: (value) => setState(() => active = value),
+      itemBuilder: (context, index) => Center(
+        child: InteractiveViewer(
+          minScale: 0.5,
+          maxScale: 4.0,
+          child: CachedNetworkImage(
+            imageUrl: widget.imageUrls[index],
+            fit: BoxFit.contain,
+            placeholder: (context, url) =>
+                const CircularProgressIndicator(color: Colors.white),
+            errorWidget: (context, url, error) =>
+                const Icon(Icons.error, color: Colors.white),
+          ),
         ),
       ),
     ),
@@ -1722,6 +1736,7 @@ class BasePage extends StatelessWidget {
     final refresh =
         onRefresh ??
         () async => Future<void>.delayed(const Duration(milliseconds: 450));
+    final effectiveShowBackButton = showBackButton && Navigator.of(context).canPop();
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Material(
@@ -1740,7 +1755,7 @@ class BasePage extends StatelessWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        if (showBackButton)
+                        if (effectiveShowBackButton)
                           IconButton(
                             onPressed: () => Navigator.of(context).pop(),
                             icon: Icon(
@@ -5918,11 +5933,42 @@ class _MediaGalleryState extends State<MediaGallery> {
                       ),
                     ),
                   ),
+                  if (index < widget.imageUrls.length)
+                    PositionedDirectional(
+                      bottom: 12,
+                      end: 12,
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: .45),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.zoom_out_map,
+                          color: Colors.white,
+                          size: 16,
+                        ),
+                      ),
+                    ),
                 ],
               ),
             );
-            if (widget.heroTag == null) return image;
-            return Hero(tag: widget.heroTag!, child: image);
+            final tappableImage = index < widget.imageUrls.length
+                ? GestureDetector(
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => FullScreenImageViewer(
+                          imageUrls: widget.imageUrls,
+                          initialIndex: index,
+                        ),
+                      ),
+                    ),
+                    child: image,
+                  )
+                : image;
+            if (widget.heroTag == null) return tappableImage;
+            return Hero(tag: widget.heroTag!, child: tappableImage);
           },
         ),
       ),
