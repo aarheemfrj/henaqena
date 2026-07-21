@@ -2732,6 +2732,25 @@ class _DirectoryPageState extends State<DirectoryPage> {
   Timer? searchDebounce;
   DirectoryFilters filters = const DirectoryFilters();
   List<String> categoryItems = const [];
+  Position? _userPosition;
+
+  Future<Position?> _resolveUserPosition() async {
+    if (_userPosition != null) return _userPosition;
+    try {
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        return null;
+      }
+      _userPosition = await Geolocator.getCurrentPosition();
+      return _userPosition;
+    } catch (_) {
+      return null;
+    }
+  }
   @override
   void initState() {
     super.initState();
@@ -2767,6 +2786,25 @@ class _DirectoryPageState extends State<DirectoryPage> {
     });
   }
 
+  Future<List<ProviderSummary>> _applyDistanceFilter(
+    List<ProviderSummary> providers,
+  ) async {
+    final maxKm = filters.maxDistanceKm;
+    if (maxKm == null || maxKm >= 20) return providers;
+    final position = await _resolveUserPosition();
+    if (position == null) return providers;
+    return providers.where((provider) {
+      if (provider.latitude == null || provider.longitude == null) return true;
+      final meters = Geolocator.distanceBetween(
+        position.latitude,
+        position.longitude,
+        provider.latitude!,
+        provider.longitude!,
+      );
+      return meters / 1000 <= maxKm;
+    }).toList();
+  }
+
   Future<List<ProviderSummary>> _fetchProviders({String? searchQuery}) async {
     final sort = filters.sort == 'الأعلى تقييمًا'
         ? 'rating'
@@ -2785,7 +2823,9 @@ class _DirectoryPageState extends State<DirectoryPage> {
       acceptsCards: filters.acceptsCards,
       sort: sort,
     );
-    if (query.isEmpty || results.isNotEmpty) return results;
+    if (query.isEmpty || results.isNotEmpty) {
+      return _applyDistanceFilter(results);
+    }
 
     // Arabic keyboards can produce visually identical letters/diacritics that
     // do not compare equally in PostgreSQL. Retry the current directory and
@@ -2796,13 +2836,14 @@ class _DirectoryPageState extends State<DirectoryPage> {
       sort: sort,
     );
     final tokens = _normalizeArabicQuery(query).split(' ');
-    return all.where((provider) {
+    final filtered = all.where((provider) {
       final haystack = _normalizeArabicQuery(
         '${provider.name} ${provider.description ?? ''} '
         '${provider.address ?? ''} ${provider.subtitle}',
       );
       return tokens.every(haystack.contains);
     }).toList();
+    return _applyDistanceFilter(filtered);
   }
 
   String _normalizeArabicQuery(String value) => value
@@ -3055,6 +3096,7 @@ class DirectoryFilters {
     this.hasDelivery = false,
     this.hasParking = false,
     this.acceptsCards = false,
+    this.maxDistanceKm,
   });
   final String sort;
   final bool openNow;
@@ -3062,6 +3104,7 @@ class DirectoryFilters {
   final bool hasDelivery;
   final bool hasParking;
   final bool acceptsCards;
+  final double? maxDistanceKm;
 }
 
 class _FilterSheet extends StatefulWidget {
@@ -3078,6 +3121,7 @@ class _FilterSheetState extends State<_FilterSheet> {
   late bool hasDelivery = widget.initial.hasDelivery;
   late bool hasParking = widget.initial.hasParking;
   late bool acceptsCards = widget.initial.acceptsCards;
+  late double? maxDistanceKm = widget.initial.maxDistanceKm;
   @override
   Widget build(BuildContext context) => Directionality(
     textDirection: TextDirection.rtl,
@@ -3174,6 +3218,39 @@ class _FilterSheetState extends State<_FilterSheet> {
               onChanged: (value) => setState(() => acceptsCards = value),
               activeThumbColor: teal,
             ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Text(
+                  'نطاق المسافة',
+                  style: TextStyle(color: deepTeal, fontWeight: FontWeight.w700),
+                ),
+                const Spacer(),
+                Text(
+                  maxDistanceKm == null
+                      ? 'بلا حد'
+                      : '${maxDistanceKm!.round()} كم',
+                  style: const TextStyle(color: muted),
+                ),
+              ],
+            ),
+            Slider(
+              value: maxDistanceKm ?? 20,
+              min: 1,
+              max: 20,
+              divisions: 19,
+              activeColor: teal,
+              label: maxDistanceKm == null ? 'بلا حد' : '${maxDistanceKm!.round()} كم',
+              onChanged: (value) => setState(() => maxDistanceKm = value),
+            ),
+            if (maxDistanceKm != null)
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () => setState(() => maxDistanceKm = null),
+                  child: const Text('إلغاء تحديد النطاق'),
+                ),
+              ),
             const SizedBox(height: 8),
             FilledButton(
               onPressed: () => Navigator.pop(
@@ -3185,6 +3262,7 @@ class _FilterSheetState extends State<_FilterSheet> {
                   hasDelivery: hasDelivery,
                   hasParking: hasParking,
                   acceptsCards: acceptsCards,
+                  maxDistanceKm: maxDistanceKm,
                 ),
               ),
               style: FilledButton.styleFrom(
@@ -3549,6 +3627,16 @@ class ProviderMapPage extends StatelessWidget {
       ),
     ),
   );
+}
+
+String _formatDistanceKm(double km) =>
+    km < 1 ? '${(km * 1000).round()} متر' : '${km.toStringAsFixed(1)} كم';
+
+String _estimateTravelTime(double km) {
+  final walkMinutes = (km / 5) * 60;
+  final driveMinutes = (km / 30) * 60;
+  if (km <= 1.2) return '${walkMinutes.round()} دقيقة مشيًا';
+  return '${driveMinutes.round().clamp(1, 999)} دقيقة بالسيارة تقريبًا';
 }
 
 List<(String, IconData)> _providerAttributeLabels(ProviderDetails data) => [
@@ -4186,6 +4274,49 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                 ],
               ),
               const SizedBox(height: 20),
+              if (data?.latitude != null && data?.longitude != null)
+                FutureBuilder<Position?>(
+                  future: () async {
+                    try {
+                      var permission = await Geolocator.checkPermission();
+                      if (permission == LocationPermission.denied) {
+                        permission = await Geolocator.requestPermission();
+                      }
+                      if (permission == LocationPermission.denied ||
+                          permission == LocationPermission.deniedForever) {
+                        return null;
+                      }
+                      return await Geolocator.getCurrentPosition()
+                          .timeout(const Duration(seconds: 5));
+                    } catch (_) {
+                      return null;
+                    }
+                  }(),
+                  builder: (context, positionSnapshot) {
+                    final position = positionSnapshot.data;
+                    if (position == null) return const SizedBox.shrink();
+                    final km = Geolocator.distanceBetween(
+                          position.latitude,
+                          position.longitude,
+                          data!.latitude!,
+                          data.longitude!,
+                        ) /
+                        1000;
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Row(
+                        children: [
+                          Icon(Icons.near_me_outlined, size: 16, color: teal),
+                          const SizedBox(width: 6),
+                          Text(
+                            'على بعد ${_formatDistanceKm(km)} · ${_estimateTravelTime(km)}',
+                            style: const TextStyle(color: muted, fontSize: 12),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
               if (data != null && _providerAttributeLabels(data).isNotEmpty) ...[
                 Wrap(
                   spacing: 8,
