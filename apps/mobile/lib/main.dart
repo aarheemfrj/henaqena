@@ -1934,11 +1934,14 @@ class _HomePageState extends State<HomePage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          MergedHeroBanner(
-            selectedArea: selectedArea,
-            categoryItems: categoryItems,
-            onPickArea: _pickArea,
-            onOpenDirectory: _openDirectory,
+          Transform.translate(
+            offset: const Offset(0, -2),
+            child: MergedHeroBanner(
+              selectedArea: selectedArea,
+              categoryItems: categoryItems,
+              onPickArea: _pickArea,
+              onOpenDirectory: _openDirectory,
+            ),
           ),
           const SizedBox(height: 20),
           Padding(
