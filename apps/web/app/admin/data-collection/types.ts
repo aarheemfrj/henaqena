@@ -76,3 +76,10 @@ export type DataCollectionOverview = {
   unresolvedDuplicates: number;
   latestJobs: CollectionJob[];
 };
+
+export type RecordsSortBy = 'quality' | 'newest' | 'oldest' | 'name';
+
+export type RecordsPage = {
+  items: CollectedBusiness[];
+  pagination: { total: number; limit: number; offset: number; hasMore: boolean };
+};

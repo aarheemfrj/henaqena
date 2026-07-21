@@ -4,7 +4,16 @@ import { apiGet } from '@/lib/api';
 import { hasAdminSession } from '@/lib/admin-session';
 import { RecordsPanel } from './RecordsPanel';
 import { DuplicatesPanel } from './DuplicatesPanel';
-import type { CollectedBusiness, CollectedRecordStatus, DataCollectionOverview, DuplicateCandidate } from './types';
+import type { CollectedBusiness, CollectedRecordStatus, DataCollectionOverview, DuplicateCandidate, RecordsPage } from './types';
+
+const RECORDS_PAGE_SIZE = 50;
+
+const sortOptions: { value: string; label: string }[] = [
+  { value: 'quality', label: 'ترتيب حسب جودة البيانات' },
+  { value: 'newest', label: 'الأحدث أولًا' },
+  { value: 'oldest', label: 'الأقدم أولًا' },
+  { value: 'name', label: 'الاسم أبجديًا' },
+];
 
 export const dynamic = 'force-dynamic';
 
@@ -25,7 +34,7 @@ function formatDateTime(value: string | null) {
   return new Date(value).toLocaleString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
-type SearchParams = { tab?: string; status?: string; search?: string; category?: string; area?: string; sort?: string };
+type SearchParams = { tab?: string; status?: string; search?: string; category?: string; area?: string; sort?: string; offset?: string };
 
 export default async function DataCollectionAdminPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   if (!await hasAdminSession()) redirect('/admin/login');
@@ -39,18 +48,36 @@ export default async function DataCollectionAdminPage({ searchParams }: { search
 
   let records: CollectedBusiness[] = [];
   let duplicates: DuplicateCandidate[] = [];
+  let pagination: RecordsPage['pagination'] = { total: 0, limit: RECORDS_PAGE_SIZE, offset: 0, hasMore: false };
+
+  const parsedOffset = Number(query.offset ?? '0');
+  const offset = Number.isFinite(parsedOffset) && parsedOffset > 0 ? Math.floor(parsedOffset) : 0;
 
   if (tab === 'records') {
-    const params = new URLSearchParams({ limit: '100' });
+    const params = new URLSearchParams({ limit: String(RECORDS_PAGE_SIZE), offset: String(offset) });
     if (query.status) params.set('status', query.status);
     if (query.search) params.set('search', query.search);
-    records = await apiGet<CollectedBusiness[]>(`/api/admin/data-collection/records?${params.toString()}`, { admin: true }).catch(() => []);
-    if (query.category) records = records.filter((r) => r.category?.toLowerCase().includes(query.category!.toLowerCase()));
-    if (query.area) records = records.filter((r) => r.area?.toLowerCase().includes(query.area!.toLowerCase()));
-    if (query.sort === 'date') records = [...records].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    if (query.category) params.set('category', query.category);
+    if (query.area) params.set('area', query.area);
+    if (query.sort) params.set('sortBy', query.sort);
+    const page = await apiGet<RecordsPage>(`/api/admin/data-collection/records?${params.toString()}`, { admin: true })
+      .catch(() => ({ items: [], pagination: { total: 0, limit: RECORDS_PAGE_SIZE, offset, hasMore: false } } as RecordsPage));
+    records = page.items;
+    pagination = page.pagination;
   } else if (tab === 'duplicates') {
     duplicates = await apiGet<DuplicateCandidate[]>('/api/admin/data-collection/duplicates', { admin: true }).catch(() => []);
   }
+
+  const pageHref = (newOffset: number) => {
+    const params = new URLSearchParams({ tab: 'records' });
+    if (query.search) params.set('search', query.search);
+    if (query.status) params.set('status', query.status);
+    if (query.category) params.set('category', query.category);
+    if (query.area) params.set('area', query.area);
+    if (query.sort) params.set('sort', query.sort);
+    params.set('offset', String(newOffset));
+    return `/admin/data-collection?${params.toString()}`;
+  };
 
   const tabLink = (value: string, label: string) => <Link key={value} href={`/admin/data-collection?tab=${value}`} className={tab === value ? 'tabLinkActive' : 'tabLink'}>{label}</Link>;
 
@@ -86,12 +113,22 @@ export default async function DataCollectionAdminPage({ searchParams }: { search
         <input name="category" placeholder="الفئة" defaultValue={query.category ?? ''} />
         <input name="area" placeholder="المركز / المنطقة" defaultValue={query.area ?? ''} />
         <select name="sort" defaultValue={query.sort ?? 'quality'}>
-          <option value="quality">ترتيب حسب جودة البيانات</option>
-          <option value="date">ترتيب حسب تاريخ الإضافة</option>
+          {sortOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
         </select>
         <button type="submit">تصفية</button>
       </form>
       <RecordsPanel records={records} />
+      <div className="pageFooter">
+        <span>{pagination.total} نتيجة</span>
+        <div className="actionRow">
+          {offset > 0
+            ? <Link href={pageHref(Math.max(0, offset - RECORDS_PAGE_SIZE))} className="secondaryButton">السابق</Link>
+            : <span className="secondaryButton disabledLink">السابق</span>}
+          {pagination.hasMore
+            ? <Link href={pageHref(offset + RECORDS_PAGE_SIZE)} className="secondaryButton">التالي</Link>
+            : <span className="secondaryButton disabledLink">التالي</span>}
+        </div>
+      </div>
     </>}
 
     {tab === 'duplicates' && <section className="section"><DuplicatesPanel duplicates={duplicates} /></section>}

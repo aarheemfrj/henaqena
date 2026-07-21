@@ -37,11 +37,30 @@ export const createDataCollectionRouter = (prisma: PrismaClient): Router => {
     }
   });
 
+  const sortColumns = {
+    quality: '"qualityScore"',
+    newest: '"createdAt"',
+    oldest: '"createdAt"',
+    name: '"name"',
+  } as const;
+
+  const defaultSortDirection: Record<keyof typeof sortColumns, 'ASC' | 'DESC'> = {
+    quality: 'DESC',
+    newest: 'DESC',
+    oldest: 'ASC',
+    name: 'ASC',
+  };
+
   router.get('/records', async (req, res, next) => {
     try {
       const input = z.object({
         status: z.enum(['NEW', 'NEEDS_REVIEW', 'APPROVED', 'REJECTED', 'MERGED']).optional(),
         search: z.string().max(120).optional(),
+        category: z.string().max(120).optional(),
+        area: z.string().max(120).optional(),
+        sourceId: z.string().max(120).optional(),
+        sortBy: z.enum(['quality', 'newest', 'oldest', 'name']).default('quality'),
+        sortDirection: z.enum(['asc', 'desc']).optional(),
         limit: z.coerce.number().int().min(1).max(100).default(50),
         offset: z.coerce.number().int().min(0).default(0),
       }).parse(req.query);
@@ -54,6 +73,9 @@ export const createDataCollectionRouter = (prisma: PrismaClient): Router => {
       };
 
       if (input.status) conditions.push(`"status" = ${addParam(input.status)}::"CollectedRecordStatus"`);
+      if (input.category) conditions.push(`"category" = ${addParam(input.category)}`);
+      if (input.area) conditions.push(`"area" = ${addParam(input.area)}`);
+      if (input.sourceId) conditions.push(`"sourceId" = ${addParam(input.sourceId)}`);
       if (input.search) {
         const token = addParam(input.search);
         conditions.push(`(
@@ -64,6 +86,19 @@ export const createDataCollectionRouter = (prisma: PrismaClient): Router => {
       }
 
       const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+
+      // sortBy/sortDirection are only ever read from the fixed maps above — never interpolated from user input directly.
+      const sortColumn = sortColumns[input.sortBy];
+      const sortDirection = (input.sortDirection?.toUpperCase() as 'ASC' | 'DESC' | undefined) ?? defaultSortDirection[input.sortBy];
+      const tiebreaker = sortColumn === '"createdAt"' ? '' : ', "createdAt" DESC';
+      const orderBy = `ORDER BY ${sortColumn} ${sortDirection}${tiebreaker}`;
+
+      const countRows = await prisma.$queryRawUnsafe<Array<{ count: bigint }>>(
+        `SELECT COUNT(*)::bigint AS count FROM "CollectedBusiness" ${where}`,
+        ...params,
+      );
+      const total = Number(countRows[0]?.count ?? 0);
+
       const limitParam = addParam(input.limit);
       const offsetParam = addParam(input.offset);
 
@@ -71,12 +106,20 @@ export const createDataCollectionRouter = (prisma: PrismaClient): Router => {
         `SELECT *
          FROM "CollectedBusiness"
          ${where}
-         ORDER BY "qualityScore" DESC, "createdAt" DESC
+         ${orderBy}
          LIMIT ${limitParam} OFFSET ${offsetParam}`,
         ...params,
       );
 
-      res.json(records);
+      res.json({
+        items: records,
+        pagination: {
+          total,
+          limit: input.limit,
+          offset: input.offset,
+          hasMore: input.offset + records.length < total,
+        },
+      });
     } catch (error) {
       next(error);
     }
