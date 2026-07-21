@@ -5837,15 +5837,9 @@ class MediaGallery extends StatefulWidget {
   State<MediaGallery> createState() => _MediaGalleryState();
 }
 
-class _MediaGalleryState extends State<MediaGallery>
-    with SingleTickerProviderStateMixin {
+class _MediaGalleryState extends State<MediaGallery> {
   late final PageController controller = PageController();
-  late final AnimationController hintController = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 1100),
-  )..repeat(reverse: true);
   int active = 0;
-  bool showSwipeHint = true;
   final galleryColors = const [
     Color(0xFFD8EFEC),
     Color(0xFFEFE5C8),
@@ -5856,7 +5850,6 @@ class _MediaGalleryState extends State<MediaGallery>
   @override
   void dispose() {
     controller.dispose();
-    hintController.dispose();
     super.dispose();
   }
 
@@ -5870,7 +5863,6 @@ class _MediaGalleryState extends State<MediaGallery>
           itemCount: widget.imageCount,
           onPageChanged: (value) => setState(() {
             active = value;
-            showSwipeHint = false;
           }),
           itemBuilder: (_, index) {
             final image = Container(
@@ -5936,53 +5928,21 @@ class _MediaGalleryState extends State<MediaGallery>
       ),
       const SizedBox(height: 8),
       const SizedBox(height: 5),
-      AnimatedBuilder(
-        animation: hintController,
-        builder: (_, value) {
-          final dots = [
-            for (var i = 0; i < widget.imageCount; i++)
-              AnimatedContainer(
-                duration: AppMotion.quick,
-                width: i == active ? 18 : 6,
-                height: 6,
-                margin: const EdgeInsets.symmetric(horizontal: 3),
-                decoration: BoxDecoration(
-                  color: i == active ? teal : Color(0xFFD6E3E0),
-                  borderRadius: BorderRadius.circular(8),
-                ),
+      Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          for (var i = 0; i < widget.imageCount; i++)
+            AnimatedContainer(
+              duration: AppMotion.quick,
+              width: i == active ? 18 : 6,
+              height: 6,
+              margin: const EdgeInsets.symmetric(horizontal: 3),
+              decoration: BoxDecoration(
+                color: i == active ? teal : Color(0xFFD6E3E0),
+                borderRadius: BorderRadius.circular(8),
               ),
-          ];
-          final midpoint = dots.length ~/ 2;
-          return Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              ...dots.take(midpoint),
-              AnimatedContainer(
-                duration: AppMotion.quick,
-                width: showSwipeHint ? 4 : 0,
-              ),
-              AnimatedSwitcher(
-                duration: AppMotion.standard,
-                transitionBuilder: (child, animation) => FadeTransition(
-                  opacity: animation,
-                  child: ScaleTransition(scale: animation, child: child),
-                ),
-                child: showSwipeHint
-                    ? Transform.translate(
-                        key: const ValueKey('swipe-hint'),
-                        offset: Offset(-4 * hintController.value, 0),
-                        child: Icon(Icons.swipe, color: teal, size: 17),
-                      )
-                    : const SizedBox.shrink(key: ValueKey('swipe-hidden')),
-              ),
-              AnimatedContainer(
-                duration: AppMotion.quick,
-                width: showSwipeHint ? 4 : 0,
-              ),
-              ...dots.skip(midpoint),
-            ],
-          );
-        },
+            ),
+        ],
       ),
     ],
   );
