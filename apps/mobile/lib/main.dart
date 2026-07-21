@@ -1968,6 +1968,11 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
           const SizedBox(height: 20),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 18),
+            child: WeatherStrip(),
+          ),
+          const SizedBox(height: 20),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 18),
             child: PromoCarousel(areaId: selectedAreaId),
@@ -3626,6 +3631,91 @@ class ProviderMapPage extends StatelessWidget {
         },
       ),
     ),
+  );
+}
+
+(IconData, String) _weatherIconAndLabel(int code) {
+  if (code == 0) return (Icons.wb_sunny, 'صافي');
+  if (code <= 3) return (Icons.wb_cloudy_outlined, 'غائم جزئيًا');
+  if (code == 45 || code == 48) return (Icons.foggy, 'ضباب');
+  if (code >= 51 && code <= 67) return (Icons.grain, 'أمطار خفيفة');
+  if (code >= 80 && code <= 82) return (Icons.water_drop_outlined, 'زخات مطر');
+  if (code >= 95) return (Icons.thunderstorm_outlined, 'عاصفة رعدية');
+  return (Icons.wb_sunny_outlined, 'معتدل');
+}
+
+const _weatherDayNames = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+
+class WeatherStrip extends StatefulWidget {
+  const WeatherStrip({super.key});
+  @override
+  State<WeatherStrip> createState() => _WeatherStripState();
+}
+
+class _WeatherStripState extends State<WeatherStrip> {
+  late Future<WeatherInfo> weather = fetchQenaWeather();
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<WeatherInfo>(
+    future: weather,
+    builder: (context, snapshot) {
+      final data = snapshot.data;
+      if (data == null) return const SizedBox.shrink();
+      final (currentIcon, currentLabel) = _weatherIconAndLabel(data.weatherCode);
+      return Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFFE0E8E6)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Icon(currentIcon, color: teal, size: 28),
+                const SizedBox(width: 10),
+                Text(
+                  '${data.currentTemp.round()}°',
+                  style: TextStyle(
+                    color: deepTeal,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(currentLabel, style: const TextStyle(color: muted)),
+                const Spacer(),
+                const Text('طقس قنا الآن', style: TextStyle(color: muted, fontSize: 12)),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: data.days.skip(1).map((day) {
+                final (icon, _) = _weatherIconAndLabel(day.weatherCode);
+                return Column(
+                  children: [
+                    Text(
+                      _weatherDayNames[day.date.weekday % 7],
+                      style: const TextStyle(color: muted, fontSize: 11),
+                    ),
+                    const SizedBox(height: 4),
+                    Icon(icon, size: 18, color: teal),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${day.maxTemp.round()}°/${day.minTemp.round()}°',
+                      style: const TextStyle(fontSize: 11),
+                    ),
+                  ],
+                );
+              }).toList(),
+            ),
+          ],
+        ),
+      );
+    },
   );
 }
 

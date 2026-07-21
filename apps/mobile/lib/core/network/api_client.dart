@@ -6,6 +6,64 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../auth/auth_session.dart';
 
+class WeatherDay {
+  const WeatherDay({
+    required this.date,
+    required this.maxTemp,
+    required this.minTemp,
+    required this.weatherCode,
+  });
+  final DateTime date;
+  final double maxTemp;
+  final double minTemp;
+  final int weatherCode;
+}
+
+class WeatherInfo {
+  const WeatherInfo({
+    required this.currentTemp,
+    required this.weatherCode,
+    required this.days,
+  });
+  final double currentTemp;
+  final int weatherCode;
+  final List<WeatherDay> days;
+}
+
+/// Qena's approximate city-center coordinates -- weather is fetched from
+/// Open-Meteo, a free provider that needs no API key.
+Future<WeatherInfo> fetchQenaWeather() async {
+  final uri = Uri.parse(
+    'https://api.open-meteo.com/v1/forecast'
+    '?latitude=26.1551&longitude=32.7160'
+    '&current_weather=true'
+    '&daily=temperature_2m_max,temperature_2m_min,weathercode'
+    '&timezone=Africa%2FCairo&forecast_days=4',
+  );
+  final response = await http.get(uri).timeout(const Duration(seconds: 6));
+  if (response.statusCode != 200) throw Exception('weather_error');
+  final body = jsonDecode(response.body) as Map<String, dynamic>;
+  final current = body['current_weather'] as Map<String, dynamic>;
+  final daily = body['daily'] as Map<String, dynamic>;
+  final dates = (daily['time'] as List<dynamic>).cast<String>();
+  final maxTemps = (daily['temperature_2m_max'] as List<dynamic>).cast<num>();
+  final minTemps = (daily['temperature_2m_min'] as List<dynamic>).cast<num>();
+  final codes = (daily['weathercode'] as List<dynamic>).cast<num>();
+  return WeatherInfo(
+    currentTemp: (current['temperature'] as num).toDouble(),
+    weatherCode: (current['weathercode'] as num).toInt(),
+    days: [
+      for (var i = 0; i < dates.length; i++)
+        WeatherDay(
+          date: DateTime.parse(dates[i]),
+          maxTemp: maxTemps[i].toDouble(),
+          minTemp: minTemps[i].toDouble(),
+          weatherCode: codes[i].toInt(),
+        ),
+    ],
+  );
+}
+
 class ProviderSummary {
   const ProviderSummary({
     required this.id,
