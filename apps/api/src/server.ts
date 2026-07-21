@@ -1283,7 +1283,7 @@ app.patch('/api/admin/ads/:id', requireAdmin, async (req, res, next) => {
 
 app.get('/api/admin/constants/:type', requireAdmin, async (req, res, next) => {
   try {
-    const { type } = req.params;
+    const type = String(req.params.type);
     if (type === 'categories') {
       const items = await prisma.category.findMany({ orderBy: { name: 'asc' } });
       return res.json({ data: items });
@@ -1301,7 +1301,7 @@ app.get('/api/admin/constants/:type', requireAdmin, async (req, res, next) => {
 
 app.post('/api/admin/constants/:type', requireAdmin, async (req, res, next) => {
   try {
-    const { type } = req.params;
+    const type = String(req.params.type);
     const { name } = z.object({ name: z.string().trim().min(1).max(120) }).parse(req.body);
 
     if (type === 'categories') {
@@ -1324,7 +1324,8 @@ app.post('/api/admin/constants/:type', requireAdmin, async (req, res, next) => {
 
 app.put('/api/admin/constants/:type/:id', requireAdmin, async (req, res, next) => {
   try {
-    const { type, id } = req.params;
+    const type = String(req.params.type);
+    const id = String(req.params.id);
     const { name } = z.object({ name: z.string().trim().min(1).max(120) }).parse(req.body);
 
     if (type === 'categories') {
@@ -1346,7 +1347,8 @@ app.put('/api/admin/constants/:type/:id', requireAdmin, async (req, res, next) =
 
 app.delete('/api/admin/constants/:type/:id', requireAdmin, async (req, res, next) => {
   try {
-    const { type, id } = req.params;
+    const type = String(req.params.type);
+    const id = String(req.params.id);
 
     if (type === 'categories') {
       await prisma.category.delete({ where: { id } });
