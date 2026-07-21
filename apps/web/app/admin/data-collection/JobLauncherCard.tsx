@@ -29,6 +29,8 @@ export function JobLauncherCard({ sources }: { sources: DataSourceOption[] }) {
   };
 
   const isGoogleMaps = sourceId === 'google-maps';
+  const isOsm = sourceId === 'osm';
+  const isAutoRunSource = isGoogleMaps || isOsm;
 
   const handleCreate = () => {
     const area = areaSelect === OTHER_AREA_VALUE ? areaOther.trim() : areaSelect;
@@ -49,7 +51,7 @@ export function JobLauncherCard({ sources }: { sources: DataSourceOption[] }) {
         setCsvResult(null);
         setCsvFile(null);
 
-        if (isGoogleMaps) {
+        if (isAutoRunSource) {
           await runCollectionJob(created.id);
           showToast(true, `تم إنشاء المهمة رقم ${created.id} وبدأ التشغيل — تابع تقدمها من تبويب "مهام الاستيراد"`);
         } else {
@@ -90,6 +92,9 @@ export function JobLauncherCard({ sources }: { sources: DataSourceOption[] }) {
       {isGoogleMaps && <small style={{ color: 'var(--muted)' }}>
         ⚠ نتائج Google Maps تستهلك حصة (quota) مدفوعة من حساب Google الخاص بالمنصة — الحد الأقصى الحالي لهذه المهمة: {Math.min(limit, 60)} نتيجة (السقف الأقصى لكل مهمة هو 60 نتيجة).
       </small>}
+      {isOsm && <small style={{ color: 'var(--muted)' }}>
+        ✅ مصدر مجاني بالكامل بدون أي مفتاح أو تكلفة — لكن اكتمال البيانات في قنا قد يكون أقل من الخرائط التجارية لأن OpenStreetMap يعتمد على متطوعين.
+      </small>}
     </label>
 
     <label>الفئة
@@ -117,7 +122,7 @@ export function JobLauncherCard({ sources }: { sources: DataSourceOption[] }) {
     </label>
 
     <button type="button" className="primaryButton wideField" disabled={isPending} onClick={handleCreate}>
-      {isPending ? 'جارٍ التنفيذ...' : isGoogleMaps ? 'إنشاء وتشغيل المهمة' : 'إنشاء مهمة تجميع'}
+      {isPending ? 'جارٍ التنفيذ...' : isAutoRunSource ? 'إنشاء وتشغيل المهمة' : 'إنشاء مهمة تجميع'}
     </button>
 
     {job && <div className="wideField" style={{ padding: 14, border: '1px solid var(--line)', borderRadius: 14, background: 'rgba(13,143,138,.04)' }}>

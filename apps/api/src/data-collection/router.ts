@@ -8,7 +8,10 @@ import { z } from 'zod';
 import { runCsvImportForJob } from './import-runner';
 import { isGoogleMapsConfigured } from './google-maps-provider';
 import { runGoogleMapsJob } from './google-maps-job-runner';
+import { runOsmJob } from './osm-job-runner';
 import { isSafeExternalUrl } from './social-enrichment';
+
+const RUNNABLE_SOURCES = new Set(['google-maps', 'osm']);
 
 const csvUpload = multer({
   dest: os.tmpdir(),
@@ -358,13 +361,13 @@ export const createDataCollectionRouter = (prisma: PrismaClient): Router => {
       );
       const job = jobs[0];
       if (!job) return res.status(404).json({ message: 'مهمة التجميع غير موجودة' });
-      if (job.sourceId !== 'google-maps') {
-        return res.status(400).json({ message: 'هذه المهمة ليست من مصدر Google Maps' });
+      if (!job.sourceId || !RUNNABLE_SOURCES.has(job.sourceId)) {
+        return res.status(400).json({ message: 'هذه المهمة ليست من مصدر يدعم التشغيل التلقائي' });
       }
       if (job.status === 'COMPLETED' || job.status === 'RUNNING') {
         return res.status(400).json({ message: job.status === 'RUNNING' ? 'المهمة قيد التشغيل بالفعل' : 'المهمة مكتملة بالفعل' });
       }
-      if (!isGoogleMapsConfigured()) {
+      if (job.sourceId === 'google-maps' && !isGoogleMapsConfigured()) {
         return res.status(400).json({ message: 'إعدادات Google Maps غير مكتملة (GOOGLE_MAPS_API_KEY / GOOGLE_MAPS_PROVIDER_ENABLED)' });
       }
 
@@ -379,9 +382,10 @@ export const createDataCollectionRouter = (prisma: PrismaClient): Router => {
 
       res.status(202).json({ jobId: job.id, status: 'RUNNING' });
 
-      // Runs detached from the HTTP request/response cycle — see google-maps-job-runner.ts
-      // for the documented limitations of this single-process, non-persistent worker.
-      void runGoogleMapsJob(prisma, job);
+      // Runs detached from the HTTP request/response cycle — see the source-specific
+      // job runner modules for the documented limitations of this single-process worker.
+      if (job.sourceId === 'google-maps') void runGoogleMapsJob(prisma, job);
+      else void runOsmJob(prisma, job);
     } catch (error) {
       next(error);
     }

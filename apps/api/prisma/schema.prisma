@@ -609,6 +609,7 @@ model CollectedBusiness {
   reviewedBy      String?
   providerId      String?
   googlePlaceId          String?                @unique
+  osmId                  String?                @unique
   socialEnrichment       Json?
   socialCandidates       Json?
   socialEnrichmentStatus SocialEnrichmentStatus @default(PENDING)
