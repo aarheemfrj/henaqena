@@ -4,7 +4,8 @@ import { apiGet } from '@/lib/api';
 import { hasAdminSession } from '@/lib/admin-session';
 import { RecordsPanel } from './RecordsPanel';
 import { DuplicatesPanel } from './DuplicatesPanel';
-import type { CollectedBusiness, CollectedRecordStatus, DataCollectionOverview, DuplicateCandidate, RecordsPage } from './types';
+import { JobLauncherCard } from './JobLauncherCard';
+import type { CollectedBusiness, CollectedRecordStatus, DataCollectionOverview, DataSourceOption, DuplicateCandidate, RecordsPage } from './types';
 
 const RECORDS_PAGE_SIZE = 50;
 
@@ -41,8 +42,12 @@ export default async function DataCollectionAdminPage({ searchParams }: { search
   const query = await searchParams;
   const tab = query.tab === 'duplicates' || query.tab === 'jobs' ? query.tab : 'records';
 
-  const overview = await apiGet<DataCollectionOverview>('/api/admin/data-collection/overview', { admin: true })
-    .catch(() => ({ statuses: {}, unresolvedDuplicates: 0, latestJobs: [] } as DataCollectionOverview));
+  const [overview, sourcesResult] = await Promise.all([
+    apiGet<DataCollectionOverview>('/api/admin/data-collection/overview', { admin: true })
+      .catch(() => ({ statuses: {}, unresolvedDuplicates: 0, latestJobs: [] } as DataCollectionOverview)),
+    apiGet<{ items: DataSourceOption[] }>('/api/admin/data-collection/sources', { admin: true })
+      .catch(() => ({ items: [] as DataSourceOption[] })),
+  ]);
 
   const totalRecords = Object.values(overview.statuses).reduce((sum, count) => sum + (count ?? 0), 0);
 
@@ -94,6 +99,10 @@ export default async function DataCollectionAdminPage({ searchParams }: { search
       <div className="stat"><small>مدموجة</small><strong>{overview.statuses.MERGED ?? 0}</strong></div>
       <div className="stat"><small>حالات تكرار غير محلولة</small><strong>{overview.unresolvedDuplicates}</strong></div>
       <div className="stat"><small>آخر مهام الاستيراد</small><strong>{overview.latestJobs.length}</strong></div>
+    </section>
+
+    <section className="section">
+      <JobLauncherCard sources={sourcesResult.items} />
     </section>
 
     <div className="tabBar">
