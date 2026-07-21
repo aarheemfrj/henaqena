@@ -28,6 +28,7 @@ export async function moderateProvider(formData: FormData) {
   await apiPatch(`/api/admin/providers/${id}`, { status });
   revalidatePath('/admin');
   revalidatePath('/providers');
+  revalidatePath('/');
 }
 
 export async function deleteProvider(formData: FormData) {
@@ -94,7 +95,7 @@ export async function updateTeamMember(formData: FormData) {
 }
 
 export async function moderateListing(formData: FormData) {
-  if (!await hasAdminSession()) redirect('/admin/login'); const id = String(formData.get('id') ?? ''); const status = String(formData.get('status') ?? ''); if (!id || !['ACTIVE', 'REJECTED', 'ARCHIVED'].includes(status)) return; await apiPatch(`/api/admin/listings/${id}`, { status, note: String(formData.get('note') ?? '') }); revalidatePath('/admin/listings');
+  if (!await hasAdminSession()) redirect('/admin/login'); const id = String(formData.get('id') ?? ''); const status = String(formData.get('status') ?? ''); if (!id || !['ACTIVE', 'REJECTED', 'ARCHIVED'].includes(status)) return; await apiPatch(`/api/admin/listings/${id}`, { status, note: String(formData.get('note') ?? '') }); revalidatePath('/admin/listings'); revalidatePath('/listings');
 }
 
 export async function moderateReview(formData: FormData) {
