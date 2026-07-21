@@ -333,12 +333,18 @@ app.get('/api/providers', async (req, res, next) => {
     const sort = typeof req.query.sort === 'string' ? req.query.sort : 'name';
     const page = Math.max(1, Number(req.query.page ?? 1));
     const pageSize = Math.min(50, Math.max(1, Number(req.query.pageSize ?? 20)));
+    const attributeFilters = Object.fromEntries(
+      Object.keys(providerAttributesFields)
+        .filter((key) => req.query[key] === 'true')
+        .map((key) => [key, true]),
+    );
     let providers = await prisma.provider.findMany({
       where: {
         status: ReviewStatus.APPROVED,
         ...(verifiedOnly ? { isVerified: true } : {}),
         ...(areaId ? { areaId } : {}),
         ...(category ? { categories: { some: { category: { slug: category } } } } : {}),
+        ...attributeFilters,
         ...(q ? { OR: [{ name: { contains: q, mode: 'insensitive' } }, { description: { contains: q, mode: 'insensitive' } }, { address: { contains: q, mode: 'insensitive' } }, { categories: { some: { category: { name: { contains: q, mode: 'insensitive' } } } } }] } : {}),
       },
       include: { area: true, images: { orderBy: { sortOrder: 'asc' } }, categories: { include: { category: true } }, reviews: { where: { status: ReviewStatus.APPROVED }, select: { quality: true, commitment: true, value: true } } },
@@ -419,7 +425,8 @@ app.patch('/api/me/profile', async (req, res, next) => {
 const socialPlatformSchema = z.enum(['facebook', 'instagram', 'x', 'tiktok', 'youtube']);
 const requireSocialPlatformWithUrl = (value: { socialUrl?: string; socialPlatform?: string }) => !value.socialUrl || value.socialPlatform;
 const requireSocialPlatformRefinement = { message: 'اختر نوع السوشيال ميديا', path: ['socialPlatform'] };
-const providerBaseSchema = z.object({ name: z.string().trim().min(2).max(120), description: z.string().trim().max(1000).optional(), phone: z.string().regex(/^01[0125][0-9]{8}$/).optional(), whatsapp: z.string().regex(/^01[0125][0-9]{8}$/).optional(), socialPlatform: socialPlatformSchema.optional(), socialUrl: z.string().trim().url().max(300).optional(), phoneType: z.enum(['BUSINESS', 'PERSONAL']).default('BUSINESS'), address: z.string().trim().max(240).optional(), latitude: z.coerce.number().min(-90).max(90).optional(), longitude: z.coerce.number().min(-180).max(180).optional(), areaId: z.string().min(1), serviceMode: z.enum(['LOCAL', 'ONLINE']).default('LOCAL'), openingTime: z.string().max(10).optional(), closingTime: z.string().max(10).optional(), categoryIds: z.array(z.string().min(1)).min(1).max(5), images: z.array(z.object({ url: z.string().url(), kind: z.string().max(30).optional() })).min(1).max(10) });
+const providerAttributesFields = { kidFriendly: z.coerce.boolean().default(false), accessible: z.coerce.boolean().default(false), hasParking: z.coerce.boolean().default(false), acceptsCards: z.coerce.boolean().default(false), homeService: z.coerce.boolean().default(false), needsBooking: z.coerce.boolean().default(false), open24h: z.coerce.boolean().default(false), hasDelivery: z.coerce.boolean().default(false) };
+const providerBaseSchema = z.object({ name: z.string().trim().min(2).max(120), description: z.string().trim().max(1000).optional(), phone: z.string().regex(/^01[0125][0-9]{8}$/).optional(), whatsapp: z.string().regex(/^01[0125][0-9]{8}$/).optional(), socialPlatform: socialPlatformSchema.optional(), socialUrl: z.string().trim().url().max(300).optional(), phoneType: z.enum(['BUSINESS', 'PERSONAL']).default('BUSINESS'), address: z.string().trim().max(240).optional(), latitude: z.coerce.number().min(-90).max(90).optional(), longitude: z.coerce.number().min(-180).max(180).optional(), areaId: z.string().min(1), serviceMode: z.enum(['LOCAL', 'ONLINE']).default('LOCAL'), openingTime: z.string().max(10).optional(), closingTime: z.string().max(10).optional(), categoryIds: z.array(z.string().min(1)).min(1).max(5), images: z.array(z.object({ url: z.string().url(), kind: z.string().max(30).optional() })).min(1).max(10), ...providerAttributesFields });
 const providerCreateSchema = providerBaseSchema.refine(requireSocialPlatformWithUrl, requireSocialPlatformRefinement);
 app.post('/api/providers', async (req, res, next) => {
   try {
@@ -428,7 +435,7 @@ app.post('/api/providers', async (req, res, next) => {
     const input = providerCreateSchema.parse(req.body);
     const duplicate = await prisma.provider.findFirst({ where: { areaId: input.areaId, status: { not: ReviewStatus.REJECTED }, OR: [{ name: { equals: input.name, mode: 'insensitive' } }, ...(input.phone ? [{ phone: input.phone }] : [])] } });
     if (duplicate) return res.status(409).json({ message: 'يوجد نشاط مشابه بالفعل في هذه المنطقة' });
-    const provider = await prisma.provider.create({ data: { name: input.name, description: input.description, phone: input.phone, whatsapp: input.whatsapp, socialPlatform: input.socialPlatform, socialUrl: input.socialUrl, phoneType: input.phoneType, address: input.address, latitude: input.latitude, longitude: input.longitude, areaId: input.areaId, serviceMode: input.serviceMode, openingTime: input.openingTime, closingTime: input.closingTime, ownerId: session.userId, communityAdded: true, status: ReviewStatus.PENDING, images: { create: input.images.map((image, index) => ({ url: image.url, kind: image.kind ?? 'work', sortOrder: index })) }, categories: { create: input.categoryIds.map((categoryId) => ({ categoryId })) } }, include: { area: true, images: true, categories: { include: { category: true } } } });
+    const provider = await prisma.provider.create({ data: { name: input.name, description: input.description, phone: input.phone, whatsapp: input.whatsapp, socialPlatform: input.socialPlatform, socialUrl: input.socialUrl, phoneType: input.phoneType, address: input.address, latitude: input.latitude, longitude: input.longitude, areaId: input.areaId, serviceMode: input.serviceMode, openingTime: input.openingTime, closingTime: input.closingTime, kidFriendly: input.kidFriendly, accessible: input.accessible, hasParking: input.hasParking, acceptsCards: input.acceptsCards, homeService: input.homeService, needsBooking: input.needsBooking, open24h: input.open24h, hasDelivery: input.hasDelivery, ownerId: session.userId, communityAdded: true, status: ReviewStatus.PENDING, images: { create: input.images.map((image, index) => ({ url: image.url, kind: image.kind ?? 'work', sortOrder: index })) }, categories: { create: input.categoryIds.map((categoryId) => ({ categoryId })) } }, include: { area: true, images: true, categories: { include: { category: true } } } });
     res.status(201).json(provider);
   } catch (error) { next(error); }
 });
@@ -478,7 +485,7 @@ app.get('/api/providers/:id', async (req, res, next) => {
       },
     });
     if (!provider) return res.status(404).json({ message: 'Provider not found' });
-    const favorite = session ? await prisma.providerFavorite.findUnique({ where: { userId_providerId: { userId: session.userId, providerId: provider.id } } }) : null;
+    const favorite = session ? await prisma.providerFavorite.findFirst({ where: { userId: session.userId, providerId: provider.id, listId: null } }) : null;
     const helpful = session ? await prisma.reviewHelpful.findMany({ where: { userId: session.userId, reviewId: { in: provider.reviews.map((review) => review.id) } }, select: { reviewId: true } }) : [];
     const helpfulIds = new Set(helpful.map((item) => item.reviewId));
     res.json({ ...provider, reviews: provider.reviews.map((review) => ({ ...review, viewerHelpful: helpfulIds.has(review.id) })), viewer: { favorite: Boolean(favorite) } });
@@ -492,10 +499,11 @@ app.post('/api/providers/:id/favorite', async (req, res, next) => {
     const session = await sessionFromRequest(req);
     if (!session) return res.status(401).json({ message: 'سجّل الدخول أولاً' });
     const providerId = String(req.params.id);
-    const existing = await prisma.providerFavorite.findUnique({ where: { userId_providerId: { userId: session.userId, providerId } } });
-    if (existing) await prisma.providerFavorite.delete({ where: { userId_providerId: { userId: session.userId, providerId } } });
-    else await prisma.providerFavorite.create({ data: { userId: session.userId, providerId } });
-    const count = await prisma.providerFavorite.count({ where: { providerId } });
+    const listId = typeof req.body?.listId === 'string' ? req.body.listId : null;
+    const existing = await prisma.providerFavorite.findFirst({ where: { userId: session.userId, providerId, listId } });
+    if (existing) await prisma.providerFavorite.delete({ where: { id: existing.id } });
+    else await prisma.providerFavorite.create({ data: { userId: session.userId, providerId, listId } });
+    const count = await prisma.providerFavorite.count({ where: { providerId, listId: null } });
     res.json({ active: !existing, count });
   } catch (error) { next(error); }
 });
@@ -630,13 +638,87 @@ app.get('/api/me/favorites', async (req, res, next) => {
     if (!session) return res.status(401).json({ message: 'غير مسجل الدخول' });
     const limit = Math.min(50, Math.max(1, Number(req.query.limit ?? 20)));
     const offset = Math.max(0, Number(req.query.offset ?? 0));
+    const listId = typeof req.query.listId === 'string' ? req.query.listId : undefined;
     const [providers, listings, providerCount, listingCount] = await Promise.all([
-      prisma.providerFavorite.findMany({ where: { userId: session.userId }, include: { provider: { include: { area: true, images: { orderBy: { sortOrder: 'asc' }, take: 1 } } } }, orderBy: { createdAt: 'desc' }, take: limit, skip: offset }),
+      prisma.providerFavorite.findMany({ where: { userId: session.userId, ...(listId !== undefined ? { listId: listId || null } : {}) }, include: { provider: { include: { area: true, images: { orderBy: { sortOrder: 'asc' }, take: 1 } } }, list: { select: { id: true, name: true } } }, orderBy: { createdAt: 'desc' }, take: limit, skip: offset }),
       prisma.listingFavorite.findMany({ where: { userId: session.userId }, include: { listing: { include: { area: true, images: { orderBy: { sortOrder: 'asc' }, take: 1 } } } }, orderBy: { createdAt: 'desc' }, take: limit, skip: offset }),
-      prisma.providerFavorite.count({ where: { userId: session.userId } }),
+      prisma.providerFavorite.count({ where: { userId: session.userId, ...(listId !== undefined ? { listId: listId || null } : {}) } }),
       prisma.listingFavorite.count({ where: { userId: session.userId } }),
     ]);
-    res.json({ providers: { data: providers.map((item) => item.provider), total: providerCount }, listings: { data: listings.map((item) => item.listing), total: listingCount }, limit, offset });
+    res.json({ providers: { data: providers.map((item) => ({ ...item.provider, favoriteListId: item.listId, favoriteListName: item.list?.name ?? null })), total: providerCount }, listings: { data: listings.map((item) => item.listing), total: listingCount }, limit, offset });
+  } catch (error) { next(error); }
+});
+
+app.get('/api/me/favorite-lists', async (req, res, next) => {
+  try {
+    const session = await sessionFromRequest(req);
+    if (!session) return res.status(401).json({ message: 'غير مسجل الدخول' });
+    const lists = await prisma.favoriteList.findMany({ where: { userId: session.userId }, include: { _count: { select: { favorites: true } } }, orderBy: { createdAt: 'asc' } });
+    res.json(lists.map((list) => ({ id: list.id, name: list.name, count: list._count.favorites, createdAt: list.createdAt })));
+  } catch (error) { next(error); }
+});
+
+app.post('/api/me/favorite-lists', async (req, res, next) => {
+  try {
+    const session = await sessionFromRequest(req);
+    if (!session) return res.status(401).json({ message: 'غير مسجل الدخول' });
+    const { name } = z.object({ name: z.string().trim().min(1).max(60) }).parse(req.body);
+    const list = await prisma.favoriteList.create({ data: { userId: session.userId, name } });
+    res.status(201).json({ id: list.id, name: list.name, count: 0, createdAt: list.createdAt });
+  } catch (error) { next(error); }
+});
+
+app.patch('/api/me/favorite-lists/:id', async (req, res, next) => {
+  try {
+    const session = await sessionFromRequest(req);
+    if (!session) return res.status(401).json({ message: 'غير مسجل الدخول' });
+    const { name } = z.object({ name: z.string().trim().min(1).max(60) }).parse(req.body);
+    const existing = await prisma.favoriteList.findUnique({ where: { id: String(req.params.id) } });
+    if (!existing || existing.userId !== session.userId) return res.status(404).json({ message: 'القائمة غير موجودة' });
+    const list = await prisma.favoriteList.update({ where: { id: existing.id }, data: { name } });
+    res.json({ id: list.id, name: list.name });
+  } catch (error) { next(error); }
+});
+
+app.delete('/api/me/favorite-lists/:id', async (req, res, next) => {
+  try {
+    const session = await sessionFromRequest(req);
+    if (!session) return res.status(401).json({ message: 'غير مسجل الدخول' });
+    const existing = await prisma.favoriteList.findUnique({ where: { id: String(req.params.id) } });
+    if (!existing || existing.userId !== session.userId) return res.status(404).json({ message: 'القائمة غير موجودة' });
+    await prisma.favoriteList.delete({ where: { id: existing.id } });
+    res.json({ ok: true });
+  } catch (error) { next(error); }
+});
+
+app.get('/api/me/saved-searches', async (req, res, next) => {
+  try {
+    const session = await sessionFromRequest(req);
+    if (!session) return res.status(401).json({ message: 'غير مسجل الدخول' });
+    const searches = await prisma.savedSearch.findMany({ where: { userId: session.userId }, orderBy: { createdAt: 'desc' } });
+    res.json(searches);
+  } catch (error) { next(error); }
+});
+
+const savedSearchSchema = z.object({ label: z.string().trim().min(1).max(80), query: z.string().trim().max(120).optional(), areaId: z.string().min(1).optional(), category: z.string().trim().max(60).optional(), sort: z.string().max(20).default('name') });
+app.post('/api/me/saved-searches', async (req, res, next) => {
+  try {
+    const session = await sessionFromRequest(req);
+    if (!session) return res.status(401).json({ message: 'غير مسجل الدخول' });
+    const input = savedSearchSchema.parse(req.body);
+    const search = await prisma.savedSearch.create({ data: { userId: session.userId, ...input } });
+    res.status(201).json(search);
+  } catch (error) { next(error); }
+});
+
+app.delete('/api/me/saved-searches/:id', async (req, res, next) => {
+  try {
+    const session = await sessionFromRequest(req);
+    if (!session) return res.status(401).json({ message: 'غير مسجل الدخول' });
+    const existing = await prisma.savedSearch.findUnique({ where: { id: String(req.params.id) } });
+    if (!existing || existing.userId !== session.userId) return res.status(404).json({ message: 'البحث المحفوظ غير موجود' });
+    await prisma.savedSearch.delete({ where: { id: existing.id } });
+    res.json({ ok: true });
   } catch (error) { next(error); }
 });
 
@@ -1117,7 +1199,7 @@ app.delete('/api/admin/providers/:id', requireAdmin, async (req, res, next) => {
 
 app.patch('/api/admin/providers/:id/content', requireAdmin, async (req, res, next) => {
   try {
-    const input = z.object({ name: z.string().trim().min(2).max(120).optional(), description: z.string().trim().max(1000).nullable().optional(), phone: z.union([z.string().regex(/^01[0125][0-9]{8}$/), z.literal('')]).optional(), whatsapp: z.union([z.string().regex(/^01[0125][0-9]{8}$/), z.literal('')]).optional(), address: z.string().trim().max(240).nullable().optional(), openingTime: z.string().regex(/^\d{2}:\d{2}$/).nullable().optional(), closingTime: z.string().regex(/^\d{2}:\d{2}$/).nullable().optional(), isVerified: z.boolean().optional() }).parse(req.body);
+    const input = z.object({ name: z.string().trim().min(2).max(120).optional(), description: z.string().trim().max(1000).nullable().optional(), phone: z.union([z.string().regex(/^01[0125][0-9]{8}$/), z.literal('')]).optional(), whatsapp: z.union([z.string().regex(/^01[0125][0-9]{8}$/), z.literal('')]).optional(), address: z.string().trim().max(240).nullable().optional(), openingTime: z.string().regex(/^\d{2}:\d{2}$/).nullable().optional(), closingTime: z.string().regex(/^\d{2}:\d{2}$/).nullable().optional(), isVerified: z.boolean().optional(), ...Object.fromEntries(Object.keys(providerAttributesFields).map((key) => [key, z.boolean().optional()])) }).parse(req.body);
     const provider = await prisma.provider.update({ where: { id: String(req.params.id) }, data: { ...input, phone: input.phone === '' ? null : input.phone, whatsapp: input.whatsapp === '' ? null : input.whatsapp } });
     await audit('provider.content_updated', 'provider', provider.id, { fields: Object.keys(input) });
     res.json(provider);

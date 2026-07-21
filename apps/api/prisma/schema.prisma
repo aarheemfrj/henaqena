@@ -75,6 +75,8 @@ model User {
   nowHelpfulVotes      NowHelpful[]
   supportTickets       SupportTicket[]
   adReactions          AdReaction[]
+  favoriteLists        FavoriteList[]
+  savedSearches        SavedSearch[]
 
   @@unique([authProvider, authSubject])
 }
@@ -174,6 +176,14 @@ model Provider {
   submissionKind String             @default("COMMUNITY")
   isVerified     Boolean            @default(false)
   status         ReviewStatus       @default(PENDING)
+  kidFriendly    Boolean            @default(false)
+  accessible     Boolean            @default(false)
+  hasParking     Boolean            @default(false)
+  acceptsCards   Boolean            @default(false)
+  homeService    Boolean            @default(false)
+  needsBooking   Boolean            @default(false)
+  open24h        Boolean            @default(false)
+  hasDelivery    Boolean            @default(false)
   ownerId        String?
   areaId         String
   owner          User?              @relation(fields: [ownerId], references: [id])
@@ -215,14 +225,43 @@ model ProviderImage {
 }
 
 model ProviderFavorite {
+  id         String        @id @default(cuid())
   userId     String
   providerId String
-  createdAt  DateTime @default(now())
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  provider   Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  listId     String?
+  createdAt  DateTime      @default(now())
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider   Provider      @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  list       FavoriteList? @relation(fields: [listId], references: [id], onDelete: Cascade)
 
-  @@id([userId, providerId])
+  @@unique([userId, providerId, listId])
   @@index([providerId])
+  @@index([listId])
+}
+
+model FavoriteList {
+  id        String             @id @default(cuid())
+  userId    String
+  name      String
+  createdAt DateTime           @default(now())
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  favorites ProviderFavorite[]
+
+  @@index([userId])
+}
+
+model SavedSearch {
+  id        String   @id @default(cuid())
+  userId    String
+  label     String
+  query     String?
+  areaId    String?
+  category  String?
+  sort      String   @default("name")
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model ProviderService {
