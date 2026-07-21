@@ -161,6 +161,7 @@ model Provider {
   id             String             @id @default(cuid())
   name           String
   description    String?
+  logoUrl        String?
   phone          String?
   whatsapp       String?
   socialPlatform String?
@@ -269,6 +270,7 @@ model ProviderService {
   providerId  String
   name        String
   description String?
+  logoUrl     String?
   price       Decimal?     @db.Decimal(12, 2)
   priceNote   String?
   status      ReviewStatus @default(PENDING)
@@ -314,6 +316,7 @@ model Listing {
   id          String            @id @default(cuid())
   title       String
   description String?
+  logoUrl     String?
   category    String            @default("للبيع")
   price       Decimal           @db.Decimal(12, 2)
   status      ListingStatus     @default(PENDING)
@@ -638,4 +641,10 @@ model Notification {
   readAt    DateTime?
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime  @default(now())
+}
+
+model PlatformSettings {
+  id                String   @id @default("default")
+  adRotationSeconds Int      @default(6)
+  updatedAt         DateTime @updatedAt
 }
