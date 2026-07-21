@@ -2726,6 +2726,9 @@ class _DirectoryPageState extends State<DirectoryPage> {
       searchQuery: query,
       verifiedOnly: filters.verified,
       openNow: filters.openNow,
+      hasDelivery: filters.hasDelivery,
+      hasParking: filters.hasParking,
+      acceptsCards: filters.acceptsCards,
       sort: sort,
     );
     if (query.isEmpty || results.isNotEmpty) return results;
@@ -2930,10 +2933,16 @@ class DirectoryFilters {
     this.sort = 'الافتراضي',
     this.openNow = false,
     this.verified = false,
+    this.hasDelivery = false,
+    this.hasParking = false,
+    this.acceptsCards = false,
   });
   final String sort;
   final bool openNow;
   final bool verified;
+  final bool hasDelivery;
+  final bool hasParking;
+  final bool acceptsCards;
 }
 
 class _FilterSheet extends StatefulWidget {
@@ -2947,6 +2956,9 @@ class _FilterSheetState extends State<_FilterSheet> {
   late String sort = widget.initial.sort;
   late bool openNow = widget.initial.openNow;
   late bool verified = widget.initial.verified;
+  late bool hasDelivery = widget.initial.hasDelivery;
+  late bool hasParking = widget.initial.hasParking;
+  late bool acceptsCards = widget.initial.acceptsCards;
   @override
   Widget build(BuildContext context) => Directionality(
     textDirection: TextDirection.rtl,
@@ -3022,6 +3034,27 @@ class _FilterSheetState extends State<_FilterSheet> {
               onChanged: (value) => setState(() => verified = value),
               activeThumbColor: teal,
             ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('يوفر توصيلًا'),
+              value: hasDelivery,
+              onChanged: (value) => setState(() => hasDelivery = value),
+              activeThumbColor: teal,
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('يوجد موقف سيارات'),
+              value: hasParking,
+              onChanged: (value) => setState(() => hasParking = value),
+              activeThumbColor: teal,
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('يقبل الدفع الإلكتروني'),
+              value: acceptsCards,
+              onChanged: (value) => setState(() => acceptsCards = value),
+              activeThumbColor: teal,
+            ),
             const SizedBox(height: 8),
             FilledButton(
               onPressed: () => Navigator.pop(
@@ -3030,6 +3063,9 @@ class _FilterSheetState extends State<_FilterSheet> {
                   sort: sort,
                   openNow: openNow,
                   verified: verified,
+                  hasDelivery: hasDelivery,
+                  hasParking: hasParking,
+                  acceptsCards: acceptsCards,
                 ),
               ),
               style: FilledButton.styleFrom(
@@ -3395,6 +3431,17 @@ class ProviderMapPage extends StatelessWidget {
     ),
   );
 }
+
+List<(String, IconData)> _providerAttributeLabels(ProviderDetails data) => [
+  if (data.kidFriendly) ('مناسب للأطفال', Icons.child_care_outlined),
+  if (data.accessible) ('متاح لذوي الإعاقة', Icons.accessible_outlined),
+  if (data.hasParking) ('يوجد موقف سيارات', Icons.local_parking_outlined),
+  if (data.acceptsCards) ('يقبل الدفع الإلكتروني', Icons.credit_card_outlined),
+  if (data.homeService) ('يوفر خدمة منزلية', Icons.home_repair_service_outlined),
+  if (data.needsBooking) ('يحتاج حجزًا مسبقًا', Icons.event_available_outlined),
+  if (data.open24h) ('متاح 24 ساعة', Icons.access_time_filled_outlined),
+  if (data.hasDelivery) ('يوفر توصيلًا', Icons.delivery_dining_outlined),
+];
 
 class ProviderDetailPage extends StatefulWidget {
   const ProviderDetailPage({
@@ -3915,6 +3962,24 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                 ],
               ),
               const SizedBox(height: 20),
+              if (data != null && _providerAttributeLabels(data).isNotEmpty) ...[
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: _providerAttributeLabels(data)
+                      .map(
+                        (label) => Chip(
+                          avatar: Icon(label.$2, size: 16, color: teal),
+                          label: Text(label.$1, style: const TextStyle(fontSize: 12)),
+                          backgroundColor: const Color(0xFFEFF8F6),
+                          side: BorderSide.none,
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      )
+                      .toList(),
+                ),
+                const SizedBox(height: 18),
+              ],
               const SectionTitle(title: 'الوصف'),
               const SizedBox(height: 8),
               Text(
@@ -6845,6 +6910,14 @@ class _AddActivityPageState extends State<AddActivityPage> {
   bool submitting = false;
   double? latitude;
   double? longitude;
+  bool kidFriendly = false;
+  bool accessible = false;
+  bool hasParking = false;
+  bool acceptsCards = false;
+  bool homeService = false;
+  bool needsBooking = false;
+  bool open24h = false;
+  bool hasDelivery = false;
   late Future<List<AreaOption>> areas;
   late Future<List<CategoryOption>> categories;
 
@@ -6892,6 +6965,14 @@ class _AddActivityPageState extends State<AddActivityPage> {
         phoneType = prefs.getString('provider_draft_phoneType') ?? 'BUSINESS';
         opening = prefs.getString('provider_draft_opening') ?? '09:00';
         closing = prefs.getString('provider_draft_closing') ?? '22:00';
+        kidFriendly = prefs.getBool('provider_draft_kidFriendly') ?? false;
+        accessible = prefs.getBool('provider_draft_accessible') ?? false;
+        hasParking = prefs.getBool('provider_draft_hasParking') ?? false;
+        acceptsCards = prefs.getBool('provider_draft_acceptsCards') ?? false;
+        homeService = prefs.getBool('provider_draft_homeService') ?? false;
+        needsBooking = prefs.getBool('provider_draft_needsBooking') ?? false;
+        open24h = prefs.getBool('provider_draft_open24h') ?? false;
+        hasDelivery = prefs.getBool('provider_draft_hasDelivery') ?? false;
       });
     }
   }
@@ -6912,6 +6993,14 @@ class _AddActivityPageState extends State<AddActivityPage> {
       prefs.setString('provider_draft_phoneType', phoneType),
       prefs.setString('provider_draft_opening', opening),
       prefs.setString('provider_draft_closing', closing),
+      prefs.setBool('provider_draft_kidFriendly', kidFriendly),
+      prefs.setBool('provider_draft_accessible', accessible),
+      prefs.setBool('provider_draft_hasParking', hasParking),
+      prefs.setBool('provider_draft_acceptsCards', acceptsCards),
+      prefs.setBool('provider_draft_homeService', homeService),
+      prefs.setBool('provider_draft_needsBooking', needsBooking),
+      prefs.setBool('provider_draft_open24h', open24h),
+      prefs.setBool('provider_draft_hasDelivery', hasDelivery),
     ]);
   }
 
@@ -6931,6 +7020,14 @@ class _AddActivityPageState extends State<AddActivityPage> {
       prefs.remove('provider_draft_phoneType'),
       prefs.remove('provider_draft_opening'),
       prefs.remove('provider_draft_closing'),
+      prefs.remove('provider_draft_kidFriendly'),
+      prefs.remove('provider_draft_accessible'),
+      prefs.remove('provider_draft_hasParking'),
+      prefs.remove('provider_draft_acceptsCards'),
+      prefs.remove('provider_draft_homeService'),
+      prefs.remove('provider_draft_needsBooking'),
+      prefs.remove('provider_draft_open24h'),
+      prefs.remove('provider_draft_hasDelivery'),
     ]);
   }
 
@@ -7211,6 +7308,55 @@ class _AddActivityPageState extends State<AddActivityPage> {
             TextButton(onPressed: () => _pickTime(false), child: Text(closing)),
           ],
         ),
+      const SizedBox(height: 14),
+      Text('خصائص إضافية', style: TextStyle(color: deepTeal, fontWeight: FontWeight.w700)),
+      const SizedBox(height: 8),
+      Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          FilterChip(
+            label: const Text('مناسب للأطفال'),
+            selected: kidFriendly,
+            onSelected: (value) => setState(() => kidFriendly = value),
+          ),
+          FilterChip(
+            label: const Text('متاح لذوي الإعاقة'),
+            selected: accessible,
+            onSelected: (value) => setState(() => accessible = value),
+          ),
+          FilterChip(
+            label: const Text('يوجد موقف سيارات'),
+            selected: hasParking,
+            onSelected: (value) => setState(() => hasParking = value),
+          ),
+          FilterChip(
+            label: const Text('يقبل الدفع الإلكتروني'),
+            selected: acceptsCards,
+            onSelected: (value) => setState(() => acceptsCards = value),
+          ),
+          FilterChip(
+            label: const Text('يوفر خدمة منزلية'),
+            selected: homeService,
+            onSelected: (value) => setState(() => homeService = value),
+          ),
+          FilterChip(
+            label: const Text('يحتاج حجزًا مسبقًا'),
+            selected: needsBooking,
+            onSelected: (value) => setState(() => needsBooking = value),
+          ),
+          FilterChip(
+            label: const Text('متاح 24 ساعة'),
+            selected: open24h,
+            onSelected: (value) => setState(() => open24h = value),
+          ),
+          FilterChip(
+            label: const Text('يوفر توصيلًا'),
+            selected: hasDelivery,
+            onSelected: (value) => setState(() => hasDelivery = value),
+          ),
+        ],
+      ),
       const SizedBox(height: 8),
       Row(
         children: [
@@ -7404,6 +7550,14 @@ class _AddActivityPageState extends State<AddActivityPage> {
           'address': address.text.trim(),
           if (latitude != null) 'latitude': latitude,
           if (longitude != null) 'longitude': longitude,
+          'kidFriendly': kidFriendly,
+          'accessible': accessible,
+          'hasParking': hasParking,
+          'acceptsCards': acceptsCards,
+          'homeService': homeService,
+          'needsBooking': needsBooking,
+          'open24h': open24h,
+          'hasDelivery': hasDelivery,
           'images': uploadedImages,
         },
       );

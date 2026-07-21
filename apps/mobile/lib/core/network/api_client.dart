@@ -69,6 +69,14 @@ class ProviderDetails {
     required this.services,
     required this.offers,
     required this.viewerFavorite,
+    this.kidFriendly = false,
+    this.accessible = false,
+    this.hasParking = false,
+    this.acceptsCards = false,
+    this.homeService = false,
+    this.needsBooking = false,
+    this.open24h = false,
+    this.hasDelivery = false,
   });
   final String id;
   final String name;
@@ -89,6 +97,14 @@ class ProviderDetails {
   final List<Map<String, dynamic>> services;
   final List<Map<String, dynamic>> offers;
   final bool viewerFavorite;
+  final bool kidFriendly;
+  final bool accessible;
+  final bool hasParking;
+  final bool acceptsCards;
+  final bool homeService;
+  final bool needsBooking;
+  final bool open24h;
+  final bool hasDelivery;
   factory ProviderDetails.fromJson(Map<String, dynamic> json, String baseUrl) =>
       ProviderDetails(
         id: json['id'] as String,
@@ -126,6 +142,14 @@ class ProviderDetails {
         viewerFavorite:
             (json['viewer'] as Map<String, dynamic>?)?['favorite'] as bool? ??
             false,
+        kidFriendly: json['kidFriendly'] as bool? ?? false,
+        accessible: json['accessible'] as bool? ?? false,
+        hasParking: json['hasParking'] as bool? ?? false,
+        acceptsCards: json['acceptsCards'] as bool? ?? false,
+        homeService: json['homeService'] as bool? ?? false,
+        needsBooking: json['needsBooking'] as bool? ?? false,
+        open24h: json['open24h'] as bool? ?? false,
+        hasDelivery: json['hasDelivery'] as bool? ?? false,
       );
 }
 
@@ -766,10 +790,13 @@ class ApiClient {
     int page = 1,
     bool verifiedOnly = false,
     bool openNow = false,
+    bool hasDelivery = false,
+    bool hasParking = false,
+    bool acceptsCards = false,
     String sort = 'name',
     bool skipCache = false,
   }) async {
-    final cacheKey = 'providers_${areaId}_${category}_${searchQuery}_${page}_${verifiedOnly}_${openNow}_${sort}';
+    final cacheKey = 'providers_${areaId}_${category}_${searchQuery}_${page}_${verifiedOnly}_${openNow}_${hasDelivery}_${hasParking}_${acceptsCards}_${sort}';
     if (!skipCache) {
       final cached = await _cacheGet(cacheKey);
       if (cached != null) {
@@ -788,6 +815,9 @@ class ApiClient {
       'page': '$page',
       if (verifiedOnly) 'verified': 'true',
       if (openNow) 'openNow': 'true',
+      if (hasDelivery) 'hasDelivery': 'true',
+      if (hasParking) 'hasParking': 'true',
+      if (acceptsCards) 'acceptsCards': 'true',
       'sort': sort,
     };
     final uri = Uri.parse(
