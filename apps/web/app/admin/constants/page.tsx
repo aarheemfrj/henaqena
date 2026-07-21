@@ -36,10 +36,6 @@ function ConstantSection({
     'news-types': { singular: 'نوع خبر', plural: 'أنواع أخبار' },
   };
 
-  useEffect(() => {
-    fetchConstants();
-  }, []);
-
   const fetchConstants = async () => {
     setLoading(true);
     try {
@@ -54,6 +50,12 @@ function ConstantSection({
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- initial load-on-mount fetch, not cascading render
+    fetchConstants();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [type]);
 
   const handleSave = async () => {
     if (!formValue.trim()) {
