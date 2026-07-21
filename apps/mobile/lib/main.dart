@@ -346,12 +346,18 @@ class AuthPage extends StatefulWidget {
     this.setupInterests = const [],
     this.setupAge,
     this.setupGender,
+    this.returnOnSuccess = false,
   });
   final bool createAccount;
   final List<String> setupAreas;
   final List<String> setupInterests;
   final String? setupAge;
   final String? setupGender;
+  /// When true, pop back to the screen that prompted this login instead of
+  /// resetting the whole navigation stack to the home screen. Used when
+  /// login is requested mid-task (e.g. session expired while submitting a
+  /// form) so the user's in-progress screen and data survive.
+  final bool returnOnSuccess;
 
   @override
   State<AuthPage> createState() => _AuthPageState();
@@ -428,10 +434,15 @@ class _AuthPageState extends State<AuthPage> {
         );
       }
       if (!mounted) return;
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const HomeShell()),
-        (_) => false,
-      );
+      final navigator = Navigator.of(context);
+      if (widget.returnOnSuccess && navigator.canPop()) {
+        navigator.pop(true);
+      } else {
+        navigator.pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const HomeShell()),
+          (_) => false,
+        );
+      }
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -8307,9 +8318,18 @@ class _AddActivityPageState extends State<AddActivityPage> {
     } catch (error) {
       if (!mounted) return;
       if (error.toString().contains('unauthorized')) {
-        await Navigator.of(
-          context,
-        ).push(MaterialPageRoute(builder: (_) => const AuthPage()));
+        final loggedIn = await Navigator.of(context).push<bool>(
+          MaterialPageRoute(
+            builder: (_) => const AuthPage(returnOnSuccess: true),
+          ),
+        );
+        if (loggedIn == true && mounted) {
+          // Deferred: `submitting` is only reset by this call's own
+          // `finally` block, which hasn't run yet at this point.
+          Future.microtask(() {
+            if (mounted) _submit();
+          });
+        }
         return;
       }
       final errorMsg = error.toString().contains('duplicate')
