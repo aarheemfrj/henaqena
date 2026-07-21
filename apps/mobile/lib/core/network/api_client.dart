@@ -77,6 +77,7 @@ class ProviderDetails {
     this.needsBooking = false,
     this.open24h = false,
     this.hasDelivery = false,
+    this.categorySlug,
   });
   final String id;
   final String name;
@@ -105,6 +106,7 @@ class ProviderDetails {
   final bool needsBooking;
   final bool open24h;
   final bool hasDelivery;
+  final String? categorySlug;
   factory ProviderDetails.fromJson(Map<String, dynamic> json, String baseUrl) =>
       ProviderDetails(
         id: json['id'] as String,
@@ -150,7 +152,16 @@ class ProviderDetails {
         needsBooking: json['needsBooking'] as bool? ?? false,
         open24h: json['open24h'] as bool? ?? false,
         hasDelivery: json['hasDelivery'] as bool? ?? false,
+        categorySlug: _firstCategorySlug(json['categories']),
       );
+}
+
+String? _firstCategorySlug(dynamic categoriesJson) {
+  final list = categoriesJson as List<dynamic>?;
+  if (list == null || list.isEmpty) return null;
+  final first = list.first as Map<String, dynamic>;
+  final category = first['category'] as Map<String, dynamic>?;
+  return category?['slug'] as String?;
 }
 
 class CategoryOption {
@@ -788,6 +799,7 @@ class ApiClient {
     String? category,
     String? searchQuery,
     int page = 1,
+    int? pageSize,
     bool verifiedOnly = false,
     bool openNow = false,
     bool hasDelivery = false,
@@ -796,7 +808,7 @@ class ApiClient {
     String sort = 'name',
     bool skipCache = false,
   }) async {
-    final cacheKey = 'providers_${areaId}_${category}_${searchQuery}_${page}_${verifiedOnly}_${openNow}_${hasDelivery}_${hasParking}_${acceptsCards}_${sort}';
+    final cacheKey = 'providers_${areaId}_${category}_${searchQuery}_${page}_${pageSize}_${verifiedOnly}_${openNow}_${hasDelivery}_${hasParking}_${acceptsCards}_${sort}';
     if (!skipCache) {
       final cached = await _cacheGet(cacheKey);
       if (cached != null) {
@@ -813,6 +825,7 @@ class ApiClient {
           ? null
           : {'q': searchQuery.trim()}),
       'page': '$page',
+      if (pageSize != null) 'pageSize': '$pageSize',
       if (verifiedOnly) 'verified': 'true',
       if (openNow) 'openNow': 'true',
       if (hasDelivery) 'hasDelivery': 'true',
