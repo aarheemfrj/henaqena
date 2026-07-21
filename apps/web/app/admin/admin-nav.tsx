@@ -28,6 +28,7 @@ const groups = [
       { href: '/admin/prices', label: 'بكام؟', icon: '◇' },
       { href: '/admin/now', label: 'دلوقتي', icon: 'ϟ' },
       { href: '/admin/import', label: 'استيراد البيانات', icon: '⇩' },
+      { href: '/admin/data-collection', label: 'تجميع البيانات', icon: '⌘' },
     ],
   },
   {
