@@ -8253,7 +8253,7 @@ class _AddActivityPageState extends State<AddActivityPage> {
         data: {
           'name': name.text.trim(),
           'description': description.text.trim(),
-          'phone': phone.text.trim(),
+          'phone': phone.text.trim().isEmpty ? null : phone.text.trim(),
           'whatsapp': whatsapp.text.trim().isEmpty
               ? null
               : whatsapp.text.trim(),
