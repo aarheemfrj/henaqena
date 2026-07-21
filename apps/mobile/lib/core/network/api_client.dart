@@ -982,6 +982,48 @@ class ApiClient {
     if (response.statusCode != 200) throw Exception('favorite_list_delete_error');
   }
 
+  Future<List<Map<String, dynamic>>> fetchSavedSearches() async {
+    final response = await http
+        .get(Uri.parse('$baseUrl/api/me/saved-searches'), headers: _jsonHeaders)
+        .timeout(const Duration(seconds: 8));
+    if (response.statusCode == 401) throw Exception('unauthorized');
+    if (response.statusCode != 200) throw Exception('saved_searches_error');
+    return (jsonDecode(response.body) as List<dynamic>)
+        .map((item) => Map<String, dynamic>.from(item as Map))
+        .toList();
+  }
+
+  Future<void> createSavedSearch({
+    required String label,
+    String? query,
+    String? areaId,
+    String? category,
+    String sort = 'name',
+  }) async {
+    final response = await http
+        .post(
+          Uri.parse('$baseUrl/api/me/saved-searches'),
+          headers: _jsonHeaders,
+          body: jsonEncode({
+            'label': label.trim(),
+            'query': ?query,
+            'areaId': ?areaId,
+            'category': ?category,
+            'sort': sort,
+          }),
+        )
+        .timeout(const Duration(seconds: 8));
+    if (response.statusCode == 401) throw Exception('unauthorized');
+    if (response.statusCode != 201) throw Exception('saved_search_create_error');
+  }
+
+  Future<void> deleteSavedSearch(String id) async {
+    final response = await http
+        .delete(Uri.parse('$baseUrl/api/me/saved-searches/$id'), headers: _jsonHeaders)
+        .timeout(const Duration(seconds: 8));
+    if (response.statusCode != 200) throw Exception('saved_search_delete_error');
+  }
+
   Future<List<Map<String, dynamic>>> fetchListings({
     String? areaId,
     String? category,

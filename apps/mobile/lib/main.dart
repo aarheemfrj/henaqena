@@ -2775,6 +2775,65 @@ class _DirectoryPageState extends State<DirectoryPage> {
     );
   }
 
+  Future<void> _saveSearch() async {
+    final controller = TextEditingController(
+      text: searchController.text.trim().isEmpty
+          ? 'بحث محفوظ'
+          : searchController.text.trim(),
+    );
+    final label = await showDialog<String>(
+      context: context,
+      builder: (context) => Directionality(
+        textDirection: TextDirection.rtl,
+        child: AlertDialog(
+          title: const Text('احفظ هذا البحث'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            decoration: const InputDecoration(labelText: 'اسم البحث'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('إلغاء'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, controller.text.trim()),
+              child: const Text('حفظ'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (label == null || label.isEmpty || !mounted) return;
+    try {
+      await api.createSavedSearch(
+        label: label,
+        query: searchController.text.trim().isEmpty
+            ? null
+            : searchController.text.trim(),
+        sort: filters.sort == 'الأعلى تقييمًا'
+            ? 'rating'
+            : filters.sort == 'الأحدث'
+            ? 'latest'
+            : filters.sort == 'الأكثر مراجعات'
+            ? 'reviews'
+            : 'name',
+      );
+      if (mounted) showTopToast(context, message: 'تم حفظ البحث');
+    } catch (error) {
+      if (!mounted) return;
+      if (error.toString().contains('unauthorized')) {
+        await Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const AuthPage()),
+        );
+      } else {
+        showTopToast(context, message: 'تعذر حفظ البحث', isError: true);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) => BasePage(
     title: '',
@@ -2824,6 +2883,12 @@ class _DirectoryPageState extends State<DirectoryPage> {
               onPressed: () => _showFilters(context),
               icon: const Icon(Icons.tune),
               label: const Text('فلاتر'),
+            ),
+            const SizedBox(width: 8),
+            OutlinedButton.icon(
+              onPressed: _saveSearch,
+              icon: const Icon(Icons.bookmark_add_outlined),
+              label: const Text('احفظ البحث'),
             ),
             const Spacer(),
             OutlinedButton.icon(
@@ -6300,6 +6365,14 @@ class _AccountPageState extends State<AccountPage> {
                 ),
               ),
               _AccountTile(
+                icon: Icons.bookmark_border,
+                title: 'البحوث المحفوظة',
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const SavedSearchesPage()),
+                ),
+              ),
+              _AccountTile(
                 icon: Icons.rate_review_outlined,
                 title: 'تقييماتي ومساهماتي',
                 onTap: () => Navigator.push(
@@ -6722,6 +6795,107 @@ class _FavoritesPageState extends State<FavoritesPage> {
                 ),
               ),
             ],
+          );
+        },
+      ),
+    ),
+  );
+}
+
+class SavedSearchesPage extends StatefulWidget {
+  const SavedSearchesPage({super.key});
+  @override
+  State<SavedSearchesPage> createState() => _SavedSearchesPageState();
+}
+
+class _SavedSearchesPageState extends State<SavedSearchesPage> {
+  final api = ApiClient();
+  late Future<List<Map<String, dynamic>>> searches = api.fetchSavedSearches();
+
+  void _reload() {
+    if (!mounted) return;
+    setState(() => searches = api.fetchSavedSearches());
+  }
+
+  Future<void> _delete(String id) async {
+    try {
+      await api.deleteSavedSearch(id);
+      _reload();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('تعذر حذف البحث')));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Directionality(
+    textDirection: TextDirection.rtl,
+    child: Scaffold(
+      appBar: AppBar(title: const Text('البحوث المحفوظة')),
+      body: FutureBuilder<List<Map<String, dynamic>>>(
+        future: searches,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return Center(child: CircularProgressIndicator(color: teal));
+          }
+          if (snapshot.hasError) {
+            return _StateMessage(
+              icon: Icons.lock_outline,
+              title: 'سجّل الدخول لعرض البحوث المحفوظة',
+              subtitle: 'بحوثك المحفوظة تظهر هنا بعد تسجيل الدخول.',
+              actionLabel: 'تسجيل الدخول',
+              onAction: () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const AuthPage()),
+                );
+                _reload();
+              },
+            );
+          }
+          final items = snapshot.data ?? const [];
+          if (items.isEmpty) {
+            return const _StateMessage(
+              icon: Icons.bookmark_border,
+              title: 'لا توجد بحوث محفوظة',
+              subtitle: 'من صفحة "مين؟" دوس "احفظ البحث" لتحفظ بحثك هنا.',
+            );
+          }
+          return ListView.builder(
+            padding: const EdgeInsets.all(18),
+            itemCount: items.length,
+            itemBuilder: (context, index) {
+              final search = items[index];
+              return Card(
+                elevation: 0,
+                margin: const EdgeInsets.only(bottom: 8),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(15),
+                  side: const BorderSide(color: Color(0xFFE0E8E6)),
+                ),
+                child: ListTile(
+                  leading: Icon(Icons.bookmark, color: teal),
+                  title: Text(search['label'] as String? ?? 'بحث محفوظ'),
+                  subtitle: search['query'] != null
+                      ? Text(search['query'] as String)
+                      : null,
+                  trailing: IconButton(
+                    icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                    onPressed: () => _delete(search['id'] as String),
+                  ),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          DirectoryPage(initialQuery: search['query'] as String?),
+                    ),
+                  ),
+                ),
+              );
+            },
           );
         },
       ),
