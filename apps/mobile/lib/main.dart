@@ -2718,6 +2718,8 @@ class _DirectoryPageState extends State<DirectoryPage> {
         ? 'rating'
         : filters.sort == 'الأحدث'
         ? 'latest'
+        : filters.sort == 'الأكثر مراجعات'
+        ? 'reviews'
         : 'name';
     final query = (searchQuery ?? searchController.text).trim();
     final results = await api.fetchProviders(
@@ -2994,7 +2996,7 @@ class _FilterSheetState extends State<_FilterSheet> {
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
-              children: ['الافتراضي', 'الأعلى تقييمًا', 'الأحدث']
+              children: ['الافتراضي', 'الأعلى تقييمًا', 'الأحدث', 'الأكثر مراجعات']
                   .map(
                     (item) => ChoiceChip(
                       label: Text(item),

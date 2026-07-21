@@ -358,6 +358,7 @@ app.get('/api/providers', async (req, res, next) => {
       return { ...publicProvider, rating: Number(rating.toFixed(1)), reviewCount: reviews.length };
     });
     if (sort === 'rating') withScores.sort((left, right) => right.rating - left.rating || left.name.localeCompare(right.name, 'ar'));
+    if (sort === 'reviews') withScores.sort((left, right) => right.reviewCount - left.reviewCount || left.name.localeCompare(right.name, 'ar'));
     res.json(withScores);
   } catch (error) {
     next(error);
