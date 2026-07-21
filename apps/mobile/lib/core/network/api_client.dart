@@ -924,16 +924,62 @@ class ApiClient {
     if (response.statusCode != 201) throw Exception('review_reply_error');
   }
 
-  Future<Map<String, dynamic>> toggleProviderFavorite(String providerId) async {
+  Future<Map<String, dynamic>> toggleProviderFavorite(
+    String providerId, {
+    String? listId,
+  }) async {
     final response = await http
         .post(
           Uri.parse('$baseUrl/api/providers/$providerId/favorite'),
           headers: _jsonHeaders,
+          body: jsonEncode({'listId': ?listId}),
         )
         .timeout(const Duration(seconds: 8));
     if (response.statusCode == 401) throw Exception('unauthorized');
     if (response.statusCode != 200) throw Exception('favorite_error');
     return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+  }
+
+  Future<List<Map<String, dynamic>>> fetchFavoriteLists() async {
+    final response = await http
+        .get(Uri.parse('$baseUrl/api/me/favorite-lists'), headers: _jsonHeaders)
+        .timeout(const Duration(seconds: 8));
+    if (response.statusCode == 401) throw Exception('unauthorized');
+    if (response.statusCode != 200) throw Exception('favorite_lists_error');
+    return (jsonDecode(response.body) as List<dynamic>)
+        .map((item) => Map<String, dynamic>.from(item as Map))
+        .toList();
+  }
+
+  Future<Map<String, dynamic>> createFavoriteList(String name) async {
+    final response = await http
+        .post(
+          Uri.parse('$baseUrl/api/me/favorite-lists'),
+          headers: _jsonHeaders,
+          body: jsonEncode({'name': name.trim()}),
+        )
+        .timeout(const Duration(seconds: 8));
+    if (response.statusCode == 401) throw Exception('unauthorized');
+    if (response.statusCode != 201) throw Exception('favorite_list_create_error');
+    return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+  }
+
+  Future<void> renameFavoriteList(String id, String name) async {
+    final response = await http
+        .patch(
+          Uri.parse('$baseUrl/api/me/favorite-lists/$id'),
+          headers: _jsonHeaders,
+          body: jsonEncode({'name': name.trim()}),
+        )
+        .timeout(const Duration(seconds: 8));
+    if (response.statusCode != 200) throw Exception('favorite_list_rename_error');
+  }
+
+  Future<void> deleteFavoriteList(String id) async {
+    final response = await http
+        .delete(Uri.parse('$baseUrl/api/me/favorite-lists/$id'), headers: _jsonHeaders)
+        .timeout(const Duration(seconds: 8));
+    if (response.statusCode != 200) throw Exception('favorite_list_delete_error');
   }
 
   Future<List<Map<String, dynamic>>> fetchListings({

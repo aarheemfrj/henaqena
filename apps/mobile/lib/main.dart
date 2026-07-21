@@ -3637,6 +3637,106 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
     }
   }
 
+  Future<void> _addToList() async {
+    final id = widget.providerId;
+    if (id == null) return;
+    List<Map<String, dynamic>> lists;
+    try {
+      lists = await ApiClient().fetchFavoriteLists();
+    } catch (error) {
+      if (!mounted) return;
+      if (error.toString().contains('unauthorized')) {
+        await Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const AuthPage()),
+        );
+      }
+      return;
+    }
+    if (!mounted) return;
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      builder: (context) => Directionality(
+        textDirection: TextDirection.rtl,
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: Text(
+                  'أضف لقائمة',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+              for (final list in lists)
+                ListTile(
+                  leading: const Icon(Icons.bookmark_outline),
+                  title: Text(list['name'] as String? ?? 'قائمة'),
+                  onTap: () => Navigator.pop(context, list['id'] as String),
+                ),
+              ListTile(
+                leading: const Icon(Icons.add),
+                title: const Text('قائمة جديدة'),
+                onTap: () => Navigator.pop(context, '__new__'),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (choice == null || !mounted) return;
+    String? listId = choice;
+    if (choice == '__new__') {
+      final controller = TextEditingController();
+      final name = await showDialog<String>(
+        context: context,
+        builder: (context) => Directionality(
+          textDirection: TextDirection.rtl,
+          child: AlertDialog(
+            title: const Text('قائمة جديدة'),
+            content: TextField(controller: controller, autofocus: true),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('إلغاء'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, controller.text.trim()),
+                child: const Text('إنشاء'),
+              ),
+            ],
+          ),
+        ),
+      );
+      if (name == null || name.isEmpty || !mounted) return;
+      try {
+        final created = await ApiClient().createFavoriteList(name);
+        listId = created['id'] as String;
+      } catch (_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('تعذر إنشاء القائمة')),
+          );
+        }
+        return;
+      }
+    }
+    try {
+      await ApiClient().toggleProviderFavorite(id, listId: listId);
+      if (mounted) {
+        showTopToast(context, message: 'تمت الإضافة للقائمة');
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('تعذر الإضافة للقائمة')));
+      }
+    }
+  }
+
   Future<void> _helpful(String reviewId) async {
     try {
       await ApiClient().toggleReviewHelpful(reviewId);
@@ -3918,16 +4018,21 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
               Row(
                 children: [
                   Expanded(
-                    child: TextButton.icon(
-                      onPressed: widget.providerId == null
+                    child: GestureDetector(
+                      onLongPress: widget.providerId == null
                           ? null
-                          : _toggleFavorite,
-                      icon: Icon(
-                        favorite == true
-                            ? Icons.favorite
-                            : Icons.favorite_border,
+                          : _addToList,
+                      child: TextButton.icon(
+                        onPressed: widget.providerId == null
+                            ? null
+                            : _toggleFavorite,
+                        icon: Icon(
+                          favorite == true
+                              ? Icons.favorite
+                              : Icons.favorite_border,
+                        ),
+                        label: const Text('حفظ'),
                       ),
-                      label: const Text('حفظ'),
                     ),
                   ),
                   Expanded(
@@ -6373,12 +6478,70 @@ class FavoritesPage extends StatefulWidget {
 }
 
 class _FavoritesPageState extends State<FavoritesPage> {
-  late Future<Map<String, dynamic>> favorites = ApiClient().fetchFavorites();
+  final api = ApiClient();
+  String? selectedListId;
+  late Future<Map<String, dynamic>> favorites = api.fetchFavorites();
+  late Future<List<Map<String, dynamic>>> lists = api.fetchFavoriteLists();
+
   void _reload() {
     if (!mounted) return;
     setState(() {
-      favorites = ApiClient().fetchFavorites();
+      favorites = api.fetchFavorites();
+      lists = api.fetchFavoriteLists();
     });
+  }
+
+  Future<void> _createList() async {
+    final controller = TextEditingController();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (context) => Directionality(
+        textDirection: TextDirection.rtl,
+        child: AlertDialog(
+          title: const Text('قائمة جديدة'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            decoration: const InputDecoration(hintText: 'اسم القائمة'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('إلغاء'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, controller.text.trim()),
+              child: const Text('إنشاء'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (name == null || name.isEmpty || !mounted) return;
+    try {
+      await api.createFavoriteList(name);
+      _reload();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تعذر إنشاء القائمة')),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteList(String id) async {
+    try {
+      await api.deleteFavoriteList(id);
+      if (selectedListId == id) selectedListId = null;
+      _reload();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تعذر حذف القائمة')),
+        );
+      }
+    }
   }
 
   @override
@@ -6407,18 +6570,102 @@ class _FavoritesPageState extends State<FavoritesPage> {
               },
             );
           }
-          final providers = snapshot.data?['providers'] as List<dynamic>? ?? [];
+          final allProviders = snapshot.data?['providers'] as List<dynamic>? ?? [];
+          final providers = selectedListId == null
+              ? allProviders
+              : allProviders
+                  .where(
+                    (item) =>
+                        (item as Map<String, dynamic>)['favoriteListId'] ==
+                        selectedListId,
+                  )
+                  .toList();
           final listings = snapshot.data?['listings'] as List<dynamic>? ?? [];
+          final listsChips = FutureBuilder<List<Map<String, dynamic>>>(
+            future: lists,
+            builder: (context, listSnapshot) {
+              final availableLists = listSnapshot.data ?? const [];
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                child: SizedBox(
+                  height: 38,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    children: [
+                      ChoiceChip(
+                        label: const Text('الكل'),
+                        selected: selectedListId == null,
+                        onSelected: (_) => setState(() => selectedListId = null),
+                      ),
+                      const SizedBox(width: 6),
+                      for (final list in availableLists) ...[
+                        GestureDetector(
+                          onLongPress: () => showDialog(
+                            context: context,
+                            builder: (context) => Directionality(
+                              textDirection: TextDirection.rtl,
+                              child: AlertDialog(
+                                title: Text('حذف "${list['name']}"؟'),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(context),
+                                    child: const Text('إلغاء'),
+                                  ),
+                                  FilledButton(
+                                    onPressed: () {
+                                      Navigator.pop(context);
+                                      _deleteList(list['id'] as String);
+                                    },
+                                    child: const Text('حذف'),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          child: ChoiceChip(
+                            label: Text('${list['name']} (${list['count']})'),
+                            selected: selectedListId == list['id'],
+                            onSelected: (_) => setState(
+                              () => selectedListId = list['id'] as String,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                      ],
+                      ActionChip(
+                        avatar: const Icon(Icons.add, size: 16),
+                        label: const Text('قائمة جديدة'),
+                        onPressed: _createList,
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          );
           if (providers.isEmpty && listings.isEmpty) {
-            return const _StateMessage(
-              icon: Icons.favorite_border,
-              title: 'المفضلة فاضية',
-              subtitle: 'احفظ الأماكن والإعلانات المهمة وهتلاقيها هنا.',
+            return Column(
+              children: [
+                listsChips,
+                const Expanded(
+                  child: _StateMessage(
+                    icon: Icons.favorite_border,
+                    title: 'المفضلة فاضية',
+                    subtitle: 'احفظ الأماكن والإعلانات المهمة وهتلاقيها هنا.',
+                  ),
+                ),
+              ],
             );
           }
           return ListView(
-            padding: const EdgeInsets.all(18),
+            padding: EdgeInsets.zero,
             children: [
+              listsChips,
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
               if (providers.isNotEmpty) ...[
                 const SectionTitle(title: 'الأماكن والخدمات'),
                 const SizedBox(height: 8),
@@ -6471,6 +6718,9 @@ class _FavoritesPageState extends State<FavoritesPage> {
                     },
                   ),
               ],
+                  ],
+                ),
+              ),
             ],
           );
         },
