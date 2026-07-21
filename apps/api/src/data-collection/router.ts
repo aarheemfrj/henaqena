@@ -1,10 +1,37 @@
 import { randomUUID } from 'node:crypto';
-import { Router } from 'express';
+import { readFile, unlink } from 'node:fs/promises';
+import os from 'node:os';
+import { Router, type Request, type Response, type NextFunction } from 'express';
+import multer from 'multer';
 import type { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
+import { runCsvImportForJob } from './import-runner';
+
+const csvUpload = multer({
+  dest: os.tmpdir(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, callback) => {
+    const isCsv = file.originalname.toLowerCase().endsWith('.csv')
+      || file.mimetype === 'text/csv'
+      || file.mimetype === 'application/vnd.ms-excel';
+    if (!isCsv) return callback(new Error('CSV_ONLY'));
+    callback(null, true);
+  },
+});
 
 export const createDataCollectionRouter = (prisma: PrismaClient): Router => {
   const router = Router();
+
+  router.get('/sources', async (_req, res, next) => {
+    try {
+      const sources = await prisma.$queryRawUnsafe<Array<{ id: string; name: string; kind: string; isActive: boolean }>>(
+        `SELECT "id", "name", "kind", "isActive" FROM "DataSource" ORDER BY "name" ASC`,
+      );
+      res.json({ items: sources });
+    } catch (error) {
+      next(error);
+    }
+  });
 
   router.get('/overview', async (_req, res, next) => {
     try {
@@ -221,6 +248,91 @@ export const createDataCollectionRouter = (prisma: PrismaClient): Router => {
       res.json({ resolved: true, id: duplicate.id, resolution: input.resolution });
     } catch (error) {
       next(error);
+    }
+  });
+
+  router.post('/jobs', async (req, res, next) => {
+    try {
+      const input = z.object({
+        sourceId: z.string().min(1, 'مصدر البيانات مطلوب'),
+        category: z.string().min(1, 'الفئة مطلوبة'),
+        area: z.string().min(1, 'المركز أو المنطقة مطلوب'),
+        query: z.string().max(200).optional(),
+        limit: z.coerce.number().int().min(1).max(500).default(50),
+      }).parse(req.body);
+
+      const sources = await prisma.$queryRawUnsafe<Array<{ id: string; name: string; isActive: boolean }>>(
+        `SELECT "id", "name", "isActive" FROM "DataSource" WHERE "id" = $1`,
+        input.sourceId,
+      );
+      const source = sources[0];
+      if (!source) return res.status(404).json({ message: 'مصدر البيانات غير موجود' });
+      if (!source.isActive) return res.status(400).json({ message: `مصدر البيانات "${source.name}" غير مفعّل حاليًا` });
+
+      const metadata = { limit: input.limit, requestedFromAdmin: true };
+
+      const rows = await prisma.$queryRawUnsafe<Array<{
+        id: string; sourceId: string; category: string | null; area: string | null; query: string | null; status: string; metadata: unknown;
+      }>>(
+        `INSERT INTO "CollectionJob"
+          ("id", "sourceId", "category", "area", "query", "status", "metadata")
+         VALUES ($1, $2, $3, $4, $5, 'PENDING', $6::jsonb)
+         RETURNING "id", "sourceId", "category", "area", "query", "status", "metadata"`,
+        randomUUID(),
+        input.sourceId,
+        input.category,
+        input.area,
+        input.query ?? null,
+        JSON.stringify(metadata),
+      );
+
+      res.status(201).json({ job: rows[0] });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  const handleCsvUpload = (req: Request, res: Response, next: NextFunction) => {
+    csvUpload.single('file')(req, res, (error: unknown) => {
+      if (!error) return next();
+      if (error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ message: 'الحد الأقصى لحجم الملف 5MB' });
+      }
+      if (error instanceof Error && error.message === 'CSV_ONLY') {
+        return res.status(400).json({ message: 'يُسمح فقط بملفات CSV' });
+      }
+      next(error);
+    });
+  };
+
+  router.post('/jobs/:id/import-csv', handleCsvUpload, async (req, res, next) => {
+    const file = req.file;
+    try {
+      const jobs = await prisma.$queryRawUnsafe<Array<{ id: string; sourceId: string | null; category: string | null; area: string | null; status: string }>>(
+        `SELECT "id", "sourceId", "category", "area", "status" FROM "CollectionJob" WHERE "id" = $1`,
+        req.params.id,
+      );
+      const job = jobs[0];
+      if (!job) return res.status(404).json({ message: 'مهمة التجميع غير موجودة' });
+      if (job.status === 'COMPLETED' || job.status === 'CANCELLED') {
+        return res.status(400).json({ message: 'لا يمكن رفع ملف لمهمة مكتملة أو ملغاة' });
+      }
+      if (!file) return res.status(400).json({ message: 'ملف CSV مطلوب' });
+
+      const csvContent = await readFile(file.path, 'utf8');
+      const result = await runCsvImportForJob(prisma, {
+        jobId: job.id,
+        sourceId: job.sourceId ?? 'manual-csv',
+        defaultCategory: job.category,
+        defaultArea: job.area,
+        csvContent,
+      });
+
+      res.json({ jobId: job.id, ...result });
+    } catch (error) {
+      next(error);
+    } finally {
+      if (file) await unlink(file.path).catch(() => undefined);
     }
   });
 
