@@ -1962,138 +1962,124 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    return BasePage(
-      onRefresh: _reload,
-      header: const SizedBox.shrink(),
-      horizontalPadding: 0,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Transform.translate(
-            offset: const Offset(0, -2),
-            child: MergedHeroBanner(
-              selectedArea: selectedArea,
-              categoryItems: categoryItems,
-              onPickArea: _pickArea,
-              onOpenDirectory: _openDirectory,
-            ),
-          ),
-          const SizedBox(height: 20),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 18),
-            child: WeatherStrip(),
-          ),
-          const SizedBox(height: 20),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 18),
-            child: PromoCarousel(areaId: selectedAreaId),
-          ),
-          const SizedBox(height: 20),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 18),
-            child: SectionTitle(title: 'فئات قريبة منك'),
-          ),
-          const SizedBox(height: 9),
-          const SizedBox(height: 2),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 18),
-            child: CategoryRail(items: categoryItems, onSelected: _openDirectory),
-          ),
-          const SizedBox(height: 20),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 18),
-            child: SectionTitle(title: 'مختارات قنا'),
-          ),
-          const SizedBox(height: 9),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 18),
-            child: FutureBuilder<List<ProviderSummary>>(
-              future: featured,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return LinearProgressIndicator(color: teal);
-                }
-                final items = snapshot.data ?? const <ProviderSummary>[];
-                if (snapshot.hasError || items.isEmpty) {
-                  return const _StateMessage(
-                    icon: Icons.storefront_outlined,
-                    title: 'لا توجد مختارات منشورة حالياً',
-                    subtitle: 'المختارات تظهر من الأنشطة المعتمدة في الدليل.',
-                  );
-                }
-                return Column(
-                  children: [
-                    for (var index = 0; index < items.take(4).length; index++)
-                      MotionIn(
-                        delay: index * 50,
-                        child: MiniItem(
-                          icon: Icons.storefront_outlined,
-                          title: items[index].name,
-                          subtitle: items[index].subtitle,
-                          onTap: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => ProviderDetailPage(
-                                providerId: items[index].id,
-                                title: items[index].name,
-                                icon: Icons.storefront_outlined,
-                                subtitle: items[index].subtitle,
-                              ),
-                            ),
-                          ),
-                        ),
+    final colors = Theme.of(context).colorScheme;
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Material(
+        color: Theme.of(context).scaffoldBackgroundColor,
+        child: SafeArea(
+          bottom: false,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              MergedHeroBanner(
+                selectedArea: selectedArea,
+                categoryItems: categoryItems,
+                onPickArea: _pickArea,
+                onOpenDirectory: _openDirectory,
+              ),
+              Expanded(
+                child: RefreshIndicator(
+                  color: colors.primary,
+                  displacement: 24,
+                  onRefresh: _reload,
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(18, 20, 18, 24),
+                    children: [
+                      PromoCarousel(areaId: selectedAreaId),
+                      const SizedBox(height: 20),
+                      const SectionTitle(title: 'فئات قريبة منك'),
+                      const SizedBox(height: 11),
+                      CategoryRail(items: categoryItems, onSelected: _openDirectory),
+                      const SizedBox(height: 20),
+                      const SectionTitle(title: 'مختارات قنا'),
+                      const SizedBox(height: 9),
+                      FutureBuilder<List<ProviderSummary>>(
+                        future: featured,
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState == ConnectionState.waiting) {
+                            return LinearProgressIndicator(color: teal);
+                          }
+                          final items = snapshot.data ?? const <ProviderSummary>[];
+                          if (snapshot.hasError || items.isEmpty) {
+                            return const _StateMessage(
+                              icon: Icons.storefront_outlined,
+                              title: 'لا توجد مختارات منشورة حالياً',
+                              subtitle: 'المختارات تظهر من الأنشطة المعتمدة في الدليل.',
+                            );
+                          }
+                          return Column(
+                            children: [
+                              for (var index = 0; index < items.take(4).length; index++)
+                                MotionIn(
+                                  delay: index * 50,
+                                  child: MiniItem(
+                                    icon: Icons.storefront_outlined,
+                                    title: items[index].name,
+                                    subtitle: items[index].subtitle,
+                                    onTap: () => Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => ProviderDetailPage(
+                                          providerId: items[index].id,
+                                          title: items[index].name,
+                                          icon: Icons.storefront_outlined,
+                                          subtitle: items[index].subtitle,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          );
+                        },
                       ),
-                  ],
-                );
-              },
-            ),
-          ),
-          const SizedBox(height: 20),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 18),
-            child: SectionTitle(title: 'أماكن جديدة'),
-          ),
-          const SizedBox(height: 9),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 18),
-            child: FutureBuilder<List<ProviderSummary>>(
-              future: newPlaces,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return LinearProgressIndicator(color: teal);
-                }
-                final items = snapshot.data ?? const <ProviderSummary>[];
-                if (snapshot.hasError || items.isEmpty) {
-                  return const SizedBox.shrink();
-                }
-                return Column(
-                  children: [
-                    for (var index = 0; index < items.length; index++)
-                      MotionIn(
-                        delay: index * 50,
-                        child: MiniItem(
-                          icon: Icons.fiber_new_outlined,
-                          title: items[index].name,
-                          subtitle: items[index].subtitle,
-                          onTap: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => ProviderDetailPage(
-                                providerId: items[index].id,
-                                title: items[index].name,
-                                icon: Icons.storefront_outlined,
-                                subtitle: items[index].subtitle,
-                              ),
-                            ),
-                          ),
-                        ),
+                      const SizedBox(height: 20),
+                      const SectionTitle(title: 'أماكن جديدة'),
+                      const SizedBox(height: 9),
+                      FutureBuilder<List<ProviderSummary>>(
+                        future: newPlaces,
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState == ConnectionState.waiting) {
+                            return LinearProgressIndicator(color: teal);
+                          }
+                          final items = snapshot.data ?? const <ProviderSummary>[];
+                          if (snapshot.hasError || items.isEmpty) {
+                            return const SizedBox.shrink();
+                          }
+                          return Column(
+                            children: [
+                              for (var index = 0; index < items.length; index++)
+                                MotionIn(
+                                  delay: index * 50,
+                                  child: MiniItem(
+                                    icon: Icons.fiber_new_outlined,
+                                    title: items[index].name,
+                                    subtitle: items[index].subtitle,
+                                    onTap: () => Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => ProviderDetailPage(
+                                          providerId: items[index].id,
+                                          title: items[index].name,
+                                          icon: Icons.storefront_outlined,
+                                          subtitle: items[index].subtitle,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          );
+                        },
                       ),
-                  ],
-                );
-              },
-            ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -2212,22 +2198,19 @@ class _MergedHeroBannerState extends State<MergedHeroBanner>
     super.dispose();
   }
 
-  bool _isNightTime() {
-    final hour = DateTime.now().hour;
-    return hour < 6 || hour >= 18;
-  }
-
   @override
   Widget build(BuildContext context) {
     final palette = AppThemeController.current;
-    final isNight = _isNightTime();
     return AnimatedBuilder(
       animation: controller,
       builder: (_, child) => Container(
         clipBehavior: Clip.antiAlias,
-        padding: const EdgeInsets.fromLTRB(26, 34, 26, 32),
+        padding: const EdgeInsets.fromLTRB(26, 56, 26, 24),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(32),
+          borderRadius: const BorderRadius.only(
+            bottomLeft: Radius.circular(32),
+            bottomRight: Radius.circular(32),
+          ),
           gradient: LinearGradient(
             begin: Alignment.topRight,
             end: Alignment.bottomLeft,
@@ -2270,28 +2253,16 @@ class _MergedHeroBannerState extends State<MergedHeroBanner>
                 ),
               ),
             ),
-            PositionedDirectional(
-              start: 0,
-              top: 10,
-              child: Icon(
-                isNight ? Icons.dark_mode : Icons.wb_sunny,
-                size: 96,
-                color: Colors.white.withValues(alpha: .12),
-              ),
-            ),
             Column(
               children: [
-                const Padding(
-                  padding: EdgeInsets.only(left: 84),
-                  child: Text(
-                    'كل ما تحتاجه في قنا..هنا',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 23,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.3,
-                      height: 1.3,
-                    ),
+                const Text(
+                  'كل ما تحتاجه في قنا..هنا',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 23,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.3,
+                    height: 1.3,
                   ),
                 ),
                 const SizedBox(height: 18),
@@ -2318,6 +2289,10 @@ class _MergedHeroBannerState extends State<MergedHeroBanner>
                     style: const TextStyle(color: Color(0xDDF7F6F2), fontSize: 15, fontWeight: FontWeight.w500),
                   ),
                 ),
+                const SizedBox(height: 18),
+                Container(height: 1, color: Colors.white.withValues(alpha: .16)),
+                const SizedBox(height: 14),
+                const _HeroWeatherSection(),
               ],
             ),
           ],
@@ -2325,6 +2300,74 @@ class _MergedHeroBannerState extends State<MergedHeroBanner>
       ),
     );
   }
+}
+
+class _HeroWeatherSection extends StatefulWidget {
+  const _HeroWeatherSection();
+  @override
+  State<_HeroWeatherSection> createState() => _HeroWeatherSectionState();
+}
+
+class _HeroWeatherSectionState extends State<_HeroWeatherSection> {
+  late Future<WeatherInfo> weather = fetchQenaWeather();
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<WeatherInfo>(
+    future: weather,
+    builder: (context, snapshot) {
+      final data = snapshot.data;
+      if (data == null) return const SizedBox.shrink();
+      final (currentIcon, currentLabel) = _weatherIconAndLabel(data.weatherCode);
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Icon(currentIcon, color: Colors.white, size: 26),
+              const SizedBox(width: 8),
+              Text(
+                '${data.currentTemp.round()}°',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(currentLabel, style: const TextStyle(color: Color(0xDDF7F6F2))),
+              const Spacer(),
+              const Text(
+                'طقس قنا الآن',
+                style: TextStyle(color: Color(0xAAF7F6F2), fontSize: 12),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: data.days.skip(1).map((day) {
+              final (icon, _) = _weatherIconAndLabel(day.weatherCode);
+              return Column(
+                children: [
+                  Text(
+                    _weatherDayNames[day.date.weekday % 7],
+                    style: const TextStyle(color: Color(0xBBF7F6F2), fontSize: 11),
+                  ),
+                  const SizedBox(height: 4),
+                  Icon(icon, size: 18, color: Colors.white),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${day.maxTemp.round()}°/${day.minTemp.round()}°',
+                    style: const TextStyle(color: Colors.white, fontSize: 11),
+                  ),
+                ],
+              );
+            }).toList(),
+          ),
+        ],
+      );
+    },
+  );
 }
 
 class HeroBanner extends StatefulWidget {
@@ -3656,79 +3699,6 @@ class ProviderMapPage extends StatelessWidget {
 }
 
 const _weatherDayNames = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
-
-class WeatherStrip extends StatefulWidget {
-  const WeatherStrip({super.key});
-  @override
-  State<WeatherStrip> createState() => _WeatherStripState();
-}
-
-class _WeatherStripState extends State<WeatherStrip> {
-  late Future<WeatherInfo> weather = fetchQenaWeather();
-
-  @override
-  Widget build(BuildContext context) => FutureBuilder<WeatherInfo>(
-    future: weather,
-    builder: (context, snapshot) {
-      final data = snapshot.data;
-      if (data == null) return const SizedBox.shrink();
-      final (currentIcon, currentLabel) = _weatherIconAndLabel(data.weatherCode);
-      return Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: const Color(0xFFE0E8E6)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Icon(currentIcon, color: teal, size: 28),
-                const SizedBox(width: 10),
-                Text(
-                  '${data.currentTemp.round()}°',
-                  style: TextStyle(
-                    color: deepTeal,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(currentLabel, style: const TextStyle(color: muted)),
-                const Spacer(),
-                const Text('طقس قنا الآن', style: TextStyle(color: muted, fontSize: 12)),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: data.days.skip(1).map((day) {
-                final (icon, _) = _weatherIconAndLabel(day.weatherCode);
-                return Column(
-                  children: [
-                    Text(
-                      _weatherDayNames[day.date.weekday % 7],
-                      style: const TextStyle(color: muted, fontSize: 11),
-                    ),
-                    const SizedBox(height: 4),
-                    Icon(icon, size: 18, color: teal),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${day.maxTemp.round()}°/${day.minTemp.round()}°',
-                      style: const TextStyle(fontSize: 11),
-                    ),
-                  ],
-                );
-              }).toList(),
-            ),
-          ],
-        ),
-      );
-    },
-  );
-}
 
 String _formatDistanceKm(double km) =>
     km < 1 ? '${(km * 1000).round()} متر' : '${km.toStringAsFixed(1)} كم';

@@ -263,17 +263,37 @@ class ApiClient {
   Future<void> _cacheSet(String key, List<dynamic> data) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('cache_$key', jsonEncode(data));
+      await prefs.setString(
+        'cache_$key',
+        jsonEncode({
+          'ts': DateTime.now().millisecondsSinceEpoch,
+          'data': data,
+        }),
+      );
     } catch (e) {
       // Cache failure is non-fatal
     }
   }
 
-  Future<List<dynamic>?> _cacheGet(String key) async {
+  /// Returns cached data only if it's younger than [maxAge]. Older or
+  /// legacy-format (pre-timestamp) entries are treated as a miss so callers
+  /// fall back to a fresh network fetch instead of serving stale data
+  /// indefinitely.
+  Future<List<dynamic>?> _cacheGet(
+    String key, {
+    Duration maxAge = const Duration(minutes: 10),
+  }) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final cached = prefs.getString('cache_$key');
-      return cached != null ? jsonDecode(cached) as List<dynamic> : null;
+      if (cached == null) return null;
+      final decoded = jsonDecode(cached);
+      if (decoded is! Map<String, dynamic>) return null;
+      final ts = decoded['ts'] as int?;
+      if (ts == null) return null;
+      final age = DateTime.now().millisecondsSinceEpoch - ts;
+      if (age > maxAge.inMilliseconds) return null;
+      return decoded['data'] as List<dynamic>;
     } catch (e) {
       return null;
     }
@@ -698,7 +718,7 @@ class ApiClient {
   Future<List<CategoryOption>> fetchCategories({bool skipCache = false}) async {
     const cacheKey = 'categories';
     if (!skipCache) {
-      final cached = await _cacheGet(cacheKey);
+      final cached = await _cacheGet(cacheKey, maxAge: const Duration(hours: 24));
       if (cached != null) {
         return (cached as List<dynamic>)
             .map((item) => CategoryOption.fromJson(item as Map<String, dynamic>))
@@ -725,7 +745,7 @@ class ApiClient {
   Future<List<AreaOption>> fetchAreas({bool skipCache = false}) async {
     const cacheKey = 'areas';
     if (!skipCache) {
-      final cached = await _cacheGet(cacheKey);
+      final cached = await _cacheGet(cacheKey, maxAge: const Duration(hours: 24));
       if (cached != null) {
         return (cached as List<dynamic>)
             .map((item) => AreaOption.fromJson(item as Map<String, dynamic>))
