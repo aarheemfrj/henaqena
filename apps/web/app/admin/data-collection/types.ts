@@ -77,6 +77,20 @@ export type DataCollectionOverview = {
   latestJobs: CollectionJob[];
 };
 
+export type DataSourceOption = { id: string; name: string; kind: string; isActive: boolean };
+
+export type NewCollectionJob = {
+  id: string;
+  sourceId: string;
+  category: string | null;
+  area: string | null;
+  query: string | null;
+  status: string;
+  metadata: unknown;
+};
+
+export type CsvImportOutcome = { jobId: string; found: number; saved: number; duplicates: number; failed: number };
+
 export type RecordsSortBy = 'quality' | 'newest' | 'oldest' | 'name';
 
 export type RecordsPage = {
