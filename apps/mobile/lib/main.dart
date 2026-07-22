@@ -5165,7 +5165,12 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
     try {
       final result = await ApiClient().toggleProviderFavorite(id);
       if (!mounted) return;
-      setState(() => favorite = result['active'] as bool? ?? !previous);
+      // The profile state represents any saved copy (default or named list),
+      // not only the default bucket that this toggle targets.
+      setState(
+        () => favorite =
+            result['saved'] as bool? ?? result['active'] as bool? ?? !previous,
+      );
       showTopToast(
         context,
         message: favorite == true
@@ -5609,20 +5614,10 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                       onLongPress: widget.providerId == null
                           ? null
                           : _addToList,
-                      child: OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: favorite == true
-                              ? Colors.white
-                              : teal,
-                          backgroundColor: favorite == true
-                              ? teal
-                              : Colors.transparent,
-                          side: BorderSide(
-                            color: favorite == true
-                                ? teal
-                                : teal.withValues(alpha: .38),
-                          ),
-                          shape: const StadiumBorder(),
+                      child: TextButton.icon(
+                        style: TextButton.styleFrom(
+                          foregroundColor: favorite == true ? teal : muted,
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
                         ),
                         onPressed: widget.providerId == null || savingFavorite
                             ? null
@@ -7435,18 +7430,10 @@ class _ListingDetailPageState extends State<ListingDetailPage> {
                     ),
                     label: const Text('مهتم'),
                   ),
-                  OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: favorite == true ? Colors.white : teal,
-                      backgroundColor: favorite == true
-                          ? teal
-                          : Colors.transparent,
-                      side: BorderSide(
-                        color: favorite == true
-                            ? teal
-                            : teal.withValues(alpha: .38),
-                      ),
-                      shape: const StadiumBorder(),
+                  TextButton.icon(
+                    style: TextButton.styleFrom(
+                      foregroundColor: favorite == true ? teal : muted,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
                     ),
                     onPressed: savingFavorite
                         ? null
