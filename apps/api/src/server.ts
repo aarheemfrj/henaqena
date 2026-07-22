@@ -432,7 +432,7 @@ const socialPlatformSchema = z.enum(['facebook', 'instagram', 'x', 'tiktok', 'yo
 const requireSocialPlatformWithUrl = (value: { socialUrl?: string; socialPlatform?: string }) => !value.socialUrl || value.socialPlatform;
 const requireSocialPlatformRefinement = { message: 'اختر نوع السوشيال ميديا', path: ['socialPlatform'] };
 const providerAttributesFields = { kidFriendly: z.coerce.boolean().default(false), accessible: z.coerce.boolean().default(false), hasParking: z.coerce.boolean().default(false), acceptsCards: z.coerce.boolean().default(false), homeService: z.coerce.boolean().default(false), needsBooking: z.coerce.boolean().default(false), open24h: z.coerce.boolean().default(false), hasDelivery: z.coerce.boolean().default(false) };
-const providerBaseSchema = z.object({ name: z.string().trim().min(2).max(120), description: z.string().trim().max(1000).optional(), phone: z.string().regex(/^01[0125][0-9]{8}$/).optional(), whatsapp: z.string().regex(/^01[0125][0-9]{8}$/).optional(), socialPlatform: socialPlatformSchema.optional(), socialUrl: z.string().trim().url().max(300).optional(), phoneType: z.enum(['BUSINESS', 'PERSONAL']).default('BUSINESS'), address: z.string().trim().max(240).optional(), latitude: z.coerce.number().min(-90).max(90).optional(), longitude: z.coerce.number().min(-180).max(180).optional(), areaId: z.string().min(1), serviceMode: z.enum(['LOCAL', 'ONLINE']).default('LOCAL'), openingTime: z.string().max(10).optional(), closingTime: z.string().max(10).optional(), categoryIds: z.array(z.string().min(1)).min(1).max(5), images: z.array(z.object({ url: z.string().url(), kind: z.string().max(30).optional() })).min(1).max(10), ...providerAttributesFields });
+const providerBaseSchema = z.object({ name: z.string().trim().min(2).max(120), description: z.string().trim().max(1000).optional(), logoUrl: z.string().trim().url().max(500).optional(), phone: z.string().regex(/^01[0125][0-9]{8}$/).optional(), whatsapp: z.string().regex(/^01[0125][0-9]{8}$/).optional(), socialPlatform: socialPlatformSchema.optional(), socialUrl: z.string().trim().url().max(300).optional(), phoneType: z.enum(['BUSINESS', 'PERSONAL']).default('BUSINESS'), address: z.string().trim().max(240).optional(), latitude: z.coerce.number().min(-90).max(90).optional(), longitude: z.coerce.number().min(-180).max(180).optional(), areaId: z.string().min(1), serviceMode: z.enum(['LOCAL', 'ONLINE']).default('LOCAL'), openingTime: z.string().max(10).optional(), closingTime: z.string().max(10).optional(), categoryIds: z.array(z.string().min(1)).min(1).max(5), images: z.array(z.object({ url: z.string().url(), kind: z.string().max(30).optional() })).min(1).max(10), ...providerAttributesFields });
 const providerCreateSchema = providerBaseSchema.refine(requireSocialPlatformWithUrl, requireSocialPlatformRefinement);
 app.post('/api/providers', async (req, res, next) => {
   try {
@@ -441,7 +441,7 @@ app.post('/api/providers', async (req, res, next) => {
     const input = providerCreateSchema.parse(req.body);
     const duplicate = await prisma.provider.findFirst({ where: { areaId: input.areaId, status: { not: ReviewStatus.REJECTED }, OR: [{ name: { equals: input.name, mode: 'insensitive' } }, ...(input.phone ? [{ phone: input.phone }] : [])] } });
     if (duplicate) return res.status(409).json({ message: 'يوجد نشاط مشابه بالفعل في هذه المنطقة' });
-    const provider = await prisma.provider.create({ data: { name: input.name, description: input.description, phone: input.phone, whatsapp: input.whatsapp, socialPlatform: input.socialPlatform, socialUrl: input.socialUrl, phoneType: input.phoneType, address: input.address, latitude: input.latitude, longitude: input.longitude, areaId: input.areaId, serviceMode: input.serviceMode, openingTime: input.openingTime, closingTime: input.closingTime, kidFriendly: input.kidFriendly, accessible: input.accessible, hasParking: input.hasParking, acceptsCards: input.acceptsCards, homeService: input.homeService, needsBooking: input.needsBooking, open24h: input.open24h, hasDelivery: input.hasDelivery, ownerId: session.userId, communityAdded: true, status: ReviewStatus.PENDING, images: { create: input.images.map((image, index) => ({ url: image.url, kind: image.kind ?? 'work', sortOrder: index })) }, categories: { create: input.categoryIds.map((categoryId) => ({ categoryId })) } }, include: { area: true, images: true, categories: { include: { category: true } } } });
+    const provider = await prisma.provider.create({ data: { name: input.name, description: input.description, logoUrl: input.logoUrl, phone: input.phone, whatsapp: input.whatsapp, socialPlatform: input.socialPlatform, socialUrl: input.socialUrl, phoneType: input.phoneType, address: input.address, latitude: input.latitude, longitude: input.longitude, areaId: input.areaId, serviceMode: input.serviceMode, openingTime: input.openingTime, closingTime: input.closingTime, kidFriendly: input.kidFriendly, accessible: input.accessible, hasParking: input.hasParking, acceptsCards: input.acceptsCards, homeService: input.homeService, needsBooking: input.needsBooking, open24h: input.open24h, hasDelivery: input.hasDelivery, ownerId: session.userId, communityAdded: true, status: ReviewStatus.PENDING, images: { create: input.images.map((image, index) => ({ url: image.url, kind: image.kind ?? 'work', sortOrder: index })) }, categories: { create: input.categoryIds.map((categoryId) => ({ categoryId })) } }, include: { area: true, images: true, categories: { include: { category: true } } } });
     res.status(201).json(provider);
   } catch (error) { next(error); }
 });
@@ -514,7 +514,7 @@ app.post('/api/providers/:id/favorite', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-const serviceSchema = z.object({ name: z.string().trim().min(2).max(120), description: z.string().trim().max(600).optional(), price: z.number().nonnegative().max(999999999).optional(), priceNote: z.string().trim().max(120).optional() });
+const serviceSchema = z.object({ name: z.string().trim().min(2).max(120), description: z.string().trim().max(600).optional(), logoUrl: z.string().trim().url().max(500).optional(), price: z.number().nonnegative().max(999999999).optional(), priceNote: z.string().trim().max(120).optional() });
 app.post('/api/providers/:id/services', async (req, res, next) => { try { const session = await sessionFromRequest(req); if (!session) return res.status(401).json({ message: 'سجّل الدخول أولاً' }); const input = serviceSchema.parse(req.body); const provider = await prisma.provider.findUnique({ where: { id: String(req.params.id) } }); if (!provider || provider.ownerId !== session.userId) return res.status(403).json({ message: 'لا تملك النشاط' }); const service = await prisma.providerService.create({ data: { ...input, providerId: provider.id, status: ReviewStatus.PENDING } }); res.status(201).json(service); } catch (error) { next(error); } });
 const offerSchema = z.object({ title: z.string().trim().min(2).max(120), description: z.string().trim().max(600).optional(), startsAt: z.coerce.date(), endsAt: z.coerce.date() }).refine((value) => value.endsAt > value.startsAt, { message: 'تاريخ العرض غير صحيح' });
 app.post('/api/providers/:id/offers', async (req, res, next) => { try { const session = await sessionFromRequest(req); if (!session) return res.status(401).json({ message: 'سجّل الدخول أولاً' }); const input = offerSchema.parse(req.body); const provider = await prisma.provider.findUnique({ where: { id: String(req.params.id) } }); if (!provider || provider.ownerId !== session.userId) return res.status(403).json({ message: 'لا تملك النشاط' }); const offer = await prisma.providerOffer.create({ data: { ...input, providerId: provider.id, status: ReviewStatus.PENDING } }); res.status(201).json(offer); } catch (error) { next(error); } });
@@ -794,13 +794,13 @@ app.post('/api/jobs/expire-listings', requireAdmin, async (_req, res, next) => {
   try { const result = await prisma.listing.updateMany({ where: { status: ListingStatus.ACTIVE, expiresAt: { lt: new Date() } }, data: { status: ListingStatus.EXPIRED } }); res.json({ expired: result.count }); } catch (error) { next(error); }
 });
 
-const listingCreateSchema = z.object({ title: z.string().trim().min(3).max(120), description: z.string().trim().max(1200).optional(), category: z.string().trim().min(1).max(60), price: z.number().positive().max(999999999), areaId: z.string().min(1), images: z.array(z.string().url()).min(1).max(5) });
+const listingCreateSchema = z.object({ title: z.string().trim().min(3).max(120), description: z.string().trim().max(1200).optional(), logoUrl: z.string().trim().url().max(500).optional(), category: z.string().trim().min(1).max(60), price: z.number().positive().max(999999999), areaId: z.string().min(1), images: z.array(z.string().url()).min(1).max(5) });
 app.post('/api/listings', async (req, res, next) => {
   try {
     const session = await sessionFromRequest(req);
     if (!session) return res.status(401).json({ message: 'سجّل الدخول أولاً لإضافة إعلان' });
     const input = listingCreateSchema.parse(req.body);
-    const listing = await prisma.listing.create({ data: { title: input.title, description: input.description, category: input.category, price: input.price, ownerId: session.userId, areaId: input.areaId, status: ListingStatus.PENDING, expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), images: { create: input.images.map((url, index) => ({ url, sortOrder: index })) } }, include: { area: true, images: true } });
+    const listing = await prisma.listing.create({ data: { title: input.title, description: input.description, logoUrl: input.logoUrl, category: input.category, price: input.price, ownerId: session.userId, areaId: input.areaId, status: ListingStatus.PENDING, expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), images: { create: input.images.map((url, index) => ({ url, sortOrder: index })) } }, include: { area: true, images: true } });
     res.status(201).json(listing);
   } catch (error) { next(error); }
 });
@@ -1179,6 +1179,33 @@ app.get('/api/admin/ads', requireAdmin, async (_req, res, next) => {
   try {
     const ads = await prisma.ad.findMany({ include: { area: true }, orderBy: [{ weight: 'desc' }, { createdAt: 'desc' }] });
     res.json(ads);
+  } catch (error) { next(error); }
+});
+
+// Platform-wide settings: home ads rotation interval, and how often the app
+// re-fetches its home-page listings/categories. Public GET so every client
+// (signed in or not) can sync to the same cadence.
+app.get('/api/settings', async (_req, res, next) => {
+  try {
+    const settings = await prisma.platformSettings.upsert({ where: { id: 'default' }, update: {}, create: { id: 'default' } });
+    res.json({ adRotationSeconds: settings.adRotationSeconds, dataRefreshSeconds: settings.dataRefreshSeconds });
+  } catch (error) { next(error); }
+});
+
+const platformSettingsSchema = z.object({
+  adRotationSeconds: z.coerce.number().int().min(2).max(60),
+  dataRefreshSeconds: z.coerce.number().int().min(10).max(3600),
+});
+app.patch('/api/admin/settings', requireAdmin, async (req, res, next) => {
+  try {
+    const input = platformSettingsSchema.parse(req.body);
+    const settings = await prisma.platformSettings.upsert({
+      where: { id: 'default' },
+      update: { adRotationSeconds: input.adRotationSeconds, dataRefreshSeconds: input.dataRefreshSeconds },
+      create: { id: 'default', adRotationSeconds: input.adRotationSeconds, dataRefreshSeconds: input.dataRefreshSeconds },
+    });
+    await audit('settings.update', 'PlatformSettings', settings.id, { adRotationSeconds: settings.adRotationSeconds, dataRefreshSeconds: settings.dataRefreshSeconds });
+    res.json({ adRotationSeconds: settings.adRotationSeconds, dataRefreshSeconds: settings.dataRefreshSeconds });
   } catch (error) { next(error); }
 });
 

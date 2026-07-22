@@ -71,6 +71,8 @@ class ProviderSummary {
     required this.subtitle,
     this.description,
     this.imageUrl,
+    this.logoUrl,
+    this.categoryName,
     this.address,
     this.latitude,
     this.longitude,
@@ -80,9 +82,14 @@ class ProviderSummary {
   final String subtitle;
   final String? description;
   final String? imageUrl;
+  final String? logoUrl;
+  final String? categoryName;
   final String? address;
   final double? latitude;
   final double? longitude;
+  // Display image: the owner's uploaded logo, falling back to the first
+  // photo -- callers fall back further to a category icon when this is null.
+  String? get displayImageUrl => logoUrl ?? imageUrl;
   factory ProviderSummary.fromJson(
     Map<String, dynamic> json,
     String baseUrl,
@@ -93,6 +100,8 @@ class ProviderSummary {
     address: json['address'] as String?,
     latitude: (json['latitude'] as num?)?.toDouble(),
     longitude: (json['longitude'] as num?)?.toDouble(),
+    logoUrl: _absoluteUrl(baseUrl, json['logoUrl'] as String?),
+    categoryName: _firstCategoryName(json['categories']),
     imageUrl: _absoluteUrl(
       baseUrl,
       (json['images'] as List<dynamic>?)?.isNotEmpty == true
@@ -104,6 +113,14 @@ class ProviderSummary {
     subtitle:
         '${json['area']?['name'] ?? 'قنا'}${json['isVerified'] == true ? ' · موثق' : ''}${(json['rating'] as num? ?? 0) > 0 ? ' · ${json['rating']} ★' : ''}',
   );
+}
+
+String? _firstCategoryName(dynamic categoriesJson) {
+  final list = categoriesJson as List<dynamic>?;
+  if (list == null || list.isEmpty) return null;
+  final first = list.first as Map<String, dynamic>;
+  final category = first['category'] as Map<String, dynamic>?;
+  return category?['name'] as String?;
 }
 
 class ProviderDetails {
@@ -136,11 +153,17 @@ class ProviderDetails {
     this.open24h = false,
     this.hasDelivery = false,
     this.categorySlug,
+    this.logoUrl,
   });
   final String id;
   final String name;
   final String? description;
   final List<String> images;
+  final String? logoUrl;
+  // Display image: the owner's uploaded logo, falling back to the first
+  // photo -- callers fall back further to a category icon when this is null.
+  String? get displayImageUrl =>
+      logoUrl ?? (images.isNotEmpty ? images.first : null);
   final List<Map<String, dynamic>> reviews;
   final String? phone;
   final String? whatsapp;
@@ -211,6 +234,7 @@ class ProviderDetails {
         open24h: json['open24h'] as bool? ?? false,
         hasDelivery: json['hasDelivery'] as bool? ?? false,
         categorySlug: _firstCategorySlug(json['categories']),
+        logoUrl: _absoluteUrl(baseUrl, json['logoUrl'] as String?),
       );
 }
 
@@ -335,6 +359,30 @@ class ApiClient {
     if (response.statusCode == 401) throw Exception('unauthorized');
     if (response.statusCode != 200) throw Exception('ad_reaction_error');
     return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+  }
+
+  /// Admin-configurable platform settings (currently just the home ads
+  /// rotation interval). Cached briefly so the carousel doesn't refetch it
+  /// on every tick.
+  Future<Map<String, dynamic>> fetchPlatformSettings() async {
+    const cacheKey = 'platform_settings';
+    try {
+      final response = await http
+          .get(Uri.parse('$baseUrl/api/settings'))
+          .timeout(const Duration(seconds: 3));
+      if (response.statusCode != 200) throw Exception('settings_error');
+      final data = Map<String, dynamic>.from(
+        jsonDecode(response.body) as Map,
+      );
+      await _cacheSet('platform_settings', [data]);
+      return data;
+    } catch (_) {
+      final cached = await _cacheGet(cacheKey, maxAge: const Duration(days: 7));
+      if (cached != null && cached.isNotEmpty) {
+        return Map<String, dynamic>.from(cached.first as Map);
+      }
+      return {'adRotationSeconds': 6};
+    }
   }
 
   Future<List<Map<String, dynamic>>> fetchPrices({String? areaId}) async {
@@ -715,58 +763,60 @@ class ApiClient {
     }
   }
 
+  // Categories/areas are small, cheap lists, so we always try the network
+  // first (so a category added on the platform shows up immediately) and
+  // only fall back to a locally cached copy if the device is offline —
+  // never serve a day-old list just because it happened to be cached.
   Future<List<CategoryOption>> fetchCategories({bool skipCache = false}) async {
     const cacheKey = 'categories';
-    if (!skipCache) {
-      final cached = await _cacheGet(cacheKey, maxAge: const Duration(hours: 24));
-      if (cached != null) {
-        return (cached as List<dynamic>)
-            .map((item) => CategoryOption.fromJson(item as Map<String, dynamic>))
-            .toList();
+    try {
+      final response = await http
+          .get(Uri.parse('$baseUrl/api/categories'))
+          .timeout(const Duration(seconds: 3));
+      if (response.statusCode != 200) {
+        throw Exception('API error ${response.statusCode}');
       }
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      final data = (body['data'] as List<dynamic>)
+          .map((item) => Map<String, dynamic>.from(item as Map))
+          .toList();
+      await _cacheSet(cacheKey, data);
+      return data
+          .map((item) => CategoryOption.fromJson(item as Map<String, dynamic>))
+          .toList();
+    } catch (error) {
+      final cached = await _cacheGet(cacheKey, maxAge: const Duration(days: 7));
+      if (cached == null) rethrow;
+      return cached
+          .map((item) => CategoryOption.fromJson(item as Map<String, dynamic>))
+          .toList();
     }
-
-    final response = await http
-        .get(Uri.parse('$baseUrl/api/categories'))
-        .timeout(const Duration(seconds: 3));
-    if (response.statusCode != 200) {
-      throw Exception('API error ${response.statusCode}');
-    }
-    final body = jsonDecode(response.body) as Map<String, dynamic>;
-    final data = (body['data'] as List<dynamic>)
-        .map((item) => Map<String, dynamic>.from(item as Map))
-        .toList();
-    await _cacheSet(cacheKey, data);
-    return data
-        .map((item) => CategoryOption.fromJson(item as Map<String, dynamic>))
-        .toList();
   }
 
   Future<List<AreaOption>> fetchAreas({bool skipCache = false}) async {
     const cacheKey = 'areas';
-    if (!skipCache) {
-      final cached = await _cacheGet(cacheKey, maxAge: const Duration(hours: 24));
-      if (cached != null) {
-        return (cached as List<dynamic>)
-            .map((item) => AreaOption.fromJson(item as Map<String, dynamic>))
-            .toList();
+    try {
+      final response = await http
+          .get(Uri.parse('$baseUrl/api/areas'))
+          .timeout(const Duration(seconds: 3));
+      if (response.statusCode != 200) {
+        throw Exception('API error ${response.statusCode}');
       }
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      final data = (body['data'] as List<dynamic>)
+          .map((item) => Map<String, dynamic>.from(item as Map))
+          .toList();
+      await _cacheSet(cacheKey, data);
+      return data
+          .map((item) => AreaOption.fromJson(item as Map<String, dynamic>))
+          .toList();
+    } catch (error) {
+      final cached = await _cacheGet(cacheKey, maxAge: const Duration(days: 7));
+      if (cached == null) rethrow;
+      return cached
+          .map((item) => AreaOption.fromJson(item as Map<String, dynamic>))
+          .toList();
     }
-
-    final response = await http
-        .get(Uri.parse('$baseUrl/api/areas'))
-        .timeout(const Duration(seconds: 3));
-    if (response.statusCode != 200) {
-      throw Exception('API error ${response.statusCode}');
-    }
-    final body = jsonDecode(response.body) as Map<String, dynamic>;
-    final data = (body['data'] as List<dynamic>)
-        .map((item) => Map<String, dynamic>.from(item as Map))
-        .toList();
-    await _cacheSet(cacheKey, data);
-    return data
-        .map((item) => AreaOption.fromJson(item as Map<String, dynamic>))
-        .toList();
   }
 
   Future<void> submitProvider({required Map<String, dynamic> data}) async {
@@ -1167,7 +1217,25 @@ class ApiClient {
         return image;
       }).toList();
     }
+    if (item['logoUrl'] is String) {
+      item['logoUrl'] = _absoluteUrl(baseUrl, item['logoUrl'] as String?);
+    }
     return item;
+  }
+
+  /// The item's first linked category name, for callers rendering raw JSON
+  /// (rather than a typed model) that still need a category icon fallback.
+  String? firstCategoryNameFor(Map<String, dynamic> item) =>
+      _firstCategoryName(item['categories']);
+
+  /// Optional logo, falling back to the first photo -- callers fall back
+  /// further to a category icon when this returns null.
+  String? displayImageUrlFor(Map<String, dynamic> item) {
+    final logo = item['logoUrl'] as String?;
+    if (logo != null) return logo;
+    final images = item['images'] as List<dynamic>?;
+    if (images == null || images.isEmpty) return null;
+    return (images.first as Map<String, dynamic>)['url'] as String?;
   }
 
   Future<void> reportListing(String id, String reason) async {
@@ -1268,6 +1336,7 @@ class ApiClient {
     required String areaId,
     required List<String> images,
     String? description,
+    String? logoUrl,
   }) async {
     final response = await http
         .post(
@@ -1281,6 +1350,7 @@ class ApiClient {
             'images': images,
             if (description != null && description.trim().isNotEmpty)
               'description': description.trim(),
+            if (logoUrl != null) 'logoUrl': logoUrl,
           }),
         )
         .timeout(const Duration(seconds: 8));

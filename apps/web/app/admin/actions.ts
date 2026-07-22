@@ -55,6 +55,15 @@ export async function moderateAd(formData: FormData) {
   revalidatePath('/admin/ads');
 }
 
+export async function updatePlatformSettings(formData: FormData) {
+  if (!await hasAdminSession()) redirect('/admin/login');
+  await apiPatch('/api/admin/settings', {
+    adRotationSeconds: Number(formData.get('adRotationSeconds') ?? 6),
+    dataRefreshSeconds: Number(formData.get('dataRefreshSeconds') ?? 60),
+  });
+  revalidatePath('/admin/ads');
+}
+
 export async function createPrice(formData: FormData) {
   if (!await hasAdminSession()) redirect('/admin/login');
   await apiPost('/api/admin/prices', { name: String(formData.get('name') ?? ''), category: String(formData.get('category') ?? '') || undefined, minPrice: Number(formData.get('minPrice') ?? 0), maxPrice: Number(formData.get('maxPrice') ?? 0), unit: String(formData.get('unit') ?? '') || undefined, sourceNote: String(formData.get('sourceNote') ?? '') || undefined });

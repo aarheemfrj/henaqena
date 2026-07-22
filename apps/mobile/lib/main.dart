@@ -1832,12 +1832,40 @@ class _HomePageState extends State<HomePage> {
     pageSize: 4,
   );
   List<String> categoryItems = const [];
+  Timer? _refreshTimer;
 
   @override
   void initState() {
     super.initState();
     _loadCategories();
     if (AuthSession.isSignedIn) _loadRecommendations();
+    ApiClient().fetchPlatformSettings().then((settings) {
+      if (!mounted) return;
+      final seconds = (settings['dataRefreshSeconds'] as num?)?.toInt();
+      _refreshTimer = Timer.periodic(
+        Duration(seconds: seconds != null && seconds > 0 ? seconds : 60),
+        (_) => _refresh(),
+      );
+    });
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
+  }
+
+  // The home tab's State stays alive for the whole app session (bottom-nav
+  // switches visibility, it doesn't recreate the page), so without this the
+  // featured/new-places lists would only ever reflect what the platform had
+  // when the app first opened. Called on the admin-configured interval.
+  void _refresh() {
+    if (!mounted) return;
+    setState(() {
+      featured = ApiClient().fetchProviders(areaId: selectedAreaId);
+      newPlaces = ApiClient().fetchProviders(sort: 'latest', pageSize: 4);
+    });
+    _loadCategories();
   }
 
   Future<void> _loadCategories() async {
@@ -2014,7 +2042,8 @@ class _HomePageState extends State<HomePage> {
                                 MotionIn(
                                   delay: index * 50,
                                   child: MiniItem(
-                                    icon: Icons.storefront_outlined,
+                                    icon: categoryIcon(items[index].categoryName),
+                                    imageUrl: items[index].displayImageUrl,
                                     title: items[index].name,
                                     subtitle: items[index].subtitle,
                                     onTap: () => Navigator.push(
@@ -2054,6 +2083,7 @@ class _HomePageState extends State<HomePage> {
                                   delay: index * 50,
                                   child: MiniItem(
                                     icon: Icons.fiber_new_outlined,
+                                    imageUrl: items[index].displayImageUrl,
                                     title: items[index].name,
                                     subtitle: items[index].subtitle,
                                     onTap: () => Navigator.push(
@@ -2205,7 +2235,7 @@ class _MergedHeroBannerState extends State<MergedHeroBanner>
       animation: controller,
       builder: (_, child) => Container(
         clipBehavior: Clip.antiAlias,
-        padding: const EdgeInsets.fromLTRB(26, 56, 26, 24),
+        padding: const EdgeInsets.fromLTRB(26, 14, 26, 24),
         decoration: BoxDecoration(
           borderRadius: const BorderRadius.only(
             bottomLeft: Radius.circular(32),
@@ -2255,17 +2285,31 @@ class _MergedHeroBannerState extends State<MergedHeroBanner>
             ),
             Column(
               children: [
-                const Text(
-                  'كل ما تحتاجه في قنا..هنا',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 23,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.3,
-                    height: 1.3,
+                SizedBox(
+                  height: 44,
+                  child: Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'كل ما تحتاجه في قنا..هنا',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 19,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.3,
+                            height: 1.2,
+                          ),
+                        ),
+                      ),
+                      // Reserved space so the title never underlaps the
+                      // floating notification/account icons (PersistentTopActions).
+                      const SizedBox(width: 92),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 18),
+                const SizedBox(height: 14),
                 TextField(
                   textInputAction: TextInputAction.search,
                   onSubmitted: (value) {
@@ -2318,51 +2362,47 @@ class _HeroWeatherSectionState extends State<_HeroWeatherSection> {
       final data = snapshot.data;
       if (data == null) return const SizedBox.shrink();
       final (currentIcon, currentLabel) = _weatherIconAndLabel(data.weatherCode);
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Row(
-            children: [
-              Icon(currentIcon, color: Colors.white, size: 26),
-              const SizedBox(width: 8),
-              Text(
-                '${data.currentTemp.round()}°',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(currentLabel, style: const TextStyle(color: Color(0xDDF7F6F2))),
-              const Spacer(),
-              const Text(
-                'طقس قنا الآن',
-                style: TextStyle(color: Color(0xAAF7F6F2), fontSize: 12),
-              ),
-            ],
+          Icon(currentIcon, color: Colors.white, size: 22),
+          const SizedBox(width: 6),
+          Text(
+            '${data.currentTemp.round()}°',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+            ),
           ),
-          const SizedBox(height: 10),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: data.days.skip(1).map((day) {
-              final (icon, _) = _weatherIconAndLabel(day.weatherCode);
-              return Column(
-                children: [
-                  Text(
-                    _weatherDayNames[day.date.weekday % 7],
-                    style: const TextStyle(color: Color(0xBBF7F6F2), fontSize: 11),
-                  ),
-                  const SizedBox(height: 4),
-                  Icon(icon, size: 18, color: Colors.white),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${day.maxTemp.round()}°/${day.minTemp.round()}°',
-                    style: const TextStyle(color: Colors.white, fontSize: 11),
-                  ),
-                ],
-              );
-            }).toList(),
+          const SizedBox(width: 6),
+          Text(currentLabel, style: const TextStyle(color: Color(0xDDF7F6F2), fontSize: 12)),
+          const SizedBox(width: 10),
+          Container(width: 1, height: 22, color: Colors.white.withValues(alpha: .2)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: data.days.skip(1).map((day) {
+                final (icon, _) = _weatherIconAndLabel(day.weatherCode);
+                return Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _weatherDayNames[day.date.weekday % 7],
+                      style: const TextStyle(color: Color(0xBBF7F6F2), fontSize: 10),
+                    ),
+                    const SizedBox(width: 4),
+                    Icon(icon, size: 14, color: Colors.white),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${day.maxTemp.round()}°',
+                      style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                );
+              }).toList(),
+            ),
           ),
         ],
       );
@@ -2495,11 +2535,21 @@ class _PromoCarouselState extends State<PromoCarousel> {
   final controller = PageController(viewportFraction: .94);
   int active = 0;
   List<Map<String, dynamic>> promos = const [];
+  int rotationSeconds = 6;
+  Timer? _rotationTimer;
 
   @override
   void initState() {
     super.initState();
     _load();
+    ApiClient().fetchPlatformSettings().then((settings) {
+      if (!mounted) return;
+      final seconds = (settings['adRotationSeconds'] as num?)?.toInt();
+      if (seconds != null && seconds > 0) {
+        setState(() => rotationSeconds = seconds);
+      }
+    });
+    _rotationTimer = Timer.periodic(const Duration(seconds: 1), (_) => _syncToServerTime());
   }
 
   @override
@@ -2521,6 +2571,22 @@ class _PromoCarouselState extends State<PromoCarousel> {
           }
         })
         .catchError((_) {});
+  }
+
+  // Derives which ad should be showing from wall-clock time (not from when
+  // this widget was built), so every device -- regardless of when it opened
+  // the app -- lands on the same ad at the same moment.
+  void _syncToServerTime() {
+    if (promos.isEmpty || !controller.hasClients) return;
+    final nowSeconds = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final targetIndex = (nowSeconds ~/ rotationSeconds) % promos.length;
+    if (targetIndex != active) {
+      controller.animateToPage(
+        targetIndex,
+        duration: const Duration(milliseconds: 450),
+        curve: Curves.easeOutCubic,
+      );
+    }
   }
 
   Future<void> _react(int index) async {
@@ -2551,6 +2617,7 @@ class _PromoCarouselState extends State<PromoCarousel> {
 
   @override
   void dispose() {
+    _rotationTimer?.cancel();
     controller.dispose();
     super.dispose();
   }
@@ -2591,7 +2658,7 @@ class _PromoCarouselState extends State<PromoCarousel> {
                               image: CachedNetworkImageProvider(imageUrl),
                               fit: BoxFit.cover,
                               colorFilter: ColorFilter.mode(
-                                deepTeal.withValues(alpha: .48),
+                                deepTeal.withValues(alpha: .12),
                                 BlendMode.srcOver,
                               ),
                             ),
@@ -2615,6 +2682,9 @@ class _PromoCarouselState extends State<PromoCarousel> {
                                 style: const TextStyle(
                                   color: Colors.white,
                                   fontWeight: FontWeight.w700,
+                                  shadows: [
+                                    Shadow(color: Colors.black45, blurRadius: 6),
+                                  ],
                                 ),
                               ),
                               const SizedBox(height: 4),
@@ -2623,6 +2693,9 @@ class _PromoCarouselState extends State<PromoCarousel> {
                                 style: TextStyle(
                                   color: Colors.white.withValues(alpha: .92),
                                   fontSize: 13,
+                                  shadows: const [
+                                    Shadow(color: Colors.black45, blurRadius: 6),
+                                  ],
                                 ),
                               ),
                             ],
@@ -2642,7 +2715,7 @@ class _PromoCarouselState extends State<PromoCarousel> {
                           '${promo['_count']?['reactions'] ?? 0}',
                           style: const TextStyle(color: Colors.white),
                         ),
-                        const Icon(Icons.chevron_left, color: Colors.white),
+                        const Icon(Icons.open_in_new, color: Colors.white, size: 18),
                       ],
                     ),
                   ),
@@ -2717,11 +2790,15 @@ class MiniItem extends StatefulWidget {
     required this.title,
     required this.subtitle,
     this.onTap,
+    this.imageUrl,
   });
   final IconData icon;
   final String title;
   final String subtitle;
   final VoidCallback? onTap;
+  // Optional display image (logo, falling back to the item's first photo).
+  // When set, it's shown instead of the generic category [icon].
+  final String? imageUrl;
   @override
   State<MiniItem> createState() => _MiniItemState();
 }
@@ -2757,7 +2834,12 @@ class _MiniItemState extends State<MiniItem> {
             tag: 'provider-icon-${widget.title}',
             child: CircleAvatar(
               backgroundColor: const Color(0xFFD8EFEC),
-              child: Icon(widget.icon, color: deepTeal),
+              backgroundImage: widget.imageUrl == null
+                  ? null
+                  : CachedNetworkImageProvider(widget.imageUrl!),
+              child: widget.imageUrl == null
+                  ? Icon(widget.icon, color: deepTeal)
+                  : null,
             ),
           ),
           title: Text(
@@ -3081,14 +3163,13 @@ class _DirectoryPageState extends State<DirectoryPage> {
             return Column(
               children: [
                 ...providers.asMap().entries.map((entry) {
-                  final icon = entry.key == 0
-                      ? Icons.build_outlined
-                      : Icons.local_hospital_outlined;
+                  final icon = categoryIcon(entry.value.categoryName);
                   final provider = entry.value;
                   return MotionIn(
                     delay: entry.key * 60,
                     child: MiniItem(
                       icon: icon,
+                      imageUrl: provider.displayImageUrl,
                       title: provider.name,
                       subtitle: provider.subtitle,
                       onTap: () => _openDetails(context, provider, icon),
@@ -3700,6 +3781,60 @@ class ProviderMapPage extends StatelessWidget {
 
 const _weatherDayNames = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
 
+// Categories are admin-managed free text (not a fixed enum), so this maps
+// common keywords to a representative icon instead of relying on exact
+// matches. Falls back to a generic storefront icon for anything unmatched.
+const Map<String, IconData> _categoryKeywordIcons = {
+  'مطعم': Icons.restaurant_outlined,
+  'مطاعم': Icons.restaurant_outlined,
+  'كافيه': Icons.local_cafe_outlined,
+  'صيدل': Icons.local_pharmacy_outlined,
+  'مستشف': Icons.local_hospital_outlined,
+  'عياد': Icons.medical_services_outlined,
+  'طبيب': Icons.medical_services_outlined,
+  'أطباء': Icons.medical_services_outlined,
+  'تحاليل': Icons.biotech_outlined,
+  'أشعة': Icons.biotech_outlined,
+  'تصوير': Icons.camera_alt_outlined,
+  'أفراح': Icons.celebration_outlined,
+  'فندق': Icons.hotel_outlined,
+  'شقق فندقية': Icons.hotel_outlined,
+  'سوبر ماركت': Icons.local_grocery_store_outlined,
+  'مخابز': Icons.bakery_dining_outlined,
+  'حلوان': Icons.cake_outlined,
+  'ملابس': Icons.checkroom_outlined,
+  'أحذية': Icons.checkroom_outlined,
+  'موبايل': Icons.smartphone_outlined,
+  'كهربائي': Icons.electrical_services_outlined,
+  'أثاث': Icons.chair_outlined,
+  'أدوات منزلية': Icons.kitchen_outlined,
+  'مقاولات': Icons.construction_outlined,
+  'ديكور': Icons.brush_outlined,
+  'عقار': Icons.apartment_outlined,
+  'محاما': Icons.gavel_outlined,
+  'محاسب': Icons.calculate_outlined,
+  'تعليم': Icons.school_outlined,
+  'حضان': Icons.child_friendly_outlined,
+  'مدارس': Icons.school_outlined,
+  'جيم': Icons.fitness_center_outlined,
+  'تجميل': Icons.face_retouching_natural_outlined,
+  'حلاق': Icons.content_cut_outlined,
+  'غسيل سيارات': Icons.local_car_wash_outlined,
+  'صيانة سيارات': Icons.car_repair_outlined,
+  'قطع غيار': Icons.settings_input_component_outlined,
+  'نقل': Icons.local_shipping_outlined,
+};
+
+IconData categoryIcon(String? categoryName) {
+  if (categoryName == null || categoryName.isEmpty) {
+    return Icons.storefront_outlined;
+  }
+  for (final entry in _categoryKeywordIcons.entries) {
+    if (categoryName.contains(entry.key)) return entry.value;
+  }
+  return Icons.storefront_outlined;
+}
+
 String _formatDistanceKm(double km) =>
     km < 1 ? '${(km * 1000).round()} متر' : '${km.toStringAsFixed(1)} كم';
 
@@ -4171,7 +4306,12 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                         child: CircleAvatar(
                           radius: 30,
                           backgroundColor: const Color(0xFFD8EFEC),
-                          child: Icon(widget.icon, color: deepTeal, size: 30),
+                          backgroundImage: data?.displayImageUrl == null
+                              ? null
+                              : CachedNetworkImageProvider(data!.displayImageUrl!),
+                          child: data?.displayImageUrl == null
+                              ? Icon(widget.icon, color: deepTeal, size: 30)
+                              : null,
                         ),
                       ),
                       const SizedBox(width: 14),
@@ -4179,13 +4319,34 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              data?.name ?? widget.title,
-                              style: TextStyle(
-                                color: deepTeal,
-                                fontSize: 20,
-                                fontWeight: FontWeight.w700,
-                              ),
+                            Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    data?.name ?? widget.title,
+                                    style: TextStyle(
+                                      color: deepTeal,
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                                if (data?.isVerified == true) ...[
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    padding: const EdgeInsets.all(3),
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: teal,
+                                    ),
+                                    child: const Icon(
+                                      Icons.check,
+                                      size: 14,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ],
+                              ],
                             ),
                             const SizedBox(height: 7),
                             Row(
@@ -4202,21 +4363,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                                     style: const TextStyle(color: muted),
                                   ),
                                 ),
-                                const SizedBox(width: 10),
-                                if (data?.isVerified == true)
-                                  Container(
-                                    padding: const EdgeInsets.all(3),
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color: teal,
-                                    ),
-                                    child: const Icon(
-                                      Icons.check,
-                                      size: 14,
-                                      color: Colors.white,
-                                    ),
-                                  )
-                                else if (data != null)
+                                if (data != null && data.isVerified != true)
                                   const Text(
                                     'مضاف من المجتمع',
                                     style: TextStyle(
@@ -4253,7 +4400,10 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                               'تعذر فتح الاتصال على هذا الجهاز',
                             ),
                       icon: const Icon(Icons.phone_outlined),
-                      label: const Text('اتصال'),
+                      label: const FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text('اتصال', maxLines: 1, softWrap: false),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -4269,8 +4419,11 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                               ),
                               'واتساب غير متاح على هذا الجهاز',
                             ),
-                      icon: const Icon(Icons.chat_outlined),
-                      label: const Text('واتساب'),
+                      icon: const FaIcon(FontAwesomeIcons.whatsapp, size: 16),
+                      label: const FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text('واتساب', maxLines: 1, softWrap: false),
+                      ),
                     ),
                   ),
                   if (SocialPlatform.of(data?.socialPlatform) case final social?) ...[
@@ -4286,7 +4439,10 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                           'تعذر فتح الرابط',
                         ),
                         icon: FaIcon(social.icon, size: 16),
-                        label: Text(social.label),
+                        label: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(social.label, maxLines: 1, softWrap: false),
+                        ),
                       ),
                     ),
                   ],
@@ -4389,20 +4545,24 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                   },
                 ),
               if (data != null && _providerAttributeLabels(data).isNotEmpty) ...[
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: _providerAttributeLabels(data)
-                      .map(
-                        (label) => Chip(
-                          avatar: Icon(label.$2, size: 16, color: teal),
-                          label: Text(label.$1, style: const TextStyle(fontSize: 12)),
-                          backgroundColor: const Color(0xFFEFF8F6),
-                          side: BorderSide.none,
-                          visualDensity: VisualDensity.compact,
-                        ),
-                      )
-                      .toList(),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: _providerAttributeLabels(data)
+                        .map(
+                          (label) => Padding(
+                            padding: const EdgeInsets.only(left: 8),
+                            child: Chip(
+                              avatar: Icon(label.$2, size: 16, color: teal),
+                              label: Text(label.$1, style: const TextStyle(fontSize: 12)),
+                              backgroundColor: const Color(0xFFEFF8F6),
+                              side: BorderSide.none,
+                              visualDensity: VisualDensity.compact,
+                            ),
+                          ),
+                        )
+                        .toList(),
+                  ),
                 ),
                 const SizedBox(height: 18),
               ],
@@ -4459,7 +4619,8 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                       children: similar
                           .map(
                             (item) => MiniItem(
-                              icon: Icons.storefront_outlined,
+                              icon: categoryIcon(item.categoryName),
+                              imageUrl: item.displayImageUrl,
                               title: item.name,
                               subtitle: item.subtitle,
                               onTap: () => Navigator.pushReplacement(
@@ -5574,7 +5735,8 @@ class _ListingsPageState extends State<ListingsPage> {
                   MotionIn(
                     delay: index * 45,
                     child: MiniItem(
-                      icon: Icons.campaign_outlined,
+                      icon: categoryIcon(items[index]['category'] as String?),
+                      imageUrl: api.displayImageUrlFor(items[index]),
                       title: items[index]['title'] as String? ?? 'إعلان',
                       subtitle:
                           '${items[index]['price']} جنيه · ${items[index]['area']?['name'] ?? 'قنا'} · ${items[index]['category'] ?? ''}',
@@ -5928,7 +6090,10 @@ class _ListingDetailPageState extends State<ListingDetailPage> {
                           ? null
                           : () => AppActions.call(phone),
                       icon: const Icon(Icons.phone_outlined),
-                      label: const Text('اتصال'),
+                      label: const FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text('اتصال', maxLines: 1, softWrap: false),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -5941,8 +6106,11 @@ class _ListingDetailPageState extends State<ListingDetailPage> {
                               message:
                                   'مرحبًا، شفت إعلان «$title» على تطبيق هنا قنا.',
                             ),
-                      icon: const Icon(Icons.chat_outlined),
-                      label: const Text('واتساب'),
+                      icon: const FaIcon(FontAwesomeIcons.whatsapp, size: 16),
+                      label: const FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text('واتساب', maxLines: 1, softWrap: false),
+                      ),
                     ),
                   ),
                 ],
@@ -6026,12 +6194,23 @@ class _CreateListingPageState extends State<CreateListingPage> {
   final price = TextEditingController();
   final description = TextEditingController();
   final selectedImages = <XFile>[];
+  XFile? logoImage;
   bool submitting = false;
 
   @override
   void initState() {
     super.initState();
     _restoreDraft();
+  }
+
+  Future<void> _pickLogo() async {
+    final picked = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 80,
+      maxWidth: 600,
+    );
+    if (!mounted || picked == null) return;
+    setState(() => logoImage = picked);
   }
 
   Future<void> _restoreDraft() async {
@@ -6117,6 +6296,9 @@ class _CreateListingPageState extends State<CreateListingPage> {
         return;
       }
       final uploaded = await api.uploadProviderImages(selectedImages);
+      final logoUrl = logoImage == null
+          ? null
+          : (await api.uploadProviderImages([logoImage!])).first['url'] as String?;
       await _saveDraft();
       await api.submitListing(
         title: title.text.trim(),
@@ -6125,6 +6307,7 @@ class _CreateListingPageState extends State<CreateListingPage> {
         areaId: resolvedArea,
         images: uploaded.map((image) => image['url'] as String).toList(),
         description: description.text,
+        logoUrl: logoUrl,
       );
       if (!mounted) return;
       await _clearDraft();
@@ -6294,6 +6477,35 @@ class _CreateListingPageState extends State<CreateListingPage> {
             style: TextStyle(color: muted),
           ),
           const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _pickLogo,
+                  icon: const Icon(Icons.add_photo_alternate_outlined),
+                  label: const Text('شعار الإعلان (اختياري)'),
+                ),
+              ),
+              if (logoImage != null) ...[
+                const SizedBox(width: 8),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: Image.file(
+                    File(logoImage!.path),
+                    width: 40,
+                    height: 40,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => setState(() => logoImage = null),
+                  icon: Icon(Icons.close, color: muted, size: 18),
+                  tooltip: 'إزالة الشعار',
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 8),
           OutlinedButton.icon(
             onPressed: selectedImages.length >= 5 ? null : _pickImages,
             icon: const Icon(Icons.add_a_photo_outlined),
@@ -7043,7 +7255,8 @@ class _FavoritesPageState extends State<FavoritesPage> {
                     builder: (context) {
                       final provider = value as Map<String, dynamic>;
                       return MiniItem(
-                        icon: Icons.storefront_outlined,
+                        icon: categoryIcon(api.firstCategoryNameFor(provider)),
+                        imageUrl: api.displayImageUrlFor(provider),
                         title: provider['name'] as String? ?? 'نشاط',
                         subtitle: provider['area']?['name'] as String? ?? 'قنا',
                         onTap: () => Navigator.push(
@@ -7071,7 +7284,8 @@ class _FavoritesPageState extends State<FavoritesPage> {
                     builder: (context) {
                       final listing = value as Map<String, dynamic>;
                       return MiniItem(
-                        icon: Icons.campaign_outlined,
+                        icon: categoryIcon(listing['category'] as String?),
+                        imageUrl: api.displayImageUrlFor(listing),
                         title: listing['title'] as String? ?? 'إعلان',
                         subtitle:
                             '${listing['price']} جنيه · ${listing['area']?['name'] ?? 'قنا'}',
@@ -7626,6 +7840,7 @@ class _AddActivityPageState extends State<AddActivityPage> {
   String closing = '22:00';
   int imageCount = 0;
   final selectedImages = <XFile>[];
+  XFile? logoImage;
   bool preview = false;
   bool submitting = false;
   double? latitude;
@@ -7640,6 +7855,16 @@ class _AddActivityPageState extends State<AddActivityPage> {
   bool hasDelivery = false;
   late Future<List<AreaOption>> areas;
   late Future<List<CategoryOption>> categories;
+
+  Future<void> _pickLogo() async {
+    final picked = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 80,
+      maxWidth: 600,
+    );
+    if (!mounted || picked == null) return;
+    setState(() => logoImage = picked);
+  }
 
   Future<void> _pickLocation() async {
     final picked = await Navigator.push<PickedLocation>(
@@ -8082,6 +8307,41 @@ class _AddActivityPageState extends State<AddActivityPage> {
         children: [
           Expanded(
             child: Text(
+              'الشعار (اختياري)',
+              style: TextStyle(color: deepTeal, fontWeight: FontWeight.w700),
+            ),
+          ),
+          if (logoImage != null)
+            Padding(
+              padding: const EdgeInsets.only(left: 8),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: Image.file(
+                  File(logoImage!.path),
+                  width: 40,
+                  height: 40,
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
+          IconButton(
+            onPressed: _pickLogo,
+            icon: Icon(Icons.add_photo_alternate_outlined, color: teal),
+            tooltip: 'اختر شعار من الجهاز',
+          ),
+          if (logoImage != null)
+            IconButton(
+              onPressed: () => setState(() => logoImage = null),
+              icon: Icon(Icons.close, color: muted, size: 18),
+              tooltip: 'إزالة الشعار',
+            ),
+        ],
+      ),
+      const SizedBox(height: 4),
+      Row(
+        children: [
+          Expanded(
+            child: Text(
               'الصور ${selectedImages.isEmpty ? imageCount : selectedImages.length} / 10',
               style: TextStyle(
                 color: deepTeal,
@@ -8248,11 +8508,15 @@ class _AddActivityPageState extends State<AddActivityPage> {
       if (category == null) return;
       final resolvedArea = areaId ?? (await areas).first.id;
       final uploadedImages = await api.uploadProviderImages(selectedImages);
+      final logoUrl = logoImage == null
+          ? null
+          : (await api.uploadProviderImages([logoImage!])).first['url'] as String?;
       await _saveDraft();
       await api.submitProvider(
         data: {
           'name': name.text.trim(),
           'description': description.text.trim(),
+          if (logoUrl != null) 'logoUrl': logoUrl,
           if (phone.text.trim().isNotEmpty) 'phone': phone.text.trim(),
           if (whatsapp.text.trim().isNotEmpty) 'whatsapp': whatsapp.text.trim(),
           if (socialPlatform != null && socialUrl.text.trim().isNotEmpty) ...{
