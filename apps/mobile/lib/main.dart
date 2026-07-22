@@ -4245,9 +4245,18 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
                 userAgentPackageName: 'com.maalsoft.henaqena',
                 maxNativeZoom: 19,
               ),
-              fmap.SimpleAttributionWidget(
-                source: Text('© OpenStreetMap contributors'),
-                backgroundColor: Color(0xCCFFFFFF),
+              fmap.RichAttributionWidget(
+                showFlutterMapAttribution: false,
+                alignment: fmap.AttributionAlignment.bottomRight,
+                attributions: const [
+                  fmap.TextSourceAttribution('OpenStreetMap contributors'),
+                ],
+                openButton: (context, open) => IconButton(
+                  onPressed: open,
+                  tooltip: 'مصدر الخريطة',
+                  icon: const Icon(Icons.info_outline, size: 17),
+                  visualDensity: VisualDensity.compact,
+                ),
               ),
             ],
           ),
@@ -4526,6 +4535,9 @@ class _InternalQenaMapState extends State<InternalQenaMap> {
   static final _qena = ll.LatLng(26.1551, 32.7160);
   final fmap.MapController _mapController = fmap.MapController();
   bool _locating = false;
+  bool _followingUser = false;
+  ll.LatLng? _userPosition;
+  StreamSubscription<Position>? _positionSubscription;
 
   List<ProviderSummary> get _mapped => widget.providers
       .where((item) => item.latitude != null && item.longitude != null)
@@ -4544,7 +4556,27 @@ class _InternalQenaMapState extends State<InternalQenaMap> {
       }
       final position = await Geolocator.getCurrentPosition();
       if (!mounted) return;
-      _mapController.move(ll.LatLng(position.latitude, position.longitude), 15);
+      final point = ll.LatLng(position.latitude, position.longitude);
+      setState(() {
+        _userPosition = point;
+        _followingUser = true;
+      });
+      _mapController.move(point, 15);
+      await _positionSubscription?.cancel();
+      _positionSubscription =
+          Geolocator.getPositionStream(
+            locationSettings: const LocationSettings(
+              accuracy: LocationAccuracy.high,
+              distanceFilter: 5,
+            ),
+          ).listen((next) {
+            if (!mounted) return;
+            final nextPoint = ll.LatLng(next.latitude, next.longitude);
+            setState(() => _userPosition = nextPoint);
+            if (_followingUser) {
+              _mapController.move(nextPoint, _mapController.camera.zoom);
+            }
+          });
     } catch (_) {
       if (mounted) {
         showTopToast(
@@ -4558,6 +4590,12 @@ class _InternalQenaMapState extends State<InternalQenaMap> {
     }
   }
 
+  @override
+  void dispose() {
+    _positionSubscription?.cancel();
+    super.dispose();
+  }
+
   void _zoom(double delta) {
     final camera = _mapController.camera;
     _mapController.move(camera.center, (camera.zoom + delta).clamp(3.0, 19.0));
@@ -4569,6 +4607,23 @@ class _InternalQenaMapState extends State<InternalQenaMap> {
   Widget build(BuildContext context) {
     final mapped = _mapped;
     final markers = [
+      if (_userPosition != null)
+        fmap.Marker(
+          point: _userPosition!,
+          width: 34,
+          height: 34,
+          child: Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFF2878F0),
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 4),
+              boxShadow: const [
+                BoxShadow(color: Colors.black38, blurRadius: 6),
+              ],
+            ),
+            child: const Icon(Icons.navigation, color: Colors.white, size: 16),
+          ),
+        ),
       for (final provider in mapped)
         fmap.Marker(
           point: ll.LatLng(provider.latitude!, provider.longitude!),
@@ -4646,6 +4701,11 @@ class _InternalQenaMapState extends State<InternalQenaMap> {
               interactionOptions: const fmap.InteractionOptions(
                 flags: fmap.InteractiveFlag.all,
               ),
+              onPositionChanged: (_, hasGesture) {
+                if (hasGesture && _followingUser) {
+                  setState(() => _followingUser = false);
+                }
+              },
             ),
             children: [
               fmap.TileLayer(
@@ -4654,9 +4714,18 @@ class _InternalQenaMapState extends State<InternalQenaMap> {
                 maxNativeZoom: 19,
               ),
               fmap.MarkerLayer(markers: markers),
-              const fmap.SimpleAttributionWidget(
-                source: Text('© OpenStreetMap contributors'),
-                backgroundColor: Color(0xCCFFFFFF),
+              fmap.RichAttributionWidget(
+                showFlutterMapAttribution: false,
+                alignment: fmap.AttributionAlignment.bottomRight,
+                attributions: const [
+                  fmap.TextSourceAttribution('OpenStreetMap contributors'),
+                ],
+                openButton: (context, open) => IconButton(
+                  onPressed: open,
+                  tooltip: 'مصدر الخريطة',
+                  icon: const Icon(Icons.info_outline, size: 17),
+                  visualDensity: VisualDensity.compact,
+                ),
               ),
             ],
           ),
@@ -4670,7 +4739,7 @@ class _InternalQenaMapState extends State<InternalQenaMap> {
                 _MapControlButton(icon: Icons.remove, onTap: () => _zoom(-1)),
                 const SizedBox(height: 6),
                 _MapControlButton(
-                  icon: Icons.my_location,
+                  icon: _followingUser ? Icons.gps_fixed : Icons.my_location,
                   onTap: _locating ? () {} : _locateUser,
                 ),
                 const SizedBox(height: 6),
