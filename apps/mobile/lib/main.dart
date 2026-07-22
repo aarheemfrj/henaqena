@@ -190,30 +190,18 @@ class HenaQenaApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return ValueListenableBuilder<String>(
       valueListenable: AppThemeController.selectedId,
-      builder: (context, themeId, _) => MaterialApp(
+      builder: (context, _, _) => MaterialApp(
         debugShowCheckedModeBanner: false,
         title: 'هنا قنا',
         theme: AppThemeController.theme(AppThemeController.current),
-        home: _ThemeScope(
-          key: ValueKey(themeId),
-          child: AuthSession.isSignedIn
-              ? const HomeShell()
-              : const WelcomeScreen(),
-        ),
+        // ThemeData updates are inherited by the existing navigator. Keeping
+        // the home route mounted avoids disposing an inherited subtree while
+        // one of its descendants (a dialog, field, or route transition) still
+        // depends on it.
+        home: AuthSession.isSignedIn
+            ? const HomeShell()
+            : const WelcomeScreen(),
       ),
-    );
-  }
-}
-
-class _ThemeScope extends StatelessWidget {
-  const _ThemeScope({super.key, required this.child});
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return ValueListenableBuilder<String>(
-      valueListenable: AppThemeController.selectedId,
-      builder: (context, _, _) => child,
     );
   }
 }
@@ -2803,7 +2791,9 @@ class _PromoCarouselState extends State<PromoCarousel> {
     if (!AuthSession.isSignedIn) {
       await Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => const AuthPage()),
+        MaterialPageRoute(
+          builder: (_) => const AuthPage(returnOnSuccess: true),
+        ),
       );
       if (!AuthSession.isSignedIn || !mounted) return;
     }
@@ -4285,7 +4275,9 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
     if (!AuthSession.isSignedIn) {
       await Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => const AuthPage()),
+        MaterialPageRoute(
+          builder: (_) => const AuthPage(returnOnSuccess: true),
+        ),
       );
       if (!mounted || !AuthSession.isSignedIn) return;
     }
@@ -6334,7 +6326,9 @@ class _ListingDetailPageState extends State<ListingDetailPage> {
     if (!AuthSession.isSignedIn) {
       await Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => const AuthPage()),
+        MaterialPageRoute(
+          builder: (_) => const AuthPage(returnOnSuccess: true),
+        ),
       );
       if (!mounted || !AuthSession.isSignedIn) return;
     }

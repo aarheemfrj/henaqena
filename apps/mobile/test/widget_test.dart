@@ -105,7 +105,9 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
 
     expect(find.byType(TextField), findsOneWidget);
-    expect(find.byType(ActionChip), findsAtLeastNWidgets(1));
+    // Categories load from the platform. The rail itself must remain safe
+    // while that request is still pending in a standalone route.
+    expect(find.byType(CategoryRail), findsOneWidget);
     expect(
       tester.getCenter(find.text('فلاتر')).dx,
       greaterThan(tester.getCenter(find.text('خريطة')).dx),
