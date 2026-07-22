@@ -251,12 +251,11 @@ class CategoryOption {
   final String id;
   final String name;
   final String? slug;
-  factory CategoryOption.fromJson(Map<String, dynamic> json) =>
-      CategoryOption(
-        id: json['id'] as String,
-        name: json['name'] as String,
-        slug: json['slug'] as String?,
-      );
+  factory CategoryOption.fromJson(Map<String, dynamic> json) => CategoryOption(
+    id: json['id'] as String,
+    name: json['name'] as String,
+    slug: json['slug'] as String?,
+  );
 }
 
 class AreaOption {
@@ -289,10 +288,7 @@ class ApiClient {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(
         'cache_$key',
-        jsonEncode({
-          'ts': DateTime.now().millisecondsSinceEpoch,
-          'data': data,
-        }),
+        jsonEncode({'ts': DateTime.now().millisecondsSinceEpoch, 'data': data}),
       );
     } catch (e) {
       // Cache failure is non-fatal
@@ -371,9 +367,7 @@ class ApiClient {
           .get(Uri.parse('$baseUrl/api/settings'))
           .timeout(const Duration(seconds: 3));
       if (response.statusCode != 200) throw Exception('settings_error');
-      final data = Map<String, dynamic>.from(
-        jsonDecode(response.body) as Map,
-      );
+      final data = Map<String, dynamic>.from(jsonDecode(response.body) as Map);
       await _cacheSet('platform_settings', [data]);
       return data;
     } catch (_) {
@@ -398,6 +392,33 @@ class ApiClient {
         .toList();
   }
 
+  Future<Map<String, dynamic>> submitPrice({
+    required String name,
+    required double minPrice,
+    required double maxPrice,
+    String? category,
+    String? unit,
+    String? areaId,
+  }) async {
+    final response = await http
+        .post(
+          Uri.parse('$baseUrl/api/prices'),
+          headers: _jsonHeaders,
+          body: jsonEncode({
+            'name': name,
+            'minPrice': minPrice,
+            'maxPrice': maxPrice,
+            if (category != null && category.isNotEmpty) 'category': category,
+            if (unit != null && unit.isNotEmpty) 'unit': unit,
+            if (areaId != null) 'areaId': areaId,
+          }),
+        )
+        .timeout(const Duration(seconds: 8));
+    if (response.statusCode == 401) throw Exception('unauthorized');
+    if (response.statusCode != 201) throw Exception('price_submit_error');
+    return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+  }
+
   Future<List<Map<String, dynamic>>> fetchOffers({String? areaId}) async {
     final uri = Uri.parse(
       '$baseUrl/api/offers',
@@ -420,6 +441,29 @@ class ApiClient {
     return (jsonDecode(response.body) as List<dynamic>)
         .map((item) => Map<String, dynamic>.from(item as Map))
         .toList();
+  }
+
+  Future<Map<String, dynamic>> submitNow({
+    required String title,
+    required String body,
+    required String category,
+    String? areaId,
+  }) async {
+    final response = await http
+        .post(
+          Uri.parse('$baseUrl/api/now'),
+          headers: _jsonHeaders,
+          body: jsonEncode({
+            'title': title,
+            'body': body,
+            'category': category,
+            if (areaId != null) 'areaId': areaId,
+          }),
+        )
+        .timeout(const Duration(seconds: 8));
+    if (response.statusCode == 401) throw Exception('unauthorized');
+    if (response.statusCode != 201) throw Exception('now_submit_error');
+    return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
   }
 
   Future<Map<String, dynamic>> toggleNowHelpful(String id) async {
@@ -936,12 +980,18 @@ class ApiClient {
     String sort = 'name',
     bool skipCache = false,
   }) async {
-    final cacheKey = 'providers_${areaId}_${category}_${searchQuery}_${page}_${pageSize}_${verifiedOnly}_${openNow}_${hasDelivery}_${hasParking}_${acceptsCards}_${sort}';
+    final cacheKey =
+        'providers_${areaId}_${category}_${searchQuery}_${page}_${pageSize}_${verifiedOnly}_${openNow}_${hasDelivery}_${hasParking}_${acceptsCards}_${sort}';
     if (!skipCache) {
       final cached = await _cacheGet(cacheKey);
       if (cached != null) {
         return (cached as List<dynamic>)
-            .map((item) => ProviderSummary.fromJson(item as Map<String, dynamic>, baseUrl))
+            .map(
+              (item) => ProviderSummary.fromJson(
+                item as Map<String, dynamic>,
+                baseUrl,
+              ),
+            )
             .toList();
       }
     }
@@ -1101,7 +1151,8 @@ class ApiClient {
         )
         .timeout(const Duration(seconds: 8));
     if (response.statusCode == 401) throw Exception('unauthorized');
-    if (response.statusCode != 201) throw Exception('favorite_list_create_error');
+    if (response.statusCode != 201)
+      throw Exception('favorite_list_create_error');
     return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
   }
 
@@ -1113,14 +1164,19 @@ class ApiClient {
           body: jsonEncode({'name': name.trim()}),
         )
         .timeout(const Duration(seconds: 8));
-    if (response.statusCode != 200) throw Exception('favorite_list_rename_error');
+    if (response.statusCode != 200)
+      throw Exception('favorite_list_rename_error');
   }
 
   Future<void> deleteFavoriteList(String id) async {
     final response = await http
-        .delete(Uri.parse('$baseUrl/api/me/favorite-lists/$id'), headers: _jsonHeaders)
+        .delete(
+          Uri.parse('$baseUrl/api/me/favorite-lists/$id'),
+          headers: _jsonHeaders,
+        )
         .timeout(const Duration(seconds: 8));
-    if (response.statusCode != 200) throw Exception('favorite_list_delete_error');
+    if (response.statusCode != 200)
+      throw Exception('favorite_list_delete_error');
   }
 
   Future<List<Map<String, dynamic>>> fetchSavedSearches() async {
@@ -1155,14 +1211,19 @@ class ApiClient {
         )
         .timeout(const Duration(seconds: 8));
     if (response.statusCode == 401) throw Exception('unauthorized');
-    if (response.statusCode != 201) throw Exception('saved_search_create_error');
+    if (response.statusCode != 201)
+      throw Exception('saved_search_create_error');
   }
 
   Future<void> deleteSavedSearch(String id) async {
     final response = await http
-        .delete(Uri.parse('$baseUrl/api/me/saved-searches/$id'), headers: _jsonHeaders)
+        .delete(
+          Uri.parse('$baseUrl/api/me/saved-searches/$id'),
+          headers: _jsonHeaders,
+        )
         .timeout(const Duration(seconds: 8));
-    if (response.statusCode != 200) throw Exception('saved_search_delete_error');
+    if (response.statusCode != 200)
+      throw Exception('saved_search_delete_error');
   }
 
   Future<List<Map<String, dynamic>>> fetchListings({
@@ -1176,7 +1237,11 @@ class ApiClient {
       final cached = await _cacheGet(cacheKey);
       if (cached != null) {
         return (cached as List<dynamic>)
-            .map((item) => _normalizeMedia(Map<String, dynamic>.from(item as Map<String, dynamic>)))
+            .map(
+              (item) => _normalizeMedia(
+                Map<String, dynamic>.from(item as Map<String, dynamic>),
+              ),
+            )
             .toList();
       }
     }

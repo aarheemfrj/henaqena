@@ -1716,19 +1716,19 @@ class PersistentTopActions extends StatelessWidget {
         _AddAction(
           'اقتراح سعر',
           Icons.sell_outlined,
-          () => const SupportPage(),
+          () => const ContributionFormPage(kind: 'price'),
         ),
         _AddAction(
           'اقتراح عرض',
           Icons.local_offer_outlined,
-          () => const SupportPage(),
+          () => const ContributionFormPage(kind: 'offer'),
         ),
       ],
       3 => [
         _AddAction(
           'إضافة تنبيه محلي',
           Icons.campaign_outlined,
-          () => const SupportPage(),
+          () => const ContributionFormPage(kind: 'now'),
         ),
       ],
       4 => [
@@ -1801,12 +1801,18 @@ class PersistentTopActions extends StatelessWidget {
           onTap: () => sectionIndex == 0
               ? Navigator.of(
                   context,
-                ).push(MaterialPageRoute(builder: (_) => const SettingsPage()))
+                ).push(MaterialPageRoute(builder: (_) => const AccountPage()))
               : _openAdd(context),
-          child: Icon(
-            sectionIndex == 0 ? Icons.settings_outlined : Icons.add,
-            color: colors.primary,
-          ),
+          child: sectionIndex == 0
+              ? CircleAvatar(
+                  radius: 15,
+                  backgroundColor: colors.primary,
+                  child: const Text(
+                    'م',
+                    style: TextStyle(color: Colors.white, fontSize: 12),
+                  ),
+                )
+              : Icon(Icons.add, color: colors.primary),
         ),
       ],
     );
@@ -2640,35 +2646,12 @@ class _HeroBannerState extends State<HeroBanner>
                 ),
               ),
             ),
-            PositionedDirectional(
-              end: 38 - controller.value * 8,
-              bottom: -46,
-              child: Container(
-                width: 125,
-                height: 125,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: .08),
-                    width: 10,
-                  ),
-                ),
-              ),
-            ),
             Row(
               children: [
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: const [
-                      Text(
-                        'قنا كلها هنا',
-                        style: TextStyle(
-                          color: Color(0xDDF7F6F2),
-                          fontSize: 13,
-                        ),
-                      ),
-                      SizedBox(height: 8),
                       Text(
                         'كل ما تحتاجه.. قريب منك',
                         style: TextStyle(
@@ -3017,17 +3000,14 @@ class _MiniItemState extends State<MiniItem> {
           side: const BorderSide(color: Color(0xFFE0E8E6)),
         ),
         child: ListTile(
-          leading: Hero(
-            tag: 'provider-icon-${widget.title}',
-            child: CircleAvatar(
-              backgroundColor: const Color(0xFFD8EFEC),
-              backgroundImage: widget.imageUrl == null
-                  ? null
-                  : CachedNetworkImageProvider(widget.imageUrl!),
-              child: widget.imageUrl == null
-                  ? Icon(widget.icon, color: deepTeal)
-                  : null,
-            ),
+          leading: CircleAvatar(
+            backgroundColor: const Color(0xFFD8EFEC),
+            backgroundImage: widget.imageUrl == null
+                ? null
+                : CachedNetworkImageProvider(widget.imageUrl!),
+            child: widget.imageUrl == null
+                ? Icon(widget.icon, color: deepTeal)
+                : null,
           ),
           title: Text(
             widget.title,
@@ -5404,6 +5384,142 @@ class PricesPage extends StatefulWidget {
   State<PricesPage> createState() => _PricesPageState();
 }
 
+class ContributionFormPage extends StatefulWidget {
+  const ContributionFormPage({super.key, required this.kind});
+  final String kind;
+  @override
+  State<ContributionFormPage> createState() => _ContributionFormPageState();
+}
+
+class _ContributionFormPageState extends State<ContributionFormPage> {
+  final name = TextEditingController();
+  final body = TextEditingController();
+  final min = TextEditingController();
+  final max = TextEditingController();
+  bool saving = false;
+
+  @override
+  void dispose() {
+    name.dispose();
+    body.dispose();
+    min.dispose();
+    max.dispose();
+    super.dispose();
+  }
+
+  Future<void> save() async {
+    if (!AuthSession.isSignedIn) {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const AuthPage()),
+      );
+      if (!AuthSession.isSignedIn || !mounted) return;
+    }
+    setState(() => saving = true);
+    try {
+      if (widget.kind == 'price') {
+        final low = double.tryParse(min.text.trim());
+        final high = double.tryParse(max.text.trim());
+        if (name.text.trim().length < 2 ||
+            low == null ||
+            high == null ||
+            high < low)
+          throw Exception('invalid');
+        await ApiClient().submitPrice(
+          name: name.text.trim(),
+          minPrice: low,
+          maxPrice: high,
+        );
+      } else if (widget.kind == 'now') {
+        if (name.text.trim().length < 2 || body.text.trim().isEmpty)
+          throw Exception('invalid');
+        await ApiClient().submitNow(
+          title: name.text.trim(),
+          body: body.text.trim(),
+          category: 'عام',
+        );
+      } else {
+        if (name.text.trim().length < 2 || body.text.trim().isEmpty)
+          throw Exception('invalid');
+        await ApiClient().submitSupportTicket(
+          subject: 'اقتراح عرض: ${name.text.trim()}',
+          message: body.text.trim(),
+        );
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('تم الإرسال للمراجعة')));
+      Navigator.pop(context);
+    } catch (_) {
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('راجع البيانات وحاول مرة أخرى')),
+        );
+    } finally {
+      if (mounted) setState(() => saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(
+      title: Text(
+        widget.kind == 'price'
+            ? 'اقتراح سعر'
+            : widget.kind == 'now'
+            ? 'إضافة تنبيه محلي'
+            : 'اقتراح عرض',
+      ),
+    ),
+    body: ListView(
+      padding: const EdgeInsets.all(20),
+      children: [
+        TextField(
+          controller: name,
+          decoration: InputDecoration(
+            labelText: widget.kind == 'price'
+                ? 'اسم المنتج أو الخدمة'
+                : widget.kind == 'now'
+                ? 'عنوان التنبيه'
+                : 'اسم العرض أو المكان',
+          ),
+        ),
+        const SizedBox(height: 12),
+        if (widget.kind == 'price') ...[
+          TextField(
+            controller: min,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(labelText: 'أقل سعر'),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: max,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(labelText: 'أعلى سعر'),
+          ),
+        ] else
+          TextField(
+            controller: body,
+            maxLines: 5,
+            decoration: InputDecoration(
+              labelText: widget.kind == 'now'
+                  ? 'التفاصيل'
+                  : 'تفاصيل العرض ووسيلة التواصل',
+            ),
+          ),
+        const SizedBox(height: 24),
+        FilledButton(
+          onPressed: saving ? null : save,
+          child: saving
+              ? const CircularProgressIndicator()
+              : const Text('إرسال للمراجعة'),
+        ),
+      ],
+    ),
+  );
+}
+
 class _PricesPageState extends State<PricesPage> {
   String selected = 'offers';
   late Future<List<Map<String, dynamic>>> pricesFuture;
@@ -5976,35 +6092,6 @@ class _ListingsPageState extends State<ListingsPage> {
               ],
             );
           },
-        ),
-        const SizedBox(height: 8),
-        FilledButton.icon(
-          onPressed: () async {
-            if (!AuthSession.isSignedIn) {
-              await Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const AuthPage()),
-              );
-              if (!AuthSession.isSignedIn || !context.mounted) return;
-            }
-            if (context.mounted) {
-              await Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const CreateListingPage()),
-              );
-              _reload();
-            }
-          },
-          icon: const Icon(Icons.add),
-          label: const Text('أضف إعلانًا'),
-          style: FilledButton.styleFrom(
-            backgroundColor: gold,
-            foregroundColor: deepTeal,
-            minimumSize: const Size.fromHeight(48),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(15),
-            ),
-          ),
         ),
       ],
     ),

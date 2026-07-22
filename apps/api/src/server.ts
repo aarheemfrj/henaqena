@@ -854,6 +854,17 @@ app.get('/api/prices', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+app.post('/api/prices', async (req, res, next) => {
+  try {
+    const session = await sessionFromRequest(req);
+    if (!session) return res.status(401).json({ message: 'سجّل الدخول أولاً' });
+    const input = priceCreateSchema.parse(req.body);
+    const price = await prisma.priceGuide.create({ data: { ...input, areaId: input.areaId ?? null, status: ReviewStatus.PENDING } });
+    await audit('price.submitted', 'priceGuide', price.id, { userId: session.userId });
+    res.status(201).json({ ...price, message: 'تم إرسال السعر للمراجعة' });
+  } catch (error) { next(error); }
+});
+
 const priceCreateSchema = z.object({ name: z.string().trim().min(2).max(120), category: z.string().trim().max(80).optional(), minPrice: z.number().nonnegative().max(999999999), maxPrice: z.number().nonnegative().max(999999999), unit: z.string().trim().max(40).optional(), sourceNote: z.string().trim().max(300).optional(), areaId: z.string().min(1).nullable().optional() }).refine((value) => value.maxPrice >= value.minPrice, { message: 'الحد الأقصى يجب أن يكون أكبر من أو يساوي الحد الأدنى' });
 app.get('/api/admin/prices', requireAdmin, async (_req, res, next) => {
   try { res.json(await prisma.priceGuide.findMany({ include: { area: true }, orderBy: { updatedAt: 'desc' } })); } catch (error) { next(error); }
@@ -871,6 +882,17 @@ app.get('/api/now', async (req, res, next) => {
     const now = new Date();
     const updates = await prisma.nowUpdate.findMany({ where: { status: ReviewStatus.APPROVED, startsAt: { lte: now }, ...(areaId ? { OR: [{ areaId: null }, { areaId }] } : {}), AND: [{ OR: [{ endsAt: null }, { endsAt: { gte: now } }] }] }, include: { area: true, _count: { select: { helpfulVotes: true } } }, orderBy: { createdAt: 'desc' }, take: 100 });
     res.json(updates);
+  } catch (error) { next(error); }
+});
+
+app.post('/api/now', async (req, res, next) => {
+  try {
+    const session = await sessionFromRequest(req);
+    if (!session) return res.status(401).json({ message: 'سجّل الدخول أولاً' });
+    const input = nowCreateSchema.parse(req.body);
+    const update = await prisma.nowUpdate.create({ data: { ...input, areaId: input.areaId ?? null, status: ReviewStatus.PENDING } });
+    await audit('now.submitted', 'nowUpdate', update.id, { userId: session.userId });
+    res.status(201).json({ ...update, message: 'تم إرسال التنبيه للمراجعة' });
   } catch (error) { next(error); }
 });
 app.post('/api/now/:id/helpful', async (req, res, next) => {
