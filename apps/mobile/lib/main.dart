@@ -4126,6 +4126,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
       ? Future.value(null)
       : ApiClient().fetchProvider(widget.providerId!).then((value) => value);
   bool? favorite;
+  bool savingFavorite = false;
 
   Future<void> _editProvider(ProviderDetails data) async {
     final name = TextEditingController(text: data.name);
@@ -4280,22 +4281,40 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
 
   Future<void> _toggleFavorite() async {
     final id = widget.providerId;
-    if (id == null) return;
+    if (id == null || savingFavorite) return;
+    if (!AuthSession.isSignedIn) {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const AuthPage()),
+      );
+      if (!mounted || !AuthSession.isSignedIn) return;
+    }
+
+    final previous = favorite ?? false;
+    setState(() {
+      savingFavorite = true;
+      favorite = !previous;
+    });
     try {
       final result = await ApiClient().toggleProviderFavorite(id);
-      if (mounted) setState(() => favorite = result['active'] as bool);
+      if (!mounted) return;
+      setState(() => favorite = result['active'] as bool? ?? !previous);
+      showTopToast(
+        context,
+        message: favorite == true
+            ? 'اتحفظ النشاط في المفضلة'
+            : 'اتشال النشاط من المفضلة',
+      );
     } catch (error) {
       if (!mounted) return;
-      if (error.toString().contains('unauthorized')) {
-        await Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const AuthPage()),
-        );
-      } else {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('تعذر حفظ النشاط')));
-      }
+      setState(() => favorite = previous);
+      showTopToast(
+        context,
+        message: 'تعذر حفظ النشاط، حاول تاني',
+        isError: true,
+      );
+    } finally {
+      if (mounted) setState(() => savingFavorite = false);
     }
   }
 
@@ -4714,16 +4733,32 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                       onLongPress: widget.providerId == null
                           ? null
                           : _addToList,
-                      child: TextButton.icon(
-                        onPressed: widget.providerId == null
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: favorite == true
+                              ? Colors.white
+                              : teal,
+                          backgroundColor: favorite == true
+                              ? teal
+                              : Colors.transparent,
+                          side: BorderSide(
+                            color: favorite == true
+                                ? teal
+                                : teal.withValues(alpha: .38),
+                          ),
+                          shape: const StadiumBorder(),
+                        ),
+                        onPressed: widget.providerId == null || savingFavorite
                             ? null
                             : _toggleFavorite,
                         icon: Icon(
-                          favorite == true
-                              ? Icons.favorite
-                              : Icons.favorite_border,
+                          savingFavorite
+                              ? Icons.hourglass_top_rounded
+                              : favorite == true
+                              ? Icons.bookmark_added_rounded
+                              : Icons.bookmark_add_outlined,
                         ),
-                        label: const Text('حفظ'),
+                        label: Text(favorite == true ? 'محفوظ' : 'حفظ'),
                       ),
                     ),
                   ),
@@ -6177,6 +6212,7 @@ class _ListingDetailPageState extends State<ListingDetailPage> {
   );
   bool? favorite;
   bool? interested;
+  bool savingFavorite = false;
 
   Future<void> _editListing(Map<String, dynamic> data) async {
     final title = TextEditingController(text: data['title'] as String?);
@@ -6294,6 +6330,22 @@ class _ListingDetailPageState extends State<ListingDetailPage> {
   }
 
   Future<void> _toggle(String action) async {
+    if (action == 'favorite' && savingFavorite) return;
+    if (!AuthSession.isSignedIn) {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const AuthPage()),
+      );
+      if (!mounted || !AuthSession.isSignedIn) return;
+    }
+    final previousFavorite = favorite ?? false;
+    final previousInterested = interested ?? false;
+    if (action == 'favorite') {
+      setState(() {
+        savingFavorite = true;
+        favorite = !previousFavorite;
+      });
+    }
     try {
       final result = action == 'favorite'
           ? await api.toggleListingFavorite(widget.listingId)
@@ -6306,18 +6358,32 @@ class _ListingDetailPageState extends State<ListingDetailPage> {
           interested = result['active'] as bool;
         }
       });
+      if (action == 'favorite') {
+        showTopToast(
+          context,
+          message: favorite == true
+              ? 'اتحفظ الإعلان في المفضلة'
+              : 'اتشال الإعلان من المفضلة',
+        );
+      }
     } catch (error) {
       if (!mounted) return;
-      if (error.toString().contains('unauthorized')) {
-        await Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const AuthPage()),
-        );
-        return;
+      if (action == 'favorite') {
+        setState(() => favorite = previousFavorite);
+      } else {
+        setState(() => interested = previousInterested);
       }
-      ScaffoldMessenger.of(
+      showTopToast(
         context,
-      ).showSnackBar(const SnackBar(content: Text('تعذر حفظ التفاعل حالياً')));
+        message: action == 'favorite'
+            ? 'تعذر حفظ الإعلان، حاول تاني'
+            : 'تعذر حفظ التفاعل حالياً',
+        isError: true,
+      );
+    } finally {
+      if (mounted && action == 'favorite') {
+        setState(() => savingFavorite = false);
+      }
     }
   }
 
@@ -6497,12 +6563,30 @@ class _ListingDetailPageState extends State<ListingDetailPage> {
                     ),
                     label: const Text('مهتم'),
                   ),
-                  TextButton.icon(
-                    onPressed: () => _toggle('favorite'),
-                    icon: Icon(
-                      favorite == true ? Icons.bookmark : Icons.bookmark_border,
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: favorite == true ? Colors.white : teal,
+                      backgroundColor: favorite == true
+                          ? teal
+                          : Colors.transparent,
+                      side: BorderSide(
+                        color: favorite == true
+                            ? teal
+                            : teal.withValues(alpha: .38),
+                      ),
+                      shape: const StadiumBorder(),
                     ),
-                    label: const Text('حفظ'),
+                    onPressed: savingFavorite
+                        ? null
+                        : () => _toggle('favorite'),
+                    icon: Icon(
+                      savingFavorite
+                          ? Icons.hourglass_top_rounded
+                          : favorite == true
+                          ? Icons.bookmark_added_rounded
+                          : Icons.bookmark_add_outlined,
+                    ),
+                    label: Text(favorite == true ? 'محفوظ' : 'حفظ'),
                   ),
                   TextButton.icon(
                     onPressed: () => AppActions.share(
