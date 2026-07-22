@@ -2181,9 +2181,11 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  void _openDirectory(String query) => Navigator.of(
-    context,
-  ).push(MaterialPageRoute(builder: (_) => DirectoryPage(initialQuery: query)));
+  void _openDirectory(String query) => Navigator.of(context).push(
+    MaterialPageRoute(
+      builder: (_) => DirectoryPage(initialQuery: query, showBackButton: true),
+    ),
+  );
 
   Future<void> _pickArea() async {
     List<AreaOption> options;
@@ -2520,7 +2522,10 @@ class _FoodChooserPageState extends State<FoodChooserPage> {
             .join(' ');
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => DirectoryPage(initialQuery: query)),
+          MaterialPageRoute(
+            builder: (_) =>
+                DirectoryPage(initialQuery: query, showBackButton: true),
+          ),
         );
       }
     });
@@ -3493,8 +3498,13 @@ class _MiniItemState extends State<MiniItem> {
 }
 
 class DirectoryPage extends StatefulWidget {
-  const DirectoryPage({super.key, this.initialQuery});
+  const DirectoryPage({
+    super.key,
+    this.initialQuery,
+    this.showBackButton = false,
+  });
   final String? initialQuery;
+  final bool showBackButton;
   @override
   State<DirectoryPage> createState() => _DirectoryPageState();
 }
@@ -3712,7 +3722,7 @@ class _DirectoryPageState extends State<DirectoryPage> {
   @override
   Widget build(BuildContext context) => BasePage(
     title: '',
-    showBackButton: true,
+    showBackButton: widget.showBackButton,
     onRefresh: _reload,
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -8797,6 +8807,7 @@ class _SavedSearchesPageState extends State<SavedSearchesPage> {
                       MaterialPageRoute(
                         builder: (_) => DirectoryPage(
                           initialQuery: search['query'] as String?,
+                          showBackButton: true,
                         ),
                       ),
                     ),
