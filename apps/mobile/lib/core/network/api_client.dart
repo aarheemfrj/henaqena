@@ -1142,6 +1142,16 @@ class ApiClient {
         .toList();
   }
 
+  /// Reads the canonical saved state used by the favorites screen. This also
+  /// includes providers saved inside named lists, not only the default bucket.
+  Future<bool> fetchProviderFavoriteState(String providerId) async {
+    final data = await fetchFavorites();
+    final providers = data['providers'] as List<dynamic>? ?? const [];
+    return providers.any(
+      (item) => (item as Map<String, dynamic>)['id'] == providerId,
+    );
+  }
+
   Future<Map<String, dynamic>> createFavoriteList(String name) async {
     final response = await http
         .post(

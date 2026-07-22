@@ -4985,11 +4985,28 @@ class ProviderDetailPage extends StatefulWidget {
 }
 
 class _ProviderDetailPageState extends State<ProviderDetailPage> {
-  late Future<ProviderDetails?> details = widget.providerId == null
-      ? Future.value(null)
-      : ApiClient().fetchProvider(widget.providerId!).then((value) => value);
+  late Future<ProviderDetails?> details = _fetchDetails();
   bool? favorite;
   bool savingFavorite = false;
+
+  Future<ProviderDetails?> _fetchDetails() async {
+    final id = widget.providerId;
+    if (id == null) return null;
+    final api = ApiClient();
+    final value = await api.fetchProvider(id);
+    if (AuthSession.isSignedIn) {
+      try {
+        // Keep the detail action in lockstep with the favorites screen. This
+        // catches saves that live in a named list as well as the default one.
+        favorite = await api.fetchProviderFavoriteState(id);
+      } catch (_) {
+        favorite ??= value.viewerFavorite;
+      }
+    } else {
+      favorite = value.viewerFavorite;
+    }
+    return value;
+  }
 
   Future<void> _openMapOptions(ProviderDetails data) async {
     if (data.latitude == null || data.longitude == null) return;
@@ -5208,9 +5225,8 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
   }
 
   void _reload() => setState(() {
-    details = widget.providerId == null
-        ? Future.value(null)
-        : ApiClient().fetchProvider(widget.providerId!).then((value) => value);
+    favorite = null;
+    details = _fetchDetails();
   });
 
   Future<void> _toggleFavorite() async {
