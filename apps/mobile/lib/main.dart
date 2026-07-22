@@ -21,6 +21,8 @@ Future<void> main() async {
   runApp(const HenaQenaApp());
 }
 
+final appNavigatorKey = GlobalKey<NavigatorState>();
+
 String _relativeTime(dynamic raw) {
   final date = raw is String ? DateTime.tryParse(raw)?.toLocal() : null;
   if (date == null) return '';
@@ -191,9 +193,14 @@ class HenaQenaApp extends StatelessWidget {
     return ValueListenableBuilder<String>(
       valueListenable: AppThemeController.selectedId,
       builder: (context, _, _) => MaterialApp(
+        navigatorKey: appNavigatorKey,
         debugShowCheckedModeBanner: false,
         title: 'هنا قنا',
         theme: AppThemeController.theme(AppThemeController.current),
+        builder: (context, child) => Directionality(
+          textDirection: TextDirection.rtl,
+          child: AppBackSwipe(child: child ?? const SizedBox.shrink()),
+        ),
         // ThemeData updates are inherited by the existing navigator. Keeping
         // the home route mounted avoids disposing an inherited subtree while
         // one of its descendants (a dialog, field, or route transition) still
@@ -204,6 +211,113 @@ class HenaQenaApp extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The shared back control for every regular application page. New pages use
+/// [HenaAppBar], so its visual placement never drifts from the rest of the app.
+class HenaBackButton extends StatelessWidget {
+  const HenaBackButton({super.key, this.onPressed, this.color});
+  final VoidCallback? onPressed;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(start: 10),
+      child: Material(
+        color: Colors.white.withValues(alpha: .92),
+        elevation: 1,
+        shadowColor: Colors.black12,
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onPressed ?? () => Navigator.of(context).maybePop(),
+          child: Center(
+            child: Icon(
+              Icons.arrow_forward_rounded,
+              size: 22,
+              color: color ?? colors.primary,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class HenaAppBar extends StatelessWidget implements PreferredSizeWidget {
+  const HenaAppBar({
+    super.key,
+    this.title,
+    this.actions,
+    this.leading,
+    this.backgroundColor,
+    this.elevation,
+    this.centerTitle,
+  });
+  final Widget? title;
+  final List<Widget>? actions;
+  final Widget? leading;
+  final Color? backgroundColor;
+  final double? elevation;
+  final bool? centerTitle;
+
+  @override
+  Size get preferredSize => const Size.fromHeight(kToolbarHeight + 8);
+
+  @override
+  Widget build(BuildContext context) {
+    final canPop = Navigator.of(context).canPop();
+    return AppBar(
+      automaticallyImplyLeading: false,
+      toolbarHeight: kToolbarHeight + 8,
+      leadingWidth: 58,
+      leading: leading ?? (canPop ? const HenaBackButton() : null),
+      title: title,
+      actions: actions,
+      backgroundColor: backgroundColor,
+      elevation: elevation,
+      centerTitle: centerTitle,
+    );
+  }
+}
+
+/// Mirrors the back button on touch devices: drag from the start edge toward
+/// the content (right-to-left in Arabic) to return to the previous page.
+class AppBackSwipe extends StatefulWidget {
+  const AppBackSwipe({super.key, required this.child});
+  final Widget child;
+  @override
+  State<AppBackSwipe> createState() => _AppBackSwipeState();
+}
+
+class _AppBackSwipeState extends State<AppBackSwipe> {
+  double? startX;
+
+  bool get _isRtl => Directionality.of(context) == TextDirection.rtl;
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    behavior: HitTestBehavior.translucent,
+    onHorizontalDragStart: (details) {
+      final width = MediaQuery.sizeOf(context).width;
+      final fromStartEdge = _isRtl
+          ? details.globalPosition.dx >= width - 32
+          : details.globalPosition.dx <= 32;
+      startX = fromStartEdge ? details.globalPosition.dx : null;
+    },
+    onHorizontalDragEnd: (details) {
+      final origin = startX;
+      startX = null;
+      if (origin == null || details.primaryVelocity == null) return;
+      final movedTowardContent = _isRtl
+          ? details.primaryVelocity! < -350
+          : details.primaryVelocity! > 350;
+      if (movedTowardContent) appNavigatorKey.currentState?.maybePop();
+    },
+    child: widget.child,
+  );
 }
 
 class LogoMark extends StatelessWidget {
@@ -469,7 +583,7 @@ class _AuthPageState extends State<AuthPage> {
   Widget build(BuildContext context) => Directionality(
     textDirection: TextDirection.rtl,
     child: Scaffold(
-      appBar: AppBar(
+      appBar: HenaAppBar(
         title: Text(createAccount ? 'إنشاء حساب' : 'تسجيل الدخول'),
       ),
       body: Form(
@@ -670,7 +784,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
   Widget build(BuildContext context) => Directionality(
     textDirection: TextDirection.rtl,
     child: Scaffold(
-      appBar: AppBar(title: const Text('استعادة كلمة المرور')),
+      appBar: HenaAppBar(title: const Text('استعادة كلمة المرور')),
       body: ListView(
         padding: const EdgeInsets.all(18),
         children: [
@@ -787,7 +901,7 @@ class _AccountVerificationPageState extends State<AccountVerificationPage> {
   Widget build(BuildContext context) => Directionality(
     textDirection: TextDirection.rtl,
     child: Scaffold(
-      appBar: AppBar(title: const Text('تأكيد الحساب')),
+      appBar: HenaAppBar(title: const Text('تأكيد الحساب')),
       body: ListView(
         padding: const EdgeInsets.all(18),
         children: [
@@ -847,7 +961,7 @@ class _ContributionsPageState extends State<ContributionsPage> {
   Widget build(BuildContext context) => Directionality(
     textDirection: TextDirection.rtl,
     child: Scaffold(
-      appBar: AppBar(
+      appBar: HenaAppBar(
         title: const Text('مساهماتي'),
         actions: [
           IconButton(onPressed: _reload, icon: const Icon(Icons.refresh)),
@@ -1045,7 +1159,7 @@ class UserProfilePage extends StatelessWidget {
   Widget build(BuildContext context) => Directionality(
     textDirection: TextDirection.rtl,
     child: Scaffold(
-      appBar: AppBar(title: const Text('صفحة القناوي')),
+      appBar: HenaAppBar(title: const Text('صفحة القناوي')),
       body: FutureBuilder<Map<String, dynamic>>(
         future: ApiClient().fetchPublicProfile(userId),
         builder: (context, snapshot) {
@@ -1271,7 +1385,7 @@ class _SetupFlowState extends State<SetupFlow> {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        appBar: AppBar(
+        appBar: HenaAppBar(
           title: Text('${step + 1} من 4', style: AppTextStyles.labelMedium),
           actions: [
             TextButton(
@@ -1920,12 +2034,10 @@ class BasePage extends StatelessWidget {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           if (effectiveShowBackButton)
-                            IconButton(
-                              onPressed: () => Navigator.of(context).pop(),
-                              icon: Icon(
-                                Icons.arrow_forward_outlined,
-                                color: colors.primary,
-                              ),
+                            const SizedBox(
+                              width: 48,
+                              height: 48,
+                              child: HenaBackButton(),
                             )
                           else if (title == null)
                             const BrandText()
@@ -3779,7 +3891,7 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
   Widget build(BuildContext context) => Directionality(
     textDirection: TextDirection.rtl,
     child: Scaffold(
-      appBar: AppBar(title: const Text('حدد الموقع على الخريطة')),
+      appBar: HenaAppBar(title: const Text('حدد الموقع على الخريطة')),
       body: Stack(
         children: [
           GoogleMap(
@@ -3900,7 +4012,7 @@ class ProviderMapPage extends StatelessWidget {
   Widget build(BuildContext context) => Directionality(
     textDirection: TextDirection.rtl,
     child: Scaffold(
-      appBar: AppBar(title: const Text('خريطة الخدمات')),
+      appBar: HenaAppBar(title: const Text('خريطة الخدمات')),
       body: FutureBuilder<List<ProviderSummary>>(
         future: providersFuture,
         builder: (context, snapshot) {
@@ -4501,7 +4613,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
   Widget build(BuildContext context) => Directionality(
     textDirection: TextDirection.rtl,
     child: Scaffold(
-      appBar: AppBar(title: const Text('تفاصيل المكان')),
+      appBar: HenaAppBar(title: const Text('تفاصيل المكان')),
       floatingActionButton: widget.providerId == null
           ? null
           : FloatingActionButton.extended(
@@ -5308,7 +5420,7 @@ class _ReviewPageState extends State<ReviewPage> {
   Widget build(BuildContext context) => Directionality(
     textDirection: TextDirection.rtl,
     child: Scaffold(
-      appBar: AppBar(
+      appBar: HenaAppBar(
         title: Text(widget.reviewId == null ? 'إضافة تقييم' : 'تعديل التقييم'),
       ),
       body: ListView(
@@ -5554,7 +5666,7 @@ class _ContributionFormPageState extends State<ContributionFormPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
+    appBar: HenaAppBar(
       title: Text(
         widget.kind == 'price'
             ? 'اقتراح سعر'
@@ -6448,7 +6560,7 @@ class _ListingDetailPageState extends State<ListingDetailPage> {
   Widget build(BuildContext context) => Directionality(
     textDirection: TextDirection.rtl,
     child: Scaffold(
-      appBar: AppBar(title: const Text('تفاصيل الإعلان')),
+      appBar: HenaAppBar(title: const Text('تفاصيل الإعلان')),
       body: FutureBuilder<Map<String, dynamic>>(
         future: listing,
         builder: (context, snapshot) {
@@ -6792,7 +6904,7 @@ class _CreateListingPageState extends State<CreateListingPage> {
   Widget build(BuildContext context) => Directionality(
     textDirection: TextDirection.rtl,
     child: Scaffold(
-      appBar: AppBar(title: const Text('إضافة إعلان')),
+      appBar: HenaAppBar(title: const Text('إضافة إعلان')),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(18, 10, 18, 24),
         children: [
@@ -7205,7 +7317,7 @@ class _AccountPageState extends State<AccountPage> {
   Widget build(BuildContext context) => Directionality(
     textDirection: TextDirection.rtl,
     child: Scaffold(
-      appBar: AppBar(
+      appBar: HenaAppBar(
         title: const Text('حسابي'),
         actions: [
           IconButton(
@@ -7449,7 +7561,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
   Widget build(BuildContext context) => Directionality(
     textDirection: TextDirection.rtl,
     child: Scaffold(
-      appBar: AppBar(title: const Text('تعديل الحساب')),
+      appBar: HenaAppBar(title: const Text('تعديل الحساب')),
       body: ListView(
         padding: const EdgeInsets.all(18),
         children: [
@@ -7585,7 +7697,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
   Widget build(BuildContext context) => Directionality(
     textDirection: TextDirection.rtl,
     child: Scaffold(
-      appBar: AppBar(title: const Text('المفضلة')),
+      appBar: HenaAppBar(title: const Text('المفضلة')),
       body: FutureBuilder<Map<String, dynamic>>(
         future: favorites,
         builder: (context, snapshot) {
@@ -7845,7 +7957,7 @@ class _SavedSearchesPageState extends State<SavedSearchesPage> {
   Widget build(BuildContext context) => Directionality(
     textDirection: TextDirection.rtl,
     child: Scaffold(
-      appBar: AppBar(title: const Text('البحوث المحفوظة')),
+      appBar: HenaAppBar(title: const Text('البحوث المحفوظة')),
       body: FutureBuilder<List<Map<String, dynamic>>>(
         future: searches,
         builder: (context, snapshot) {
@@ -8026,7 +8138,7 @@ class _MyListingsPageState extends State<MyListingsPage> {
   Widget build(BuildContext context) => Directionality(
     textDirection: TextDirection.rtl,
     child: Scaffold(
-      appBar: AppBar(title: const Text('إعلاناتي')),
+      appBar: HenaAppBar(title: const Text('إعلاناتي')),
       body: FutureBuilder<Map<String, dynamic>>(
         future: contributions,
         builder: (context, snapshot) {
@@ -8175,7 +8287,7 @@ class _SupportPageState extends State<SupportPage> {
   Widget build(BuildContext context) => Directionality(
     textDirection: TextDirection.rtl,
     child: Scaffold(
-      appBar: AppBar(title: const Text('المساعدة والدعم')),
+      appBar: HenaAppBar(title: const Text('المساعدة والدعم')),
       body: ListView(
         padding: const EdgeInsets.all(18),
         children: [
@@ -8257,7 +8369,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
   Widget build(BuildContext context) => Directionality(
     textDirection: TextDirection.rtl,
     child: Scaffold(
-      appBar: AppBar(
+      appBar: HenaAppBar(
         title: const Text('الإشعارات'),
         actions: [
           TextButton(
@@ -8562,7 +8674,7 @@ class _AddActivityPageState extends State<AddActivityPage> {
   Widget build(BuildContext context) => Directionality(
     textDirection: TextDirection.rtl,
     child: Scaffold(
-      appBar: AppBar(title: Text(preview ? 'مراجعة النشاط' : 'أضف نشاط')),
+      appBar: HenaAppBar(title: Text(preview ? 'مراجعة النشاط' : 'أضف نشاط')),
       body: Form(
         key: formKey,
         child: ListView(
@@ -9173,7 +9285,7 @@ class _CommunityRequestPageState extends State<CommunityRequestPage> {
   Widget build(BuildContext context) => Directionality(
     textDirection: TextDirection.rtl,
     child: Scaffold(
-      appBar: AppBar(
+      appBar: HenaAppBar(
         title: Text(widget.kind == 'CLAIM' ? 'أملك نشاط' : 'أبلغ عن نشاط'),
       ),
       body: ListView(
@@ -9845,7 +9957,7 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget build(BuildContext context) => Directionality(
     textDirection: TextDirection.rtl,
     child: Scaffold(
-      appBar: AppBar(title: const Text('الإعدادات')),
+      appBar: HenaAppBar(title: const Text('الإعدادات')),
       body: ListView(
         padding: const EdgeInsets.all(18),
         children: [
@@ -10134,7 +10246,7 @@ class _AdminControlPageState extends State<AdminControlPage> {
   Widget build(BuildContext context) => Directionality(
     textDirection: TextDirection.rtl,
     child: Scaffold(
-      appBar: AppBar(
+      appBar: HenaAppBar(
         title: const Text('لوحة الإدارة'),
         actions: [
           IconButton(onPressed: _reload, icon: const Icon(Icons.refresh)),
