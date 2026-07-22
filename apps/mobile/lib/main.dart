@@ -4397,9 +4397,18 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
       }
     }
     try {
-      await ApiClient().toggleProviderFavorite(id, listId: listId);
+      final result = await ApiClient().toggleProviderFavorite(
+        id,
+        listId: listId,
+      );
       if (mounted) {
-        showTopToast(context, message: 'تمت الإضافة للقائمة');
+        setState(() => favorite = result['saved'] as bool? ?? true);
+        showTopToast(
+          context,
+          message: result['active'] as bool? ?? false
+              ? 'تمت الإضافة للقائمة'
+              : 'اتشال النشاط من القائمة',
+        );
       }
     } catch (_) {
       if (mounted) {

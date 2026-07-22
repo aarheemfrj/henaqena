@@ -491,7 +491,9 @@ app.get('/api/providers/:id', async (req, res, next) => {
       },
     });
     if (!provider) return res.status(404).json({ message: 'Provider not found' });
-    const favorite = session ? await prisma.providerFavorite.findFirst({ where: { userId: session.userId, providerId: provider.id, listId: null } }) : null;
+    // A provider is saved for the viewer whether it lives in the default
+    // favorites bucket or in one of the viewer's named lists.
+    const favorite = session ? await prisma.providerFavorite.findFirst({ where: { userId: session.userId, providerId: provider.id } }) : null;
     const helpful = session ? await prisma.reviewHelpful.findMany({ where: { userId: session.userId, reviewId: { in: provider.reviews.map((review) => review.id) } }, select: { reviewId: true } }) : [];
     const helpfulIds = new Set(helpful.map((item) => item.reviewId));
     res.json({ ...provider, reviews: provider.reviews.map((review) => ({ ...review, viewerHelpful: helpfulIds.has(review.id) })), viewer: { favorite: Boolean(favorite) } });
@@ -509,8 +511,11 @@ app.post('/api/providers/:id/favorite', async (req, res, next) => {
     const existing = await prisma.providerFavorite.findFirst({ where: { userId: session.userId, providerId, listId } });
     if (existing) await prisma.providerFavorite.delete({ where: { id: existing.id } });
     else await prisma.providerFavorite.create({ data: { userId: session.userId, providerId, listId } });
-    const count = await prisma.providerFavorite.count({ where: { providerId, listId: null } });
-    res.json({ active: !existing, count });
+    const [count, saved] = await Promise.all([
+      prisma.providerFavorite.count({ where: { providerId, listId: null } }),
+      prisma.providerFavorite.findFirst({ where: { userId: session.userId, providerId } }),
+    ]);
+    res.json({ active: !existing, saved: Boolean(saved), count });
   } catch (error) { next(error); }
 });
 
