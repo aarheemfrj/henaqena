@@ -7,57 +7,34 @@ import {
   iterateGooglePlaces,
   type GooglePlaceResult,
 } from './google-maps-provider';
-import { enrichRecordSocialLinks, isSocialEnrichmentConfigured } from './social-enrichment';
-import { calculateQualityScore, fingerprintBusiness, normalizeArabicText, normalizeEgyptianPhone } from './normalize';
+import { isSocialEnrichmentConfigured } from './social-enrichment';
+import {
+  calculateQualityScore,
+  fingerprintBusiness,
+  normalizeArabicText,
+  normalizeEgyptianPhone,
+  UNNAMED_BUSINESS_PLACEHOLDER,
+} from './normalize';
+import {
+  enrichSingleRecord,
+  markJobCompleted,
+  markJobFailed,
+  markJobStartedInProcess,
+  markJobStoppedInProcess,
+  saveJobProgress,
+  type CollectionJobRow,
+  type JobCounts,
+} from './collection-job-shared';
 
-export type CollectionJobRow = {
-  id: string;
-  sourceId: string | null;
-  category: string | null;
-  area: string | null;
-  query: string | null;
-  metadata: unknown;
-};
-
-// Defense-in-depth only — the authoritative guard against a double-run is the
-// atomic PENDING->RUNNING UPDATE done by the /jobs/:id/run route handler
-// before this function is ever called.
-const runningJobIds = new Set<string>();
-export const isGoogleMapsJobRunningInProcess = (jobId: string): boolean => runningJobIds.has(jobId);
-
-async function saveProgress(
-  prisma: PrismaClient,
-  jobId: string,
-  baseMetadata: Record<string, unknown>,
-  counts: { found: number; saved: number; duplicates: number; failed: number; enriched: number; processed: number },
-) {
-  const metadata = {
-    ...baseMetadata,
-    progress: {
-      processed: counts.processed,
-      total: counts.found,
-      enrichedCount: counts.enriched,
-    },
-  };
-  await prisma.$executeRawUnsafe(
-    `UPDATE "CollectionJob"
-     SET "foundCount" = $2, "savedCount" = $3, "duplicateCount" = $4, "failedCount" = $5, "metadata" = $6::jsonb, "updatedAt" = NOW()
-     WHERE "id" = $1`,
-    jobId,
-    counts.found,
-    counts.saved,
-    counts.duplicates,
-    counts.failed,
-    JSON.stringify(metadata),
-  );
-}
+export type { CollectionJobRow };
 
 async function upsertGooglePlaceRecord(
   prisma: PrismaClient,
   job: CollectionJobRow,
   place: GooglePlaceResult,
 ): Promise<{ id: string; created: boolean }> {
-  const name = place.displayName?.text?.trim() || 'نشاط بدون اسم';
+  const name = place.displayName?.text?.trim() || UNNAMED_BUSINESS_PLACEHOLDER;
+  const hasRealName = name !== UNNAMED_BUSINESS_PLACEHOLDER;
   const phone = place.internationalPhoneNumber ?? place.nationalPhoneNumber ?? null;
   const normalizedPhone = normalizeEgyptianPhone(phone);
   const normalizedName = normalizeArabicText(name);
@@ -75,16 +52,19 @@ async function upsertGooglePlaceRecord(
   });
 
   // Dedup priority: same googlePlaceId > same normalizedPhone > same googleMapsUrl > strong name+area match.
+  // The name+area check is skipped for unnamed places — every unnamed place in the same
+  // area would otherwise share the exact same placeholder name and falsely "match".
   const existing = await prisma.$queryRawUnsafe<Array<{ id: string }>>(
     `SELECT "id" FROM "CollectedBusiness"
      WHERE "googlePlaceId" = $1
         OR ($2::text IS NOT NULL AND "normalizedPhone" = $2)
         OR "googleMapsUrl" = $3
-        OR ($4::text IS NOT NULL AND "area" = $4 AND similarity("normalizedName", $5) >= 0.8)
+        OR ($4 AND $5::text IS NOT NULL AND "area" = $5 AND similarity("normalizedName", $6) >= 0.8)
      LIMIT 1`,
     place.id,
     normalizedPhone,
     googleMapsUrl,
+    hasRealName,
     job.area,
     normalizedName,
   );
@@ -134,49 +114,12 @@ async function upsertGooglePlaceRecord(
   return { id, created: true };
 }
 
-async function enrichSingleRecord(prisma: PrismaClient, id: string): Promise<boolean> {
-  const rows = await prisma.$queryRawUnsafe<Array<{ id: string; name: string; area: string | null; phone: string | null; website: string | null }>>(
-    `SELECT "id", "name", "area", "phone", "website" FROM "CollectedBusiness" WHERE "id" = $1`,
-    id,
-  );
-  const record = rows[0];
-  if (!record) return false;
-
-  const outcome = await enrichRecordSocialLinks(record);
-
-  await prisma.$executeRawUnsafe(
-    `UPDATE "CollectedBusiness" SET
-       "facebook" = COALESCE($2, "facebook"),
-       "instagram" = COALESCE($3, "instagram"),
-       "tiktok" = COALESCE($4, "tiktok"),
-       "whatsapp" = COALESCE("whatsapp", $5),
-       "socialEnrichment" = $6::jsonb,
-       "socialCandidates" = $7::jsonb,
-       "socialEnrichmentStatus" = $8::"SocialEnrichmentStatus",
-       "socialEnrichmentError" = $9,
-       "socialEnrichedAt" = NOW(),
-       "updatedAt" = NOW()
-     WHERE "id" = $1`,
-    id,
-    outcome.accepted.facebook?.url ?? null,
-    outcome.accepted.instagram?.url ?? null,
-    outcome.accepted.tiktok?.url ?? null,
-    outcome.whatsapp,
-    JSON.stringify(outcome.accepted),
-    JSON.stringify(outcome.candidates),
-    outcome.status,
-    outcome.error ?? null,
-  );
-
-  return outcome.status === 'COMPLETED';
-}
-
 export async function runGoogleMapsJob(prisma: PrismaClient, job: CollectionJobRow): Promise<void> {
-  runningJobIds.add(job.id);
+  markJobStartedInProcess(job.id);
   const baseMetadata = (job.metadata as Record<string, unknown>) ?? {};
   const limit = typeof baseMetadata.limit === 'number' ? baseMetadata.limit : 50;
 
-  const counts = { found: 0, saved: 0, duplicates: 0, failed: 0, enriched: 0, processed: 0 };
+  const counts: JobCounts = { found: 0, saved: 0, duplicates: 0, failed: 0, enriched: 0, processed: 0 };
 
   try {
     const textQuery = composeSearchQuery({ category: job.category ?? '', area: job.area ?? '', query: job.query });
@@ -201,24 +144,16 @@ export async function runGoogleMapsJob(prisma: PrismaClient, job: CollectionJobR
         }
       }
 
-      await saveProgress(prisma, job.id, baseMetadata, counts);
+      await saveJobProgress(prisma, job.id, baseMetadata, counts);
     }
 
-    await prisma.$executeRawUnsafe(
-      `UPDATE "CollectionJob" SET "status" = 'COMPLETED', "finishedAt" = NOW(), "updatedAt" = NOW() WHERE "id" = $1`,
-      job.id,
-    );
+    await markJobCompleted(prisma, job.id);
   } catch (error) {
     const message = error instanceof GoogleMapsQuotaError
       ? 'تم إيقاف المهمة: تم تجاوز الحد المسموح (quota) لطلبات Google Places API. التقدم المحفوظ حتى الآن لم يُفقد.'
       : error instanceof Error ? error.message : 'فشل غير معروف أثناء تشغيل المهمة';
-
-    await prisma.$executeRawUnsafe(
-      `UPDATE "CollectionJob" SET "status" = 'FAILED', "finishedAt" = NOW(), "error" = $2, "updatedAt" = NOW() WHERE "id" = $1`,
-      job.id,
-      message.slice(0, 500),
-    );
+    await markJobFailed(prisma, job.id, message);
   } finally {
-    runningJobIds.delete(job.id);
+    markJobStoppedInProcess(job.id);
   }
 }

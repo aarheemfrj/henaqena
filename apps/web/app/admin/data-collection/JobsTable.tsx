@@ -47,7 +47,7 @@ export function JobsTable({ jobs }: { jobs: CollectionJob[] }) {
       </tr></thead>
       <tbody>{jobs.map((job) => {
         const progress = job.metadata?.progress;
-        const canRun = job.sourceId === 'google-maps' && job.status === 'PENDING';
+        const canRun = (job.sourceId === 'google-maps' || job.sourceId === 'osm') && job.status === 'PENDING';
         return <tr key={job.id}>
           <td>{job.sourceId ?? '—'}</td>
           <td>{job.category ?? '—'}</td>

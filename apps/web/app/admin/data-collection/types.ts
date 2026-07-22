@@ -47,6 +47,7 @@ export type CollectedBusiness = {
   reviewedBy: string | null;
   providerId: string | null;
   googlePlaceId: string | null;
+  osmId: string | null;
   socialEnrichment: SocialEnrichmentMap | null;
   socialCandidates: SocialEnrichmentMap | null;
   socialEnrichmentStatus: 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'SKIPPED';

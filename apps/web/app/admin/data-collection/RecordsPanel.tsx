@@ -147,6 +147,17 @@ export function RecordsPanel({ records }: { records: CollectedBusiness[] }) {
               فتح في خرائط جوجل ↗
             </a>
           )}
+          {selected.osmId && (
+            <a
+              className="secondaryButton"
+              href={`https://www.openstreetmap.org/${selected.osmId}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ display: 'inline-block', marginBottom: 10, marginInlineStart: selected.googleMapsUrl ? 8 : 0 }}
+            >
+              فتح في OpenStreetMap ↗
+            </a>
+          )}
           {(['facebook', 'instagram', 'tiktok'] as SocialPlatform[]).map((platform) => {
             const url = selected[platform];
             if (!url) return null;
@@ -165,7 +176,7 @@ export function RecordsPanel({ records }: { records: CollectedBusiness[] }) {
             <span>الموقع</span>
             <span>{isSafeLink(selected.website) ? <a href={selected.website} target="_blank" rel="noopener noreferrer">{selected.website}</a> : selected.website}</span>
           </div>}
-          {!selected.facebook && !selected.instagram && !selected.tiktok && !selected.website && !selected.googleMapsUrl && (
+          {!selected.facebook && !selected.instagram && !selected.tiktok && !selected.website && !selected.googleMapsUrl && !selected.osmId && (
             <p style={{ color: 'var(--muted)', fontSize: 12 }}>لا توجد روابط تواصل مسجلة.</p>
           )}
         </div>
