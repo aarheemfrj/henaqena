@@ -1942,15 +1942,7 @@ class PersistentTopActions extends StatelessWidget {
                 ).push(MaterialPageRoute(builder: (_) => const AccountPage()))
               : _openAdd(context),
           child: sectionIndex == 0
-              ? CircleAvatar(
-                  radius: 15,
-                  backgroundColor: colors.primary,
-                  child: const Icon(
-                    Icons.person_rounded,
-                    color: Colors.white,
-                    size: 18,
-                  ),
-                )
+              ? Icon(Icons.settings_outlined, color: colors.primary, size: 23)
               : Icon(Icons.add, color: colors.primary),
         ),
       ],
