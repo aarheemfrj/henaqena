@@ -4326,7 +4326,6 @@ class ProviderMapPage extends StatefulWidget {
 
 class _ProviderMapPageState extends State<ProviderMapPage> {
   static const _qena = LatLng(26.1551, 32.7160);
-  GoogleMapController? mapController;
   LatLng center = _qena;
   bool locating = true;
 
@@ -4334,12 +4333,6 @@ class _ProviderMapPageState extends State<ProviderMapPage> {
   void initState() {
     super.initState();
     _locateUser();
-  }
-
-  @override
-  void dispose() {
-    mapController?.dispose();
-    super.dispose();
   }
 
   Future<void> _locateUser() async {
@@ -4356,7 +4349,6 @@ class _ProviderMapPageState extends State<ProviderMapPage> {
       if (!mounted) return;
       final target = LatLng(position.latitude, position.longitude);
       setState(() => center = target);
-      mapController?.animateCamera(CameraUpdate.newLatLng(target));
     } catch (_) {
       // Qena remains the safe fallback when location is unavailable.
     } finally {
@@ -4452,35 +4444,13 @@ class _ProviderMapPageState extends State<ProviderMapPage> {
               );
             },
           );
-          final markers = mapped
-              .where((item) => item.latitude != null && item.longitude != null)
-              .map(
-                (item) => Marker(
-                  markerId: MarkerId(item.id),
-                  position: LatLng(item.latitude!, item.longitude!),
-                  infoWindow: InfoWindow(
-                    title: item.name,
-                    snippet: item.address ?? item.subtitle,
-                  ),
-                  onTap: () => _openProvider(item),
-                ),
-              )
-              .toSet();
           return Column(
             children: [
               SizedBox(
                 height: 360,
-                child: GoogleMap(
-                  initialCameraPosition: CameraPosition(
-                    target: center,
-                    zoom: 12.4,
-                  ),
-                  onMapCreated: (controller) => mapController = controller,
-                  markers: markers,
-                  mapToolbarEnabled: true,
-                  myLocationEnabled: !locating,
-                  myLocationButtonEnabled: true,
-                  zoomControlsEnabled: false,
+                child: InternalQenaMap(
+                  providers: mapped,
+                  onProviderTap: _openProvider,
                 ),
               ),
               Expanded(child: list),
@@ -4490,6 +4460,273 @@ class _ProviderMapPageState extends State<ProviderMapPage> {
       ),
     ),
   );
+}
+
+class InternalQenaMap extends StatelessWidget {
+  const InternalQenaMap({
+    super.key,
+    required this.providers,
+    required this.onProviderTap,
+  });
+
+  final List<ProviderSummary> providers;
+  final ValueChanged<ProviderSummary> onProviderTap;
+
+  static const _minLat = 26.105;
+  static const _maxLat = 26.215;
+  static const _minLng = 32.670;
+  static const _maxLng = 32.765;
+  static const _canvasSize = Size(720, 500);
+
+  Offset _position(ProviderSummary provider) {
+    final x =
+        ((provider.longitude! - _minLng) / (_maxLng - _minLng)) *
+        _canvasSize.width;
+    final y =
+        ((provider.latitude! - _minLat) / (_maxLat - _minLat)) *
+        _canvasSize.height;
+    return Offset(
+      x.clamp(20, _canvasSize.width - 20),
+      (_canvasSize.height - y).clamp(20, _canvasSize.height - 20),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final mapped = providers
+        .where((item) => item.latitude != null && item.longitude != null)
+        .toList();
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(22),
+      child: Stack(
+        children: [
+          InteractiveViewer(
+            minScale: .85,
+            maxScale: 2.6,
+            boundaryMargin: const EdgeInsets.all(90),
+            constrained: false,
+            child: SizedBox(
+              width: _canvasSize.width,
+              height: _canvasSize.height,
+              child: Stack(
+                children: [
+                  CustomPaint(size: _canvasSize, painter: _QenaMapPainter()),
+                  for (final provider in mapped)
+                    Positioned(
+                      left: _position(provider).dx - 18,
+                      top: _position(provider).dy - 18,
+                      child: _InternalMapPin(
+                        color: _qenaMapCategoryColor(provider.categoryName),
+                        icon: categoryIcon(provider.categoryName),
+                        onTap: () => onProviderTap(provider),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          Positioned(
+            top: 12,
+            right: 12,
+            left: 12,
+            child: Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (final entry in _qenaMapCategoryColors.entries.take(5))
+                  _MapLegendChip(label: entry.key, color: entry.value),
+              ],
+            ),
+          ),
+          const Positioned(bottom: 12, right: 12, child: _MapHint()),
+        ],
+      ),
+    );
+  }
+}
+
+const _qenaMapCategoryColors = <String, Color>{
+  'طبي': Color(0xFF0D8F8A),
+  'أكل': Color(0xFFE9B44C),
+  'تسوق': Color(0xFFB95D8C),
+  'تعليم': Color(0xFF4778B8),
+  'خدمات': Color(0xFF7C5AA6),
+  'ترفيه': Color(0xFFE4774C),
+};
+
+Color _qenaMapCategoryColor(String? category) {
+  if (category == null) return _qenaMapCategoryColors['خدمات']!;
+  if (category.contains('طبي') ||
+      category.contains('صيد') ||
+      category.contains('دكتور'))
+    return _qenaMapCategoryColors['طبي']!;
+  if (category.contains('مطعم') ||
+      category.contains('كاف') ||
+      category.contains('سوبر'))
+    return _qenaMapCategoryColors['أكل']!;
+  if (category.contains('تعليم') || category.contains('مدرس')) {
+    return _qenaMapCategoryColors['تعليم']!;
+  }
+  if (category.contains('ترفيه') || category.contains('رياض')) {
+    return _qenaMapCategoryColors['ترفيه']!;
+  }
+  return _qenaMapCategoryColors['خدمات']!;
+}
+
+class _InternalMapPin extends StatelessWidget {
+  const _InternalMapPin({
+    required this.color,
+    required this.icon,
+    required this.onTap,
+  });
+  final Color color;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: onTap,
+    child: AnimatedContainer(
+      duration: AppMotion.quick,
+      width: 36,
+      height: 36,
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white, width: 3),
+        boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 5)],
+      ),
+      child: Icon(icon, size: 18, color: Colors.white),
+    ),
+  );
+}
+
+class _MapLegendChip extends StatelessWidget {
+  const _MapLegendChip({required this.label, required this.color});
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+    decoration: BoxDecoration(
+      color: Colors.white.withValues(alpha: .92),
+      borderRadius: BorderRadius.circular(30),
+    ),
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CircleAvatar(radius: 4, backgroundColor: color),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _MapHint extends StatelessWidget {
+  const _MapHint();
+
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+    decoration: BoxDecoration(
+      color: Colors.white.withValues(alpha: .94),
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: const Padding(
+      padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      child: Text(
+        'اسحب للتنقل · كبّر للتفاصيل',
+        style: TextStyle(fontSize: 10),
+      ),
+    ),
+  );
+}
+
+class _QenaMapPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final background = Paint()..color = const Color(0xFFF3F7F4);
+    canvas.drawRect(Offset.zero & size, background);
+
+    final river = Paint()
+      ..color = const Color(0xFFBFE5E2)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 42
+      ..strokeCap = StrokeCap.round;
+    final riverPath = Path()
+      ..moveTo(size.width * .61, -20)
+      ..cubicTo(
+        size.width * .55,
+        size.height * .2,
+        size.width * .68,
+        size.height * .42,
+        size.width * .58,
+        size.height * .62,
+      )
+      ..cubicTo(
+        size.width * .52,
+        size.height * .78,
+        size.width * .6,
+        size.height * .9,
+        size.width * .52,
+        size.height + 20,
+      );
+    canvas.drawPath(riverPath, river);
+
+    final road = Paint()
+      ..color = const Color(0xFFD8E1DD)
+      ..strokeWidth = 8
+      ..strokeCap = StrokeCap.round;
+    final fineRoad = Paint()
+      ..color = const Color(0xFFE4EBE7)
+      ..strokeWidth = 3;
+    for (final points in [
+      [Offset(0, size.height * .22), Offset(size.width, size.height * .35)],
+      [Offset(0, size.height * .7), Offset(size.width, size.height * .58)],
+      [Offset(size.width * .18, 0), Offset(size.width * .46, size.height)],
+      [Offset(size.width * .8, 0), Offset(size.width * .7, size.height)],
+    ]) {
+      canvas.drawLine(points[0], points[1], road);
+    }
+    for (var i = 1; i < 7; i++) {
+      canvas.drawLine(
+        Offset(0, size.height * i / 7),
+        Offset(size.width, size.height * (i + .3) / 7),
+        fineRoad,
+      );
+    }
+
+    final labels = <String, Offset>{
+      'وسط البلد': Offset(size.width * .35, size.height * .27),
+      'مدينة العمال': Offset(size.width * .08, size.height * .52),
+      'الشؤون': Offset(size.width * .73, size.height * .25),
+      'المساكن': Offset(size.width * .73, size.height * .72),
+      'الحميدات': Offset(size.width * .28, size.height * .78),
+    };
+    for (final entry in labels.entries) {
+      final text = TextPainter(
+        text: TextSpan(
+          text: entry.key,
+          style: const TextStyle(
+            color: Color(0xFF68817D),
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        textDirection: TextDirection.rtl,
+      )..layout();
+      text.paint(canvas, entry.value);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 (IconData, String) _weatherIconAndLabel(int code) {
