@@ -225,21 +225,14 @@ class HenaBackButton extends StatelessWidget {
     final colors = Theme.of(context).colorScheme;
     return SizedBox.square(
       dimension: 38,
-      child: Material(
-        color: Colors.white.withValues(alpha: .92),
-        elevation: 1,
-        shadowColor: Colors.black12,
-        shape: const CircleBorder(),
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          onTap: onPressed ?? () => Navigator.of(context).maybePop(),
-          child: Center(
-            child: Icon(
-              Icons.arrow_forward_rounded,
-              size: 22,
-              color: color ?? colors.primary,
-            ),
-          ),
+      child: IconButton(
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints.tightFor(width: 38, height: 38),
+        onPressed: onPressed ?? () => Navigator.of(context).maybePop(),
+        icon: Icon(
+          Icons.arrow_forward_rounded,
+          size: 28,
+          color: color ?? colors.primary,
         ),
       ),
     );
@@ -272,7 +265,7 @@ class HenaAppBar extends StatelessWidget implements PreferredSizeWidget {
     return AppBar(
       automaticallyImplyLeading: false,
       toolbarHeight: kToolbarHeight + 8,
-      leadingWidth: 58,
+      leadingWidth: 74,
       leading: leading ?? (canPop ? const HenaBackButton() : null),
       title: title,
       actions: actions,
@@ -1939,7 +1932,7 @@ class PersistentTopActions extends StatelessWidget {
                 ).push(MaterialPageRoute(builder: (_) => const AccountPage()))
               : _openAdd(context),
           child: sectionIndex == 0
-              ? Icon(Icons.settings_outlined, color: colors.primary, size: 23)
+              ? Icon(Icons.person_outline, color: colors.primary, size: 23)
               : Icon(Icons.add, color: colors.primary),
         ),
       ],
