@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:flutter_map/flutter_map.dart' as fmap;
+import 'package:latlong2/latlong.dart' as ll;
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -4472,98 +4474,140 @@ class InternalQenaMap extends StatefulWidget {
   final List<ProviderSummary> providers;
   final ValueChanged<ProviderSummary> onProviderTap;
 
-  static const _minLat = 26.105;
-  static const _maxLat = 26.215;
-  static const _minLng = 32.670;
-  static const _maxLng = 32.765;
-  static const _canvasSize = Size(720, 500);
-
   @override
   State<InternalQenaMap> createState() => _InternalQenaMapState();
 }
 
 class _InternalQenaMapState extends State<InternalQenaMap> {
-  final TransformationController _transform = TransformationController();
+  static final _qena = ll.LatLng(26.1551, 32.7160);
+  final fmap.MapController _mapController = fmap.MapController();
+  bool _locating = false;
 
-  @override
-  void dispose() {
-    _transform.dispose();
-    super.dispose();
+  List<ProviderSummary> get _mapped => widget.providers
+      .where((item) => item.latitude != null && item.longitude != null)
+      .toList();
+
+  Future<void> _locateUser() async {
+    setState(() => _locating = true);
+    try {
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        return;
+      }
+      final position = await Geolocator.getCurrentPosition();
+      if (!mounted) return;
+      _mapController.move(ll.LatLng(position.latitude, position.longitude), 15);
+    } catch (_) {
+      if (mounted) {
+        showTopToast(
+          context,
+          message: 'تعذر تحديد موقعك حاليًا',
+          isError: true,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _locating = false);
+    }
   }
 
-  Offset _position(ProviderSummary provider) {
-    final x =
-        ((provider.longitude! - InternalQenaMap._minLng) /
-            (InternalQenaMap._maxLng - InternalQenaMap._minLng)) *
-        InternalQenaMap._canvasSize.width;
-    final y =
-        ((provider.latitude! - InternalQenaMap._minLat) /
-            (InternalQenaMap._maxLat - InternalQenaMap._minLat)) *
-        InternalQenaMap._canvasSize.height;
-    return Offset(
-      x.clamp(20, InternalQenaMap._canvasSize.width - 20),
-      (InternalQenaMap._canvasSize.height - y).clamp(
-        20,
-        InternalQenaMap._canvasSize.height - 20,
-      ),
-    );
+  void _zoom(double delta) {
+    final camera = _mapController.camera;
+    _mapController.move(camera.center, (camera.zoom + delta).clamp(3.0, 19.0));
   }
 
-  void _zoom(double factor) {
-    final next = Matrix4.copy(_transform.value)..scale(factor);
-    _transform.value = next;
-  }
+  void _resetView() => _mapController.move(_qena, 13.0);
 
   @override
   Widget build(BuildContext context) {
-    final mapped = widget.providers
-        .where((item) => item.latitude != null && item.longitude != null)
-        .toList();
+    final mapped = _mapped;
+    final markers = [
+      for (final provider in mapped)
+        fmap.Marker(
+          point: ll.LatLng(provider.latitude!, provider.longitude!),
+          width: 48,
+          height: 54,
+          child: GestureDetector(
+            onTap: () => widget.onProviderTap(provider),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: _qenaMapCategoryColor(provider.categoryName),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 3),
+                    boxShadow: const [
+                      BoxShadow(color: Colors.black26, blurRadius: 5),
+                    ],
+                  ),
+                  child: Icon(
+                    categoryIcon(provider.categoryName),
+                    color: Colors.white,
+                    size: 18,
+                  ),
+                ),
+                Icon(
+                  Icons.arrow_drop_down,
+                  color: _qenaMapCategoryColor(provider.categoryName),
+                  size: 16,
+                ),
+              ],
+            ),
+          ),
+        ),
+    ];
     return ClipRRect(
       borderRadius: BorderRadius.circular(22),
       child: Stack(
         children: [
-          InteractiveViewer(
-            transformationController: _transform,
-            minScale: .85,
-            maxScale: 2.6,
-            boundaryMargin: const EdgeInsets.all(90),
-            constrained: false,
-            child: SizedBox(
-              width: InternalQenaMap._canvasSize.width,
-              height: InternalQenaMap._canvasSize.height,
-              child: Stack(
-                children: [
-                  CustomPaint(
-                    size: InternalQenaMap._canvasSize,
-                    painter: _QenaMapPainter(),
-                  ),
-                  for (final provider in mapped)
-                    Positioned(
-                      left: _position(provider).dx - 18,
-                      top: _position(provider).dy - 18,
-                      child: _InternalMapPin(
-                        color: _qenaMapCategoryColor(provider.categoryName),
-                        icon: categoryIcon(provider.categoryName),
-                        onTap: () => widget.onProviderTap(provider),
-                      ),
-                    ),
-                ],
+          fmap.FlutterMap(
+            mapController: _mapController,
+            options: const fmap.MapOptions(
+              initialCenter: ll.LatLng(26.1551, 32.7160),
+              initialZoom: 13,
+              minZoom: 10,
+              maxZoom: 19,
+              interactionOptions: fmap.InteractionOptions(
+                flags: fmap.InteractiveFlag.all,
               ),
             ),
+            children: [
+              fmap.TileLayer(
+                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                userAgentPackageName: 'com.maalsoft.henaqena',
+                maxNativeZoom: 19,
+              ),
+              fmap.MarkerLayer(markers: markers),
+              const fmap.RichAttributionWidget(
+                attributions: [
+                  fmap.TextSourceAttribution('OpenStreetMap contributors'),
+                ],
+              ),
+            ],
           ),
           Positioned(
             left: 12,
             bottom: 12,
             child: Column(
               children: [
-                _MapControlButton(icon: Icons.add, onTap: () => _zoom(1.25)),
+                _MapControlButton(icon: Icons.add, onTap: () => _zoom(1)),
                 const SizedBox(height: 6),
-                _MapControlButton(icon: Icons.remove, onTap: () => _zoom(.8)),
+                _MapControlButton(icon: Icons.remove, onTap: () => _zoom(-1)),
+                const SizedBox(height: 6),
+                _MapControlButton(
+                  icon: Icons.my_location,
+                  onTap: _locating ? () {} : _locateUser,
+                ),
                 const SizedBox(height: 6),
                 _MapControlButton(
                   icon: Icons.center_focus_strong,
-                  onTap: () => _transform.value = Matrix4.identity(),
+                  onTap: _resetView,
                 ),
               ],
             ),
@@ -4576,12 +4620,18 @@ class _InternalQenaMapState extends State<InternalQenaMap> {
               spacing: 6,
               runSpacing: 6,
               children: [
-                for (final entry in _qenaMapCategoryColors.entries.take(5))
+                for (final entry in _qenaMapCategoryColors.entries)
                   _MapLegendChip(label: entry.key, color: entry.value),
               ],
             ),
           ),
           const Positioned(bottom: 12, right: 12, child: _MapHint()),
+          if (_locating)
+            const Positioned.fill(
+              child: IgnorePointer(
+                child: Center(child: CircularProgressIndicator()),
+              ),
+            ),
         ],
       ),
     );
@@ -4614,34 +4664,6 @@ Color _qenaMapCategoryColor(String? category) {
     return _qenaMapCategoryColors['ترفيه']!;
   }
   return _qenaMapCategoryColors['خدمات']!;
-}
-
-class _InternalMapPin extends StatelessWidget {
-  const _InternalMapPin({
-    required this.color,
-    required this.icon,
-    required this.onTap,
-  });
-  final Color color;
-  final IconData icon;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => GestureDetector(
-    onTap: onTap,
-    child: AnimatedContainer(
-      duration: AppMotion.quick,
-      width: 36,
-      height: 36,
-      decoration: BoxDecoration(
-        color: color,
-        shape: BoxShape.circle,
-        border: Border.all(color: Colors.white, width: 3),
-        boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 5)],
-      ),
-      child: Icon(icon, size: 18, color: Colors.white),
-    ),
-  );
 }
 
 class _MapLegendChip extends StatelessWidget {
@@ -4710,87 +4732,6 @@ class _MapControlButton extends StatelessWidget {
       ),
     ),
   );
-}
-
-class _QenaMapPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final background = Paint()..color = const Color(0xFFF3F7F4);
-    canvas.drawRect(Offset.zero & size, background);
-
-    final river = Paint()
-      ..color = const Color(0xFFBFE5E2)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 42
-      ..strokeCap = StrokeCap.round;
-    final riverPath = Path()
-      ..moveTo(size.width * .61, -20)
-      ..cubicTo(
-        size.width * .55,
-        size.height * .2,
-        size.width * .68,
-        size.height * .42,
-        size.width * .58,
-        size.height * .62,
-      )
-      ..cubicTo(
-        size.width * .52,
-        size.height * .78,
-        size.width * .6,
-        size.height * .9,
-        size.width * .52,
-        size.height + 20,
-      );
-    canvas.drawPath(riverPath, river);
-
-    final road = Paint()
-      ..color = const Color(0xFFD8E1DD)
-      ..strokeWidth = 8
-      ..strokeCap = StrokeCap.round;
-    final fineRoad = Paint()
-      ..color = const Color(0xFFE4EBE7)
-      ..strokeWidth = 3;
-    for (final points in [
-      [Offset(0, size.height * .22), Offset(size.width, size.height * .35)],
-      [Offset(0, size.height * .7), Offset(size.width, size.height * .58)],
-      [Offset(size.width * .18, 0), Offset(size.width * .46, size.height)],
-      [Offset(size.width * .8, 0), Offset(size.width * .7, size.height)],
-    ]) {
-      canvas.drawLine(points[0], points[1], road);
-    }
-    for (var i = 1; i < 7; i++) {
-      canvas.drawLine(
-        Offset(0, size.height * i / 7),
-        Offset(size.width, size.height * (i + .3) / 7),
-        fineRoad,
-      );
-    }
-
-    final labels = <String, Offset>{
-      'وسط البلد': Offset(size.width * .35, size.height * .27),
-      'مدينة العمال': Offset(size.width * .08, size.height * .52),
-      'الشؤون': Offset(size.width * .73, size.height * .25),
-      'المساكن': Offset(size.width * .73, size.height * .72),
-      'الحميدات': Offset(size.width * .28, size.height * .78),
-    };
-    for (final entry in labels.entries) {
-      final text = TextPainter(
-        text: TextSpan(
-          text: entry.key,
-          style: const TextStyle(
-            color: Color(0xFF68817D),
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        textDirection: TextDirection.rtl,
-      )..layout();
-      text.paint(canvas, entry.value);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 (IconData, String) _weatherIconAndLabel(int code) {
