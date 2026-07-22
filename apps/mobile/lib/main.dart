@@ -4092,7 +4092,7 @@ class LocationPickerPage extends StatefulWidget {
 
 class _LocationPickerPageState extends State<LocationPickerPage> {
   static const _defaultCenter = LatLng(26.1551, 32.7160);
-  GoogleMapController? mapController;
+  final fmap.MapController mapController = fmap.MapController();
   LatLng center = _defaultCenter;
   String address = '';
   bool resolvingAddress = false;
@@ -4111,7 +4111,6 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
   @override
   void dispose() {
     searchController.dispose();
-    mapController?.dispose();
     super.dispose();
   }
 
@@ -4159,7 +4158,7 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
       final target = LatLng(position.latitude, position.longitude);
       if (!mounted) return;
       setState(() => center = target);
-      mapController?.animateCamera(CameraUpdate.newLatLng(target));
+      mapController.move(ll.LatLng(target.latitude, target.longitude), 15);
       await _resolveAddress(target);
     } catch (_) {
       if (mounted) {
@@ -4188,7 +4187,7 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
         locations.first.longitude,
       );
       setState(() => center = target);
-      mapController?.animateCamera(CameraUpdate.newLatLng(target));
+      mapController.move(ll.LatLng(target.latitude, target.longitude), 15);
       await _resolveAddress(target);
     } catch (_) {
       if (mounted) {
@@ -4208,13 +4207,39 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
       appBar: HenaAppBar(title: const Text('حدد الموقع على الخريطة')),
       body: Stack(
         children: [
-          GoogleMap(
-            initialCameraPosition: CameraPosition(target: center, zoom: 15),
-            onMapCreated: (controller) => mapController = controller,
-            onCameraMove: (position) => center = position.target,
-            onCameraIdle: () => _resolveAddress(center),
-            myLocationButtonEnabled: false,
-            zoomControlsEnabled: false,
+          fmap.FlutterMap(
+            mapController: mapController,
+            options: fmap.MapOptions(
+              initialCenter: ll.LatLng(center.latitude, center.longitude),
+              initialZoom: 15,
+              minZoom: 10,
+              maxZoom: 19,
+              interactionOptions: const fmap.InteractionOptions(
+                flags: fmap.InteractiveFlag.all,
+              ),
+              onPositionChanged: (camera, _) {
+                center = LatLng(
+                  camera.center.latitude,
+                  camera.center.longitude,
+                );
+              },
+              onMapEvent: (event) {
+                if (event is fmap.MapEventMoveEnd) {
+                  _resolveAddress(center);
+                }
+              },
+            ),
+            children: [
+              fmap.TileLayer(
+                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                userAgentPackageName: 'com.maalsoft.henaqena',
+                maxNativeZoom: 19,
+              ),
+              fmap.SimpleAttributionWidget(
+                source: Text('© OpenStreetMap contributors'),
+                backgroundColor: Color(0xCCFFFFFF),
+              ),
+            ],
           ),
           const IgnorePointer(
             child: Center(
@@ -4318,9 +4343,14 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
 }
 
 class ProviderMapPage extends StatefulWidget {
-  const ProviderMapPage({super.key, required this.providersFuture});
+  const ProviderMapPage({
+    super.key,
+    required this.providersFuture,
+    this.initialCenter,
+  });
 
   final Future<List<ProviderSummary>> providersFuture;
+  final LatLng? initialCenter;
 
   @override
   State<ProviderMapPage> createState() => _ProviderMapPageState();
@@ -4334,6 +4364,7 @@ class _ProviderMapPageState extends State<ProviderMapPage> {
   @override
   void initState() {
     super.initState();
+    if (widget.initialCenter != null) center = widget.initialCenter!;
     _locateUser();
   }
 
@@ -4453,6 +4484,7 @@ class _ProviderMapPageState extends State<ProviderMapPage> {
                 child: InternalQenaMap(
                   providers: mapped,
                   onProviderTap: _openProvider,
+                  initialCenter: ll.LatLng(center.latitude, center.longitude),
                 ),
               ),
               Expanded(child: list),
@@ -4469,10 +4501,12 @@ class InternalQenaMap extends StatefulWidget {
     super.key,
     required this.providers,
     required this.onProviderTap,
+    this.initialCenter,
   });
 
   final List<ProviderSummary> providers;
   final ValueChanged<ProviderSummary> onProviderTap;
+  final ll.LatLng? initialCenter;
 
   @override
   State<InternalQenaMap> createState() => _InternalQenaMapState();
@@ -4528,36 +4562,62 @@ class _InternalQenaMapState extends State<InternalQenaMap> {
       for (final provider in mapped)
         fmap.Marker(
           point: ll.LatLng(provider.latitude!, provider.longitude!),
-          width: 48,
-          height: 54,
+          width: 170,
+          height: 56,
+          alignment: Alignment.bottomCenter,
           child: GestureDetector(
             onTap: () => widget.onProviderTap(provider),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    color: _qenaMapCategoryColor(provider.categoryName),
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 3),
-                    boxShadow: const [
-                      BoxShadow(color: Colors.black26, blurRadius: 5),
-                    ],
+            child: Directionality(
+              textDirection: TextDirection.rtl,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Flexible(
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 11),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: .95),
+                        borderRadius: BorderRadius.circular(10),
+                        boxShadow: const [
+                          BoxShadow(color: Colors.black26, blurRadius: 4),
+                        ],
+                      ),
+                      child: Text(
+                        provider.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
                   ),
-                  child: Icon(
-                    categoryIcon(provider.categoryName),
-                    color: Colors.white,
-                    size: 18,
+                  const SizedBox(width: 4),
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: _qenaMapCategoryColor(provider.categoryName),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 3),
+                      boxShadow: const [
+                        BoxShadow(color: Colors.black26, blurRadius: 5),
+                      ],
+                    ),
+                    child: Icon(
+                      categoryIcon(provider.categoryName),
+                      color: Colors.white,
+                      size: 18,
+                    ),
                   ),
-                ),
-                Icon(
-                  Icons.arrow_drop_down,
-                  color: _qenaMapCategoryColor(provider.categoryName),
-                  size: 16,
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -4568,12 +4628,12 @@ class _InternalQenaMapState extends State<InternalQenaMap> {
         children: [
           fmap.FlutterMap(
             mapController: _mapController,
-            options: const fmap.MapOptions(
-              initialCenter: ll.LatLng(26.1551, 32.7160),
+            options: fmap.MapOptions(
+              initialCenter: widget.initialCenter ?? _qena,
               initialZoom: 13,
               minZoom: 10,
               maxZoom: 19,
-              interactionOptions: fmap.InteractionOptions(
+              interactionOptions: const fmap.InteractionOptions(
                 flags: fmap.InteractiveFlag.all,
               ),
             ),
@@ -4851,6 +4911,77 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
       : ApiClient().fetchProvider(widget.providerId!).then((value) => value);
   bool? favorite;
   bool savingFavorite = false;
+
+  Future<void> _openMapOptions(ProviderDetails data) async {
+    if (data.latitude == null || data.longitude == null) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'موقع ${data.name}',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 8),
+              ListTile(
+                leading: Icon(Icons.map_outlined, color: teal),
+                title: const Text('عرض داخل هنا قنا'),
+                subtitle: const Text('الخريطة الأساسية داخل التطبيق'),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  final summary = ProviderSummary(
+                    id: data.id,
+                    name: data.name,
+                    subtitle: data.areaName,
+                    imageUrl: data.images.isEmpty ? null : data.images.first,
+                    logoUrl: data.logoUrl,
+                    categoryName: data.categorySlug,
+                    address: data.address,
+                    latitude: data.latitude,
+                    longitude: data.longitude,
+                  );
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ProviderMapPage(
+                        providersFuture: Future.value([summary]),
+                        initialCenter: LatLng(data.latitude!, data.longitude!),
+                      ),
+                    ),
+                  );
+                },
+              ),
+              ListTile(
+                leading: Icon(Icons.directions_outlined, color: teal),
+                title: const Text('الاتجاهات الخارجية'),
+                subtitle: const Text('فتح تطبيق الخرائط الموجود على جهازك'),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _external(
+                    AppActions.map(
+                      latitude: data.latitude,
+                      longitude: data.longitude,
+                      address: '${data.address ?? ''}، ${data.areaName}، قنا',
+                    ),
+                    'تعذر فتح تطبيق الخرائط الخارجي',
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   Future<void> _editProvider(ProviderDetails data) async {
     final name = TextEditingController(text: data.name);
@@ -5513,15 +5644,9 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                     child: TextButton.icon(
                       onPressed: data?.address == null && data?.latitude == null
                           ? null
-                          : () => _external(
-                              AppActions.map(
-                                latitude: data?.latitude,
-                                longitude: data?.longitude,
-                                address:
-                                    '${data?.address ?? ''}، ${data?.areaName ?? 'قنا'}، قنا',
-                              ),
-                              'لا توجد بيانات موقع كافية',
-                            ),
+                          : data?.latitude != null
+                          ? () => _openMapOptions(data!)
+                          : null,
                       icon: const Icon(Icons.map_outlined),
                       label: const Text('الخريطة'),
                     ),
