@@ -59,7 +59,7 @@ export async function updatePlatformSettings(formData: FormData) {
   if (!await hasAdminSession()) redirect('/admin/login');
   await apiPatch('/api/admin/settings', {
     adRotationSeconds: Number(formData.get('adRotationSeconds') ?? 6),
-    dataRefreshSeconds: Number(formData.get('dataRefreshSeconds') ?? 60),
+    dataRefreshSeconds: Number(formData.get('dataRefreshSeconds') ?? 900),
   });
   revalidatePath('/admin/ads');
 }

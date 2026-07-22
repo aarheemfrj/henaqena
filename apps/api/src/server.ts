@@ -1216,7 +1216,7 @@ app.get('/api/settings', async (_req, res, next) => {
 
 const platformSettingsSchema = z.object({
   adRotationSeconds: z.coerce.number().int().min(2).max(60),
-  dataRefreshSeconds: z.coerce.number().int().min(10).max(3600),
+  dataRefreshSeconds: z.coerce.number().int().min(60).max(3600),
 });
 app.patch('/api/admin/settings', requireAdmin, async (req, res, next) => {
   try {

@@ -663,6 +663,6 @@ model Notification {
 model PlatformSettings {
   id                 String   @id @default("default")
   adRotationSeconds  Int      @default(6)
-  dataRefreshSeconds Int      @default(60)
+  dataRefreshSeconds Int      @default(900)
   updatedAt          DateTime @updatedAt
 }

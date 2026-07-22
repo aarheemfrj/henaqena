@@ -1620,14 +1620,16 @@ class HomeShell extends StatefulWidget {
   State<HomeShell> createState() => _HomeShellState();
 }
 
-class _HomeShellState extends State<HomeShell> {
+class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   int index = 0;
-  final pages = const [
-    HomePage(),
-    DirectoryPage(),
-    PricesPage(),
-    NowPage(),
-    ListingsPage(),
+  int refreshEpoch = 0;
+  DateTime? backgroundedAt;
+  List<Widget> get pages => [
+    HomePage(key: ValueKey('home-$refreshEpoch')),
+    DirectoryPage(key: ValueKey('directory-$refreshEpoch')),
+    PricesPage(key: ValueKey('prices-$refreshEpoch')),
+    NowPage(key: ValueKey('now-$refreshEpoch')),
+    ListingsPage(key: ValueKey('listings-$refreshEpoch')),
   ];
   final labels = const ['الرئيسية', 'مين؟', 'بكام؟', 'دلوقتي', 'عندك؟'];
   final icons = const [
@@ -1641,6 +1643,40 @@ class _HomeShellState extends State<HomeShell> {
   void _select(int value) => setState(() {
     index = value;
   });
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    // A fresh launch should prioritize the current platform data over cache.
+    ApiClient().clearCache();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive) {
+      backgroundedAt ??= DateTime.now();
+      return;
+    }
+    if (state == AppLifecycleState.resumed) {
+      final elapsed = backgroundedAt == null
+          ? Duration.zero
+          : DateTime.now().difference(backgroundedAt!);
+      backgroundedAt = null;
+      if (elapsed >= const Duration(minutes: 3)) {
+        ApiClient().clearCache().then((_) {
+          if (mounted) setState(() => refreshEpoch++);
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1955,10 +1991,13 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   String selectedArea = 'قنا كلها';
   String? selectedAreaId;
-  late Future<List<ProviderSummary>> featured = ApiClient().fetchProviders();
+  late Future<List<ProviderSummary>> featured = ApiClient().fetchProviders(
+    skipCache: true,
+  );
   late Future<List<ProviderSummary>> newPlaces = ApiClient().fetchProviders(
     sort: 'latest',
     pageSize: 4,
+    skipCache: true,
   );
   List<String> categoryItems = const [];
   Timer? _refreshTimer;
@@ -1972,7 +2011,7 @@ class _HomePageState extends State<HomePage> {
       if (!mounted) return;
       final seconds = (settings['dataRefreshSeconds'] as num?)?.toInt();
       _refreshTimer = Timer.periodic(
-        Duration(seconds: seconds != null && seconds > 0 ? seconds : 60),
+        Duration(seconds: seconds != null && seconds > 0 ? seconds : 900),
         (_) => _refresh(),
       );
     });
@@ -1991,8 +2030,15 @@ class _HomePageState extends State<HomePage> {
   void _refresh() {
     if (!mounted) return;
     setState(() {
-      featured = ApiClient().fetchProviders(areaId: selectedAreaId);
-      newPlaces = ApiClient().fetchProviders(sort: 'latest', pageSize: 4);
+      featured = ApiClient().fetchProviders(
+        areaId: selectedAreaId,
+        skipCache: true,
+      );
+      newPlaces = ApiClient().fetchProviders(
+        sort: 'latest',
+        pageSize: 4,
+        skipCache: true,
+      );
     });
     _loadCategories();
   }
@@ -2107,11 +2153,15 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _reload() async {
     setState(() {
-      featured = ApiClient().fetchProviders(areaId: selectedAreaId);
+      featured = ApiClient().fetchProviders(
+        areaId: selectedAreaId,
+        skipCache: true,
+      );
       newPlaces = ApiClient().fetchProviders(
         areaId: selectedAreaId,
         sort: 'latest',
         pageSize: 4,
+        skipCache: true,
       );
     });
     await Future.wait([featured, newPlaces]);
@@ -3114,7 +3164,10 @@ class _DirectoryPageState extends State<DirectoryPage> {
     }).toList();
   }
 
-  Future<List<ProviderSummary>> _fetchProviders({String? searchQuery}) async {
+  Future<List<ProviderSummary>> _fetchProviders({
+    String? searchQuery,
+    bool force = false,
+  }) async {
     final sort = filters.sort == 'الأعلى تقييمًا'
         ? 'rating'
         : filters.sort == 'الأحدث'
@@ -3131,6 +3184,7 @@ class _DirectoryPageState extends State<DirectoryPage> {
       hasParking: filters.hasParking,
       acceptsCards: filters.acceptsCards,
       sort: sort,
+      skipCache: force,
     );
     if (query.isEmpty || results.isNotEmpty) {
       return _applyDistanceFilter(results);
@@ -3143,6 +3197,7 @@ class _DirectoryPageState extends State<DirectoryPage> {
       verifiedOnly: filters.verified,
       openNow: filters.openNow,
       sort: sort,
+      skipCache: force,
     );
     final tokens = _normalizeArabicQuery(query).split(' ');
     final filtered = all.where((provider) {
@@ -3354,7 +3409,7 @@ class _DirectoryPageState extends State<DirectoryPage> {
 
   Future<void> _reload() async {
     setState(() {
-      providersFuture = _fetchProviders();
+      providersFuture = _fetchProviders(force: true);
     });
     await providersFuture;
   }
@@ -5963,7 +6018,11 @@ class _ListingsPageState extends State<ListingsPage> {
   }
 
   Future<void> _reload() async {
-    final next = api.fetchListings(category: category, query: search.text);
+    final next = api.fetchListings(
+      category: category,
+      query: search.text,
+      skipCache: true,
+    );
     if (!mounted) return;
     setState(() {
       listings = next;
