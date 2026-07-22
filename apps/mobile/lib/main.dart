@@ -223,8 +223,8 @@ class HenaBackButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsetsDirectional.only(start: 10),
+    return SizedBox.square(
+      dimension: 38,
       child: Material(
         color: Colors.white.withValues(alpha: .92),
         elevation: 1,
