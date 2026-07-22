@@ -5,6 +5,7 @@ import { hasAdminSession } from '@/lib/admin-session';
 import { RecordsPanel } from './RecordsPanel';
 import { DuplicatesPanel } from './DuplicatesPanel';
 import { JobLauncherCard } from './JobLauncherCard';
+import { JobsTable } from './JobsTable';
 import type { CollectedBusiness, CollectedRecordStatus, DataCollectionOverview, DataSourceOption, DuplicateCandidate, RecordsPage } from './types';
 
 const RECORDS_PAGE_SIZE = 50;
@@ -25,15 +26,6 @@ const statusOptions: { value: CollectedRecordStatus; label: string }[] = [
   { value: 'REJECTED', label: 'مرفوض' },
   { value: 'MERGED', label: 'مدموج' },
 ];
-
-const jobStatusLabels: Record<string, string> = {
-  PENDING: 'قيد الانتظار', RUNNING: 'قيد التشغيل', COMPLETED: 'مكتملة', FAILED: 'فشلت', CANCELLED: 'أُلغيت',
-};
-
-function formatDateTime(value: string | null) {
-  if (!value) return '—';
-  return new Date(value).toLocaleString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-}
 
 type SearchParams = { tab?: string; status?: string; search?: string; category?: string; area?: string; sort?: string; offset?: string };
 
@@ -143,21 +135,7 @@ export default async function DataCollectionAdminPage({ searchParams }: { search
     {tab === 'duplicates' && <section className="section"><DuplicatesPanel duplicates={duplicates} /></section>}
 
     {tab === 'jobs' && <section className="section surface table">
-      {overview.latestJobs.length === 0 ? <p className="empty">لا توجد مهام استيراد حتى الآن.</p> : <table>
-        <thead><tr><th>المصدر</th><th>الفئة</th><th>المنطقة</th><th>عدد الموجود</th><th>عدد المحفوظ</th><th>مكرر</th><th>فشل</th><th>الحالة</th><th>البداية</th><th>النهاية</th></tr></thead>
-        <tbody>{overview.latestJobs.map((job) => <tr key={job.id}>
-          <td>{job.sourceId ?? '—'}</td>
-          <td>{job.category ?? '—'}</td>
-          <td>{job.area ?? '—'}</td>
-          <td>{job.foundCount}</td>
-          <td>{job.savedCount}</td>
-          <td>{job.duplicateCount}</td>
-          <td>{job.failedCount}</td>
-          <td><span className="badge">{jobStatusLabels[job.status] ?? job.status}</span></td>
-          <td>{formatDateTime(job.startedAt)}</td>
-          <td>{formatDateTime(job.finishedAt)}</td>
-        </tr>)}</tbody>
-      </table>}
+      <JobsTable jobs={overview.latestJobs} />
     </section>}
   </section>;
 }

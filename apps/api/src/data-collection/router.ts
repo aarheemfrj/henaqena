@@ -6,6 +6,9 @@ import multer from 'multer';
 import type { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import { runCsvImportForJob } from './import-runner';
+import { isGoogleMapsConfigured } from './google-maps-provider';
+import { runGoogleMapsJob } from './google-maps-job-runner';
+import { isSafeExternalUrl } from './social-enrichment';
 
 const csvUpload = multer({
   dest: os.tmpdir(),
@@ -27,7 +30,12 @@ export const createDataCollectionRouter = (prisma: PrismaClient): Router => {
       const sources = await prisma.$queryRawUnsafe<Array<{ id: string; name: string; kind: string; isActive: boolean }>>(
         `SELECT "id", "name", "kind", "isActive" FROM "DataSource" ORDER BY "name" ASC`,
       );
-      res.json({ items: sources });
+      // google-maps' real activation depends on env configuration, not the stored flag —
+      // this keeps it honest even if the seeded DataSource row says isActive=true.
+      const items = sources.map((source) => (
+        source.id === 'google-maps' ? { ...source, isActive: isGoogleMapsConfigured() } : source
+      ));
+      res.json({ items });
     } catch (error) {
       next(error);
     }
@@ -267,7 +275,11 @@ export const createDataCollectionRouter = (prisma: PrismaClient): Router => {
       );
       const source = sources[0];
       if (!source) return res.status(404).json({ message: 'مصدر البيانات غير موجود' });
-      if (!source.isActive) return res.status(400).json({ message: `مصدر البيانات "${source.name}" غير مفعّل حاليًا` });
+      // google-maps jobs are always creatable and stay PENDING — actual execution (and its
+      // config check) happens separately at POST /jobs/:id/run, not at creation time.
+      if (!source.isActive && source.id !== 'google-maps') {
+        return res.status(400).json({ message: `مصدر البيانات "${source.name}" غير مفعّل حاليًا` });
+      }
 
       const metadata = { limit: input.limit, requestedFromAdmin: true };
 
@@ -333,6 +345,109 @@ export const createDataCollectionRouter = (prisma: PrismaClient): Router => {
       next(error);
     } finally {
       if (file) await unlink(file.path).catch(() => undefined);
+    }
+  });
+
+  router.post('/jobs/:id/run', async (req, res, next) => {
+    try {
+      const jobs = await prisma.$queryRawUnsafe<Array<{
+        id: string; sourceId: string | null; category: string | null; area: string | null; query: string | null; status: string; metadata: unknown;
+      }>>(
+        `SELECT "id", "sourceId", "category", "area", "query", "status", "metadata" FROM "CollectionJob" WHERE "id" = $1`,
+        req.params.id,
+      );
+      const job = jobs[0];
+      if (!job) return res.status(404).json({ message: 'مهمة التجميع غير موجودة' });
+      if (job.sourceId !== 'google-maps') {
+        return res.status(400).json({ message: 'هذه المهمة ليست من مصدر Google Maps' });
+      }
+      if (job.status === 'COMPLETED' || job.status === 'RUNNING') {
+        return res.status(400).json({ message: job.status === 'RUNNING' ? 'المهمة قيد التشغيل بالفعل' : 'المهمة مكتملة بالفعل' });
+      }
+      if (!isGoogleMapsConfigured()) {
+        return res.status(400).json({ message: 'إعدادات Google Maps غير مكتملة (GOOGLE_MAPS_API_KEY / GOOGLE_MAPS_PROVIDER_ENABLED)' });
+      }
+
+      // Atomic PENDING -> RUNNING transition: the authoritative guard against running the same job twice in parallel.
+      const claimed = await prisma.$queryRawUnsafe<Array<{ id: string }>>(
+        `UPDATE "CollectionJob" SET "status" = 'RUNNING', "startedAt" = COALESCE("startedAt", NOW()), "updatedAt" = NOW()
+         WHERE "id" = $1 AND "status" = 'PENDING'
+         RETURNING "id"`,
+        job.id,
+      );
+      if (!claimed.length) return res.status(409).json({ message: 'تعذر بدء التشغيل — قد تكون المهمة بدأت للتو من مكان آخر' });
+
+      res.status(202).json({ jobId: job.id, status: 'RUNNING' });
+
+      // Runs detached from the HTTP request/response cycle — see google-maps-job-runner.ts
+      // for the documented limitations of this single-process, non-persistent worker.
+      void runGoogleMapsJob(prisma, job);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.patch('/records/:id/social-links', async (req, res, next) => {
+    try {
+      const input = z.object({
+        platform: z.enum(['facebook', 'instagram', 'tiktok']),
+        action: z.enum(['approve', 'reject', 'edit']),
+        url: z.string().max(500).optional(),
+      }).parse(req.body);
+
+      const rows = await prisma.$queryRawUnsafe<Array<{ id: string; socialEnrichment: unknown; socialCandidates: unknown }>>(
+        `SELECT "id", "socialEnrichment", "socialCandidates" FROM "CollectedBusiness" WHERE "id" = $1`,
+        req.params.id,
+      );
+      const record = rows[0];
+      if (!record) return res.status(404).json({ message: 'السجل غير موجود' });
+
+      const candidates = (record.socialCandidates as Record<string, { url: string; confidence: number; evidence: string[]; source: string }>) ?? {};
+      const enrichment = (record.socialEnrichment as Record<string, unknown>) ?? {};
+      const candidate = candidates[input.platform];
+
+      if (input.action === 'edit') {
+        if (!input.url) return res.status(400).json({ message: 'الرابط مطلوب' });
+        const hostsByPlatform: Record<string, string[]> = {
+          facebook: ['facebook.com', 'm.facebook.com', 'fb.com', 'fb.watch'],
+          instagram: ['instagram.com', 'instagr.am'],
+          tiktok: ['tiktok.com', 'vm.tiktok.com'],
+        };
+        if (!isSafeExternalUrl(input.url, hostsByPlatform[input.platform])) {
+          return res.status(400).json({ message: 'الرابط لا يطابق نطاق المنصة المتوقع' });
+        }
+        const nextEnrichment = { ...enrichment, [input.platform]: { url: input.url, confidence: 1, evidence: ['manual_review'], source: 'manual' } };
+        const nextCandidates = { ...candidates };
+        delete nextCandidates[input.platform];
+        await prisma.$executeRawUnsafe(
+          `UPDATE "CollectedBusiness" SET "${input.platform}" = $2, "socialEnrichment" = $3::jsonb, "socialCandidates" = $4::jsonb, "updatedAt" = NOW() WHERE "id" = $1`,
+          record.id, input.url, JSON.stringify(nextEnrichment), JSON.stringify(nextCandidates),
+        );
+      } else if (input.action === 'approve') {
+        if (!candidate) return res.status(404).json({ message: 'لا يوجد رابط مقترح لهذه المنصة' });
+        const nextEnrichment = { ...enrichment, [input.platform]: candidate };
+        const nextCandidates = { ...candidates };
+        delete nextCandidates[input.platform];
+        await prisma.$executeRawUnsafe(
+          `UPDATE "CollectedBusiness" SET "${input.platform}" = $2, "socialEnrichment" = $3::jsonb, "socialCandidates" = $4::jsonb, "updatedAt" = NOW() WHERE "id" = $1`,
+          record.id, candidate.url, JSON.stringify(nextEnrichment), JSON.stringify(nextCandidates),
+        );
+      } else {
+        const nextCandidates = { ...candidates };
+        delete nextCandidates[input.platform];
+        await prisma.$executeRawUnsafe(
+          `UPDATE "CollectedBusiness" SET "socialCandidates" = $2::jsonb, "updatedAt" = NOW() WHERE "id" = $1`,
+          record.id, JSON.stringify(nextCandidates),
+        );
+      }
+
+      const updated = await prisma.$queryRawUnsafe<Array<Record<string, unknown>>>(
+        `SELECT * FROM "CollectedBusiness" WHERE "id" = $1`,
+        record.id,
+      );
+      res.json(updated[0]);
+    } catch (error) {
+      next(error);
     }
   });
 

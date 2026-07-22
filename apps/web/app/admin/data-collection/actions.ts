@@ -69,3 +69,27 @@ export async function uploadCsvForJob(formData: FormData) {
   revalidatePath('/admin/data-collection');
   return body as CsvImportOutcome;
 }
+
+export async function runCollectionJob(jobId: string) {
+  if (!await hasAdminSession()) throw new Error('يجب تسجيل الدخول كمسؤول');
+  const result = await apiPost<{ jobId: string; status: string }>(`/api/admin/data-collection/jobs/${jobId}/run`, {});
+  revalidatePath('/admin/data-collection');
+  return result;
+}
+
+export async function reviewSocialLink(formData: FormData) {
+  if (!await hasAdminSession()) throw new Error('يجب تسجيل الدخول كمسؤول');
+  const recordId = String(formData.get('recordId') ?? '');
+  const platform = String(formData.get('platform') ?? '');
+  const action = String(formData.get('action') ?? '');
+  const url = String(formData.get('url') ?? '').trim();
+  if (!recordId) throw new Error('رقم السجل مطلوب');
+
+  const record = await apiPatch<CollectedBusiness>(`/api/admin/data-collection/records/${recordId}/social-links`, {
+    platform,
+    action,
+    url: url || undefined,
+  });
+  revalidatePath('/admin/data-collection');
+  return record;
+}
