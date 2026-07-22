@@ -4584,10 +4584,9 @@ class _InternalQenaMapState extends State<InternalQenaMap> {
                 maxNativeZoom: 19,
               ),
               fmap.MarkerLayer(markers: markers),
-              const fmap.RichAttributionWidget(
-                attributions: [
-                  fmap.TextSourceAttribution('OpenStreetMap contributors'),
-                ],
+              const fmap.SimpleAttributionWidget(
+                source: Text('© OpenStreetMap contributors'),
+                backgroundColor: Color(0xCCFFFFFF),
               ),
             ],
           ),
