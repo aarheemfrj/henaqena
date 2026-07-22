@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState, useTransition } from 'react';
-import { createCollectionJob, uploadCsvForJob } from './actions';
+import { createCollectionJob, runCollectionJob, uploadCsvForJob } from './actions';
 import { dataCollectionAreaOptions, dataCollectionCategories, OTHER_AREA_VALUE } from '@/lib/data-collection-options';
 import type { CsvImportOutcome, DataSourceOption, NewCollectionJob } from './types';
 
@@ -28,6 +28,10 @@ export function JobLauncherCard({ sources }: { sources: DataSourceOption[] }) {
     setTimeout(() => setToast(null), 3800);
   };
 
+  const isGoogleMaps = sourceId === 'google-maps';
+  const isOsm = sourceId === 'osm';
+  const isAutoRunSource = isGoogleMaps || isOsm;
+
   const handleCreate = () => {
     const area = areaSelect === OTHER_AREA_VALUE ? areaOther.trim() : areaSelect;
     if (!sourceId) return showToast(false, 'اختر مصدر البيانات');
@@ -46,7 +50,13 @@ export function JobLauncherCard({ sources }: { sources: DataSourceOption[] }) {
         setJob(created);
         setCsvResult(null);
         setCsvFile(null);
-        showToast(true, `تم إنشاء مهمة التجميع رقم ${created.id}`);
+
+        if (isAutoRunSource) {
+          await runCollectionJob(created.id);
+          showToast(true, `تم إنشاء المهمة رقم ${created.id} وبدأ التشغيل — تابع تقدمها من تبويب "مهام الاستيراد"`);
+        } else {
+          showToast(true, `تم إنشاء مهمة التجميع رقم ${created.id}`);
+        }
       } catch (error) {
         showToast(false, error instanceof Error ? error.message : 'تعذر إنشاء المهمة');
       }
@@ -79,6 +89,12 @@ export function JobLauncherCard({ sources }: { sources: DataSourceOption[] }) {
         </option>)}
       </select>
       {sourceId === 'manual-csv' && <small style={{ color: 'var(--muted)' }}>بعد إنشاء المهمة ارفع ملف CSV المرتبط بها.</small>}
+      {isGoogleMaps && <small style={{ color: 'var(--muted)' }}>
+        ⚠ نتائج Google Maps تستهلك حصة (quota) مدفوعة من حساب Google الخاص بالمنصة — الحد الأقصى الحالي لهذه المهمة: {Math.min(limit, 60)} نتيجة (السقف الأقصى لكل مهمة هو 60 نتيجة).
+      </small>}
+      {isOsm && <small style={{ color: 'var(--muted)' }}>
+        ✅ مصدر مجاني بالكامل بدون أي مفتاح أو تكلفة — لكن اكتمال البيانات في قنا قد يكون أقل من الخرائط التجارية لأن OpenStreetMap يعتمد على متطوعين.
+      </small>}
     </label>
 
     <label>الفئة
@@ -106,7 +122,7 @@ export function JobLauncherCard({ sources }: { sources: DataSourceOption[] }) {
     </label>
 
     <button type="button" className="primaryButton wideField" disabled={isPending} onClick={handleCreate}>
-      {isPending ? 'جارٍ الإنشاء...' : 'إنشاء مهمة تجميع'}
+      {isPending ? 'جارٍ التنفيذ...' : isAutoRunSource ? 'إنشاء وتشغيل المهمة' : 'إنشاء مهمة تجميع'}
     </button>
 
     {job && <div className="wideField" style={{ padding: 14, border: '1px solid var(--line)', borderRadius: 14, background: 'rgba(13,143,138,.04)' }}>

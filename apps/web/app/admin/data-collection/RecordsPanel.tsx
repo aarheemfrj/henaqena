@@ -1,8 +1,29 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { updateCollectedRecord } from './actions';
-import type { CollectedBusiness, CollectedRecordStatus } from './types';
+import { reviewSocialLink, updateCollectedRecord } from './actions';
+import type { CollectedBusiness, CollectedRecordStatus, SocialLinkEvidence, SocialPlatform } from './types';
+
+const socialPlatformHosts: Record<SocialPlatform, string[]> = {
+  facebook: ['facebook.com', 'm.facebook.com', 'fb.com', 'fb.watch'],
+  instagram: ['instagram.com', 'instagr.am'],
+  tiktok: ['tiktok.com', 'vm.tiktok.com'],
+};
+
+const platformLabels: Record<SocialPlatform, string> = { facebook: 'فيسبوك', instagram: 'إنستجرام', tiktok: 'تيك توك' };
+
+function isSafeLink(url: string | null | undefined, allowedHosts?: string[]): boolean {
+  if (!url) return false;
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return false;
+    if (!allowedHosts) return true;
+    const host = parsed.hostname.toLowerCase();
+    return allowedHosts.some((allowed) => host === allowed || host.endsWith(`.${allowed}`));
+  } catch {
+    return false;
+  }
+}
 
 const statusLabels: Record<CollectedRecordStatus, string> = {
   NEW: 'جديد',
@@ -23,14 +44,6 @@ const statusColors: Record<CollectedRecordStatus, string> = {
 function formatDate(value: string) {
   return new Date(value).toLocaleDateString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric' });
 }
-
-const socialFields: Array<{ key: keyof CollectedBusiness; label: string }> = [
-  { key: 'website', label: 'الموقع' },
-  { key: 'facebook', label: 'فيسبوك' },
-  { key: 'instagram', label: 'إنستجرام' },
-  { key: 'tiktok', label: 'تيك توك' },
-  { key: 'googleMapsUrl', label: 'خرائط جوجل' },
-];
 
 export function RecordsPanel({ records }: { records: CollectedBusiness[] }) {
   const [selected, setSelected] = useState<CollectedBusiness | null>(null);
@@ -66,6 +79,25 @@ export function RecordsPanel({ records }: { records: CollectedBusiness[] }) {
   const handleReject = () => {
     if (!confirm('هل أنت متأكد من رفض هذا السجل؟')) return;
     run('REJECTED', true, 'تم رفض السجل');
+  };
+
+  const handleSocialAction = (platform: SocialPlatform, action: 'approve' | 'reject' | 'edit', url?: string) => {
+    if (!selected) return;
+    if (action === 'reject' && !confirm('هل أنت متأكد من رفض هذا الرابط؟')) return;
+    startTransition(async () => {
+      try {
+        const formData = new FormData();
+        formData.set('recordId', selected.id);
+        formData.set('platform', platform);
+        formData.set('action', action);
+        if (url) formData.set('url', url);
+        const updated = await reviewSocialLink(formData);
+        setSelected(updated);
+        showToast(true, action === 'approve' ? 'تم اعتماد الرابط' : action === 'reject' ? 'تم رفض الرابط' : 'تم تحديث الرابط');
+      } catch (error) {
+        showToast(false, error instanceof Error ? error.message : 'تعذر تنفيذ العملية');
+      }
+    });
   };
 
   return <>
@@ -110,10 +142,69 @@ export function RecordsPanel({ records }: { records: CollectedBusiness[] }) {
 
         <div className="drawerSection">
           <h4>روابط التواصل</h4>
-          {socialFields.some((field) => selected[field.key]) ? socialFields.map((field) => selected[field.key] ? (
-            <div className="drawerRow" key={field.key}><span>{field.label}</span><span>{String(selected[field.key])}</span></div>
-          ) : null) : <p style={{ color: 'var(--muted)', fontSize: 12 }}>لا توجد روابط تواصل مسجلة.</p>}
+          {selected.googleMapsUrl && isSafeLink(selected.googleMapsUrl) && (
+            <a className="secondaryButton" href={selected.googleMapsUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-block', marginBottom: 10 }}>
+              فتح في خرائط جوجل ↗
+            </a>
+          )}
+          {selected.osmId && (
+            <a
+              className="secondaryButton"
+              href={`https://www.openstreetmap.org/${selected.osmId}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ display: 'inline-block', marginBottom: 10, marginInlineStart: selected.googleMapsUrl ? 8 : 0 }}
+            >
+              فتح في OpenStreetMap ↗
+            </a>
+          )}
+          {(['facebook', 'instagram', 'tiktok'] as SocialPlatform[]).map((platform) => {
+            const url = selected[platform];
+            if (!url) return null;
+            const info = selected.socialEnrichment?.[platform];
+            return <div className="drawerRow" key={platform}>
+              <span>{platformLabels[platform]}</span>
+              <span>
+                {isSafeLink(url, socialPlatformHosts[platform])
+                  ? <a href={url} target="_blank" rel="noopener noreferrer">{url}</a>
+                  : url}
+                {info && <span className="badge" style={{ marginInlineStart: 6 }}>ثقة {(info.confidence * 100).toFixed(0)}٪</span>}
+              </span>
+            </div>;
+          })}
+          {selected.website && <div className="drawerRow">
+            <span>الموقع</span>
+            <span>{isSafeLink(selected.website) ? <a href={selected.website} target="_blank" rel="noopener noreferrer">{selected.website}</a> : selected.website}</span>
+          </div>}
+          {!selected.facebook && !selected.instagram && !selected.tiktok && !selected.website && !selected.googleMapsUrl && !selected.osmId && (
+            <p style={{ color: 'var(--muted)', fontSize: 12 }}>لا توجد روابط تواصل مسجلة.</p>
+          )}
         </div>
+
+        {selected.socialCandidates && Object.keys(selected.socialCandidates).length > 0 && (
+          <div className="drawerSection">
+            <h4>روابط مقترحة للمراجعة</h4>
+            {(Object.entries(selected.socialCandidates) as [SocialPlatform, SocialLinkEvidence][]).map(([platform, info]) => (
+              <div key={platform} style={{ border: '1px solid var(--line)', borderRadius: 10, padding: 10, marginBottom: 8 }}>
+                <div className="drawerRow">
+                  <span>{platformLabels[platform]}</span>
+                  <span>{isSafeLink(info.url, socialPlatformHosts[platform]) ? <a href={info.url} target="_blank" rel="noopener noreferrer">{info.url}</a> : info.url}</span>
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--muted)' }}>
+                  الثقة: {(info.confidence * 100).toFixed(0)}٪ — الأدلة: {info.evidence.join('، ') || '—'} — المصدر: {info.source}
+                </div>
+                <div className="actionRow" style={{ marginTop: 8 }}>
+                  <button className="approveButton" disabled={isPending} onClick={() => handleSocialAction(platform, 'approve')}>اعتماد الرابط</button>
+                  <button className="rejectButton" disabled={isPending} onClick={() => handleSocialAction(platform, 'reject')}>رفض الرابط</button>
+                  <button className="noteButton" disabled={isPending} onClick={() => {
+                    const manualUrl = prompt('أدخل الرابط الصحيح', info.url);
+                    if (manualUrl) handleSocialAction(platform, 'edit', manualUrl);
+                  }}>تعديل يدويًا</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         <div className="drawerSection">
           <h4>البيانات الخام (Raw Data)</h4>

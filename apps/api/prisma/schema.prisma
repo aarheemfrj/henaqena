@@ -530,6 +530,14 @@ enum CollectedRecordStatus {
   MERGED
 }
 
+enum SocialEnrichmentStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  SKIPPED
+}
+
 model DataSource {
   id        String   @id
   name      String   @unique
@@ -603,6 +611,13 @@ model CollectedBusiness {
   reviewedAt      DateTime?
   reviewedBy      String?
   providerId      String?
+  googlePlaceId          String?                @unique
+  osmId                  String?                @unique
+  socialEnrichment       Json?
+  socialCandidates       Json?
+  socialEnrichmentStatus SocialEnrichmentStatus @default(PENDING)
+  socialEnrichmentError  String?
+  socialEnrichedAt       DateTime?
   createdAt       DateTime               @default(now())
   updatedAt       DateTime               @updatedAt
 
@@ -614,6 +629,8 @@ model CollectedBusiness {
 
   @@index([status, qualityScore])
   @@index([normalizedPhone])
+  @@index([sourceId])
+  @@index([socialEnrichmentStatus])
 }
 
 model DuplicateCandidate {

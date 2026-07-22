@@ -3,6 +3,11 @@ import { createHash } from 'node:crypto';
 const arabicDiacritics = /[\u0617-\u061A\u064B-\u0652]/g;
 const nonWord = /[^\p{L}\p{N}]+/gu;
 
+// Used whenever a provider returns no usable name. Job runners must exclude this
+// placeholder from name+area similarity dedup \u2014 every unnamed record would otherwise
+// look identical to every other unnamed record in the same area and get merged away.
+export const UNNAMED_BUSINESS_PLACEHOLDER = '\u0646\u0634\u0627\u0637 \u0628\u062F\u0648\u0646 \u0627\u0633\u0645';
+
 export const normalizeArabicText = (value?: string | null): string =>
   (value ?? '')
     .trim()

@@ -1,5 +1,16 @@
 export type CollectedRecordStatus = 'NEW' | 'NEEDS_REVIEW' | 'APPROVED' | 'REJECTED' | 'MERGED';
 
+export type SocialPlatform = 'facebook' | 'instagram' | 'tiktok';
+
+export type SocialLinkEvidence = {
+  url: string;
+  confidence: number;
+  evidence: string[];
+  source: 'official_website' | 'search' | 'manual';
+};
+
+export type SocialEnrichmentMap = Partial<Record<SocialPlatform, SocialLinkEvidence>>;
+
 export type CollectedBusiness = {
   id: string;
   jobId: string | null;
@@ -35,6 +46,13 @@ export type CollectedBusiness = {
   reviewedAt: string | null;
   reviewedBy: string | null;
   providerId: string | null;
+  googlePlaceId: string | null;
+  osmId: string | null;
+  socialEnrichment: SocialEnrichmentMap | null;
+  socialCandidates: SocialEnrichmentMap | null;
+  socialEnrichmentStatus: 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'SKIPPED';
+  socialEnrichmentError: string | null;
+  socialEnrichedAt: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -67,6 +85,7 @@ export type CollectionJob = {
   duplicateCount: number;
   failedCount: number;
   error: string | null;
+  metadata: { limit?: number; progress?: { processed: number; total: number; enrichedCount: number } } | null;
   createdAt: string;
   updatedAt: string;
 };
