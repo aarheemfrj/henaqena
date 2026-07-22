@@ -4462,7 +4462,7 @@ class _ProviderMapPageState extends State<ProviderMapPage> {
   );
 }
 
-class InternalQenaMap extends StatelessWidget {
+class InternalQenaMap extends StatefulWidget {
   const InternalQenaMap({
     super.key,
     required this.providers,
@@ -4478,22 +4478,45 @@ class InternalQenaMap extends StatelessWidget {
   static const _maxLng = 32.765;
   static const _canvasSize = Size(720, 500);
 
+  @override
+  State<InternalQenaMap> createState() => _InternalQenaMapState();
+}
+
+class _InternalQenaMapState extends State<InternalQenaMap> {
+  final TransformationController _transform = TransformationController();
+
+  @override
+  void dispose() {
+    _transform.dispose();
+    super.dispose();
+  }
+
   Offset _position(ProviderSummary provider) {
     final x =
-        ((provider.longitude! - _minLng) / (_maxLng - _minLng)) *
-        _canvasSize.width;
+        ((provider.longitude! - InternalQenaMap._minLng) /
+            (InternalQenaMap._maxLng - InternalQenaMap._minLng)) *
+        InternalQenaMap._canvasSize.width;
     final y =
-        ((provider.latitude! - _minLat) / (_maxLat - _minLat)) *
-        _canvasSize.height;
+        ((provider.latitude! - InternalQenaMap._minLat) /
+            (InternalQenaMap._maxLat - InternalQenaMap._minLat)) *
+        InternalQenaMap._canvasSize.height;
     return Offset(
-      x.clamp(20, _canvasSize.width - 20),
-      (_canvasSize.height - y).clamp(20, _canvasSize.height - 20),
+      x.clamp(20, InternalQenaMap._canvasSize.width - 20),
+      (InternalQenaMap._canvasSize.height - y).clamp(
+        20,
+        InternalQenaMap._canvasSize.height - 20,
+      ),
     );
+  }
+
+  void _zoom(double factor) {
+    final next = Matrix4.copy(_transform.value)..scale(factor);
+    _transform.value = next;
   }
 
   @override
   Widget build(BuildContext context) {
-    final mapped = providers
+    final mapped = widget.providers
         .where((item) => item.latitude != null && item.longitude != null)
         .toList();
     return ClipRRect(
@@ -4501,16 +4524,20 @@ class InternalQenaMap extends StatelessWidget {
       child: Stack(
         children: [
           InteractiveViewer(
+            transformationController: _transform,
             minScale: .85,
             maxScale: 2.6,
             boundaryMargin: const EdgeInsets.all(90),
             constrained: false,
             child: SizedBox(
-              width: _canvasSize.width,
-              height: _canvasSize.height,
+              width: InternalQenaMap._canvasSize.width,
+              height: InternalQenaMap._canvasSize.height,
               child: Stack(
                 children: [
-                  CustomPaint(size: _canvasSize, painter: _QenaMapPainter()),
+                  CustomPaint(
+                    size: InternalQenaMap._canvasSize,
+                    painter: _QenaMapPainter(),
+                  ),
                   for (final provider in mapped)
                     Positioned(
                       left: _position(provider).dx - 18,
@@ -4518,11 +4545,27 @@ class InternalQenaMap extends StatelessWidget {
                       child: _InternalMapPin(
                         color: _qenaMapCategoryColor(provider.categoryName),
                         icon: categoryIcon(provider.categoryName),
-                        onTap: () => onProviderTap(provider),
+                        onTap: () => widget.onProviderTap(provider),
                       ),
                     ),
                 ],
               ),
+            ),
+          ),
+          Positioned(
+            left: 12,
+            bottom: 12,
+            child: Column(
+              children: [
+                _MapControlButton(icon: Icons.add, onTap: () => _zoom(1.25)),
+                const SizedBox(height: 6),
+                _MapControlButton(icon: Icons.remove, onTap: () => _zoom(.8)),
+                const SizedBox(height: 6),
+                _MapControlButton(
+                  icon: Icons.center_focus_strong,
+                  onTap: () => _transform.value = Matrix4.identity(),
+                ),
+              ],
             ),
           ),
           Positioned(
@@ -4643,6 +4686,27 @@ class _MapHint extends StatelessWidget {
       child: Text(
         'اسحب للتنقل · كبّر للتفاصيل',
         style: TextStyle(fontSize: 10),
+      ),
+    ),
+  );
+}
+
+class _MapControlButton extends StatelessWidget {
+  const _MapControlButton({required this.icon, required this.onTap});
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: Colors.white.withValues(alpha: .95),
+    elevation: 2,
+    shape: const CircleBorder(),
+    child: InkWell(
+      customBorder: const CircleBorder(),
+      onTap: onTap,
+      child: SizedBox.square(
+        dimension: 38,
+        child: Icon(icon, size: 20, color: deepTeal),
       ),
     ),
   );
