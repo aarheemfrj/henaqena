@@ -1182,26 +1182,30 @@ app.get('/api/admin/ads', requireAdmin, async (_req, res, next) => {
   } catch (error) { next(error); }
 });
 
-// Platform-wide settings — currently just the home ads rotation interval. Public
-// GET so every client (signed in or not) can sync to the same rotation cadence.
+// Platform-wide settings: home ads rotation interval, and how often the app
+// re-fetches its home-page listings/categories. Public GET so every client
+// (signed in or not) can sync to the same cadence.
 app.get('/api/settings', async (_req, res, next) => {
   try {
     const settings = await prisma.platformSettings.upsert({ where: { id: 'default' }, update: {}, create: { id: 'default' } });
-    res.json({ adRotationSeconds: settings.adRotationSeconds });
+    res.json({ adRotationSeconds: settings.adRotationSeconds, dataRefreshSeconds: settings.dataRefreshSeconds });
   } catch (error) { next(error); }
 });
 
-const platformSettingsSchema = z.object({ adRotationSeconds: z.coerce.number().int().min(2).max(60) });
+const platformSettingsSchema = z.object({
+  adRotationSeconds: z.coerce.number().int().min(2).max(60),
+  dataRefreshSeconds: z.coerce.number().int().min(10).max(3600),
+});
 app.patch('/api/admin/settings', requireAdmin, async (req, res, next) => {
   try {
     const input = platformSettingsSchema.parse(req.body);
     const settings = await prisma.platformSettings.upsert({
       where: { id: 'default' },
-      update: { adRotationSeconds: input.adRotationSeconds },
-      create: { id: 'default', adRotationSeconds: input.adRotationSeconds },
+      update: { adRotationSeconds: input.adRotationSeconds, dataRefreshSeconds: input.dataRefreshSeconds },
+      create: { id: 'default', adRotationSeconds: input.adRotationSeconds, dataRefreshSeconds: input.dataRefreshSeconds },
     });
-    await audit('settings.update', 'PlatformSettings', settings.id, { adRotationSeconds: settings.adRotationSeconds });
-    res.json({ adRotationSeconds: settings.adRotationSeconds });
+    await audit('settings.update', 'PlatformSettings', settings.id, { adRotationSeconds: settings.adRotationSeconds, dataRefreshSeconds: settings.dataRefreshSeconds });
+    res.json({ adRotationSeconds: settings.adRotationSeconds, dataRefreshSeconds: settings.dataRefreshSeconds });
   } catch (error) { next(error); }
 });
 

@@ -153,11 +153,17 @@ class ProviderDetails {
     this.open24h = false,
     this.hasDelivery = false,
     this.categorySlug,
+    this.logoUrl,
   });
   final String id;
   final String name;
   final String? description;
   final List<String> images;
+  final String? logoUrl;
+  // Display image: the owner's uploaded logo, falling back to the first
+  // photo -- callers fall back further to a category icon when this is null.
+  String? get displayImageUrl =>
+      logoUrl ?? (images.isNotEmpty ? images.first : null);
   final List<Map<String, dynamic>> reviews;
   final String? phone;
   final String? whatsapp;
@@ -228,6 +234,7 @@ class ProviderDetails {
         open24h: json['open24h'] as bool? ?? false,
         hasDelivery: json['hasDelivery'] as bool? ?? false,
         categorySlug: _firstCategorySlug(json['categories']),
+        logoUrl: _absoluteUrl(baseUrl, json['logoUrl'] as String?),
       );
 }
 
@@ -1210,7 +1217,25 @@ class ApiClient {
         return image;
       }).toList();
     }
+    if (item['logoUrl'] is String) {
+      item['logoUrl'] = _absoluteUrl(baseUrl, item['logoUrl'] as String?);
+    }
     return item;
+  }
+
+  /// The item's first linked category name, for callers rendering raw JSON
+  /// (rather than a typed model) that still need a category icon fallback.
+  String? firstCategoryNameFor(Map<String, dynamic> item) =>
+      _firstCategoryName(item['categories']);
+
+  /// Optional logo, falling back to the first photo -- callers fall back
+  /// further to a category icon when this returns null.
+  String? displayImageUrlFor(Map<String, dynamic> item) {
+    final logo = item['logoUrl'] as String?;
+    if (logo != null) return logo;
+    final images = item['images'] as List<dynamic>?;
+    if (images == null || images.isEmpty) return null;
+    return (images.first as Map<String, dynamic>)['url'] as String?;
   }
 
   Future<void> reportListing(String id, String reason) async {

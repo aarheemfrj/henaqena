@@ -1832,12 +1832,40 @@ class _HomePageState extends State<HomePage> {
     pageSize: 4,
   );
   List<String> categoryItems = const [];
+  Timer? _refreshTimer;
 
   @override
   void initState() {
     super.initState();
     _loadCategories();
     if (AuthSession.isSignedIn) _loadRecommendations();
+    ApiClient().fetchPlatformSettings().then((settings) {
+      if (!mounted) return;
+      final seconds = (settings['dataRefreshSeconds'] as num?)?.toInt();
+      _refreshTimer = Timer.periodic(
+        Duration(seconds: seconds != null && seconds > 0 ? seconds : 60),
+        (_) => _refresh(),
+      );
+    });
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
+  }
+
+  // The home tab's State stays alive for the whole app session (bottom-nav
+  // switches visibility, it doesn't recreate the page), so without this the
+  // featured/new-places lists would only ever reflect what the platform had
+  // when the app first opened. Called on the admin-configured interval.
+  void _refresh() {
+    if (!mounted) return;
+    setState(() {
+      featured = ApiClient().fetchProviders(areaId: selectedAreaId);
+      newPlaces = ApiClient().fetchProviders(sort: 'latest', pageSize: 4);
+    });
+    _loadCategories();
   }
 
   Future<void> _loadCategories() async {
@@ -4278,7 +4306,12 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                         child: CircleAvatar(
                           radius: 30,
                           backgroundColor: const Color(0xFFD8EFEC),
-                          child: Icon(widget.icon, color: deepTeal, size: 30),
+                          backgroundImage: data?.displayImageUrl == null
+                              ? null
+                              : CachedNetworkImageProvider(data!.displayImageUrl!),
+                          child: data?.displayImageUrl == null
+                              ? Icon(widget.icon, color: deepTeal, size: 30)
+                              : null,
                         ),
                       ),
                       const SizedBox(width: 14),
@@ -4367,7 +4400,10 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                               'تعذر فتح الاتصال على هذا الجهاز',
                             ),
                       icon: const Icon(Icons.phone_outlined),
-                      label: const Text('اتصال'),
+                      label: const FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text('اتصال', maxLines: 1, softWrap: false),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -4384,7 +4420,10 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                               'واتساب غير متاح على هذا الجهاز',
                             ),
                       icon: const FaIcon(FontAwesomeIcons.whatsapp, size: 16),
-                      label: const Text('واتساب'),
+                      label: const FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text('واتساب', maxLines: 1, softWrap: false),
+                      ),
                     ),
                   ),
                   if (SocialPlatform.of(data?.socialPlatform) case final social?) ...[
@@ -4400,7 +4439,10 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                           'تعذر فتح الرابط',
                         ),
                         icon: FaIcon(social.icon, size: 16),
-                        label: Text(social.label),
+                        label: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(social.label, maxLines: 1, softWrap: false),
+                        ),
                       ),
                     ),
                   ],
@@ -5693,7 +5735,8 @@ class _ListingsPageState extends State<ListingsPage> {
                   MotionIn(
                     delay: index * 45,
                     child: MiniItem(
-                      icon: Icons.campaign_outlined,
+                      icon: categoryIcon(items[index]['category'] as String?),
+                      imageUrl: api.displayImageUrlFor(items[index]),
                       title: items[index]['title'] as String? ?? 'إعلان',
                       subtitle:
                           '${items[index]['price']} جنيه · ${items[index]['area']?['name'] ?? 'قنا'} · ${items[index]['category'] ?? ''}',
@@ -6047,7 +6090,10 @@ class _ListingDetailPageState extends State<ListingDetailPage> {
                           ? null
                           : () => AppActions.call(phone),
                       icon: const Icon(Icons.phone_outlined),
-                      label: const Text('اتصال'),
+                      label: const FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text('اتصال', maxLines: 1, softWrap: false),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -6061,7 +6107,10 @@ class _ListingDetailPageState extends State<ListingDetailPage> {
                                   'مرحبًا، شفت إعلان «$title» على تطبيق هنا قنا.',
                             ),
                       icon: const FaIcon(FontAwesomeIcons.whatsapp, size: 16),
-                      label: const Text('واتساب'),
+                      label: const FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text('واتساب', maxLines: 1, softWrap: false),
+                      ),
                     ),
                   ),
                 ],
@@ -7206,7 +7255,8 @@ class _FavoritesPageState extends State<FavoritesPage> {
                     builder: (context) {
                       final provider = value as Map<String, dynamic>;
                       return MiniItem(
-                        icon: Icons.storefront_outlined,
+                        icon: categoryIcon(api.firstCategoryNameFor(provider)),
+                        imageUrl: api.displayImageUrlFor(provider),
                         title: provider['name'] as String? ?? 'نشاط',
                         subtitle: provider['area']?['name'] as String? ?? 'قنا',
                         onTap: () => Navigator.push(
@@ -7234,7 +7284,8 @@ class _FavoritesPageState extends State<FavoritesPage> {
                     builder: (context) {
                       final listing = value as Map<String, dynamic>;
                       return MiniItem(
-                        icon: Icons.campaign_outlined,
+                        icon: categoryIcon(listing['category'] as String?),
+                        imageUrl: api.displayImageUrlFor(listing),
                         title: listing['title'] as String? ?? 'إعلان',
                         subtitle:
                             '${listing['price']} جنيه · ${listing['area']?['name'] ?? 'قنا'}',

@@ -55,9 +55,12 @@ export async function moderateAd(formData: FormData) {
   revalidatePath('/admin/ads');
 }
 
-export async function updateAdRotation(formData: FormData) {
+export async function updatePlatformSettings(formData: FormData) {
   if (!await hasAdminSession()) redirect('/admin/login');
-  await apiPatch('/api/admin/settings', { adRotationSeconds: Number(formData.get('adRotationSeconds') ?? 6) });
+  await apiPatch('/api/admin/settings', {
+    adRotationSeconds: Number(formData.get('adRotationSeconds') ?? 6),
+    dataRefreshSeconds: Number(formData.get('dataRefreshSeconds') ?? 60),
+  });
   revalidatePath('/admin/ads');
 }
 
