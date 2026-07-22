@@ -1945,9 +1945,10 @@ class PersistentTopActions extends StatelessWidget {
               ? CircleAvatar(
                   radius: 15,
                   backgroundColor: colors.primary,
-                  child: const Text(
-                    'م',
-                    style: TextStyle(color: Colors.white, fontSize: 12),
+                  child: const Icon(
+                    Icons.person_rounded,
+                    color: Colors.white,
+                    size: 18,
                   ),
                 )
               : Icon(Icons.add, color: colors.primary),
