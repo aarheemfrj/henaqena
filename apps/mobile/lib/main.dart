@@ -4003,10 +4003,68 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
   );
 }
 
-class ProviderMapPage extends StatelessWidget {
+class ProviderMapPage extends StatefulWidget {
   const ProviderMapPage({super.key, required this.providersFuture});
 
   final Future<List<ProviderSummary>> providersFuture;
+
+  @override
+  State<ProviderMapPage> createState() => _ProviderMapPageState();
+}
+
+class _ProviderMapPageState extends State<ProviderMapPage> {
+  static const _qena = LatLng(26.1551, 32.7160);
+  GoogleMapController? mapController;
+  LatLng center = _qena;
+  bool locating = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _locateUser();
+  }
+
+  @override
+  void dispose() {
+    mapController?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _locateUser() async {
+    try {
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        return;
+      }
+      final position = await Geolocator.getCurrentPosition();
+      if (!mounted) return;
+      final target = LatLng(position.latitude, position.longitude);
+      setState(() => center = target);
+      mapController?.animateCamera(CameraUpdate.newLatLng(target));
+    } catch (_) {
+      // Qena remains the safe fallback when location is unavailable.
+    } finally {
+      if (mounted) setState(() => locating = false);
+    }
+  }
+
+  void _openProvider(ProviderSummary provider) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ProviderDetailPage(
+          providerId: provider.id,
+          title: provider.name,
+          icon: categoryIcon(provider.categoryName),
+          subtitle: provider.subtitle,
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) => Directionality(
@@ -4014,7 +4072,7 @@ class ProviderMapPage extends StatelessWidget {
     child: Scaffold(
       appBar: HenaAppBar(title: const Text('خريطة الخدمات')),
       body: FutureBuilder<List<ProviderSummary>>(
-        future: providersFuture,
+        future: widget.providersFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -4041,12 +4099,32 @@ class ProviderMapPage extends StatelessWidget {
               subtitle: 'غيّر البحث أو افتح المكان لمعرفة عنوانه.',
             );
           }
+          final ordered = [...mapped]
+            ..sort((a, b) {
+              final aDistance = a.latitude == null || a.longitude == null
+                  ? double.infinity
+                  : Geolocator.distanceBetween(
+                      center.latitude,
+                      center.longitude,
+                      a.latitude!,
+                      a.longitude!,
+                    );
+              final bDistance = b.latitude == null || b.longitude == null
+                  ? double.infinity
+                  : Geolocator.distanceBetween(
+                      center.latitude,
+                      center.longitude,
+                      b.latitude!,
+                      b.longitude!,
+                    );
+              return aDistance.compareTo(bDistance);
+            });
           final list = ListView.separated(
             padding: const EdgeInsets.all(18),
-            itemCount: mapped.length,
+            itemCount: ordered.length,
             separatorBuilder: (_, _) => const SizedBox(height: 8),
             itemBuilder: (context, index) {
-              final provider = mapped[index];
+              final provider = ordered[index];
               return Card(
                 child: ListTile(
                   leading: CircleAvatar(
@@ -4057,19 +4135,8 @@ class ProviderMapPage extends StatelessWidget {
                   ),
                   title: Text(provider.name),
                   subtitle: Text(provider.address ?? provider.subtitle),
-                  trailing: const Icon(Icons.open_in_new),
-                  onTap: () async {
-                    final opened = await AppActions.map(
-                      latitude: provider.latitude,
-                      longitude: provider.longitude,
-                      address: '${provider.address ?? provider.name}، قنا',
-                    );
-                    if (!opened && context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('تعذر فتح تطبيق الخرائط')),
-                      );
-                    }
-                  },
+                  trailing: const Icon(Icons.chevron_left),
+                  onTap: () => _openProvider(provider),
                 ),
               );
             },
@@ -4084,21 +4151,24 @@ class ProviderMapPage extends StatelessWidget {
                     title: item.name,
                     snippet: item.address ?? item.subtitle,
                   ),
+                  onTap: () => _openProvider(item),
                 ),
               )
               .toSet();
           return Column(
             children: [
               SizedBox(
-                height: 310,
+                height: 360,
                 child: GoogleMap(
-                  initialCameraPosition: const CameraPosition(
-                    target: LatLng(26.1551, 32.7160),
+                  initialCameraPosition: CameraPosition(
+                    target: center,
                     zoom: 12.4,
                   ),
+                  onMapCreated: (controller) => mapController = controller,
                   markers: markers,
                   mapToolbarEnabled: true,
-                  myLocationButtonEnabled: false,
+                  myLocationEnabled: !locating,
+                  myLocationButtonEnabled: true,
                   zoomControlsEnabled: false,
                 ),
               ),
