@@ -32,7 +32,11 @@ String _relativeTime(dynamic raw) {
   return '${date.day}/${date.month}/${date.year}';
 }
 
-void showTopToast(BuildContext context, {required String message, bool isError = false}) {
+void showTopToast(
+  BuildContext context, {
+  required String message,
+  bool isError = false,
+}) {
   final colors = AppThemeController.current;
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(
@@ -47,10 +51,22 @@ void showTopToast(BuildContext context, {required String message, bool isError =
 }
 
 class AppTextStyles {
-  static const displayLarge = TextStyle(fontSize: 24, fontWeight: FontWeight.w700);
-  static const displayMedium = TextStyle(fontSize: 22, fontWeight: FontWeight.w700);
-  static const headlineLarge = TextStyle(fontSize: 21, fontWeight: FontWeight.w700);
-  static const headlineMedium = TextStyle(fontSize: 20, fontWeight: FontWeight.w700);
+  static const displayLarge = TextStyle(
+    fontSize: 24,
+    fontWeight: FontWeight.w700,
+  );
+  static const displayMedium = TextStyle(
+    fontSize: 22,
+    fontWeight: FontWeight.w700,
+  );
+  static const headlineLarge = TextStyle(
+    fontSize: 21,
+    fontWeight: FontWeight.w700,
+  );
+  static const headlineMedium = TextStyle(
+    fontSize: 20,
+    fontWeight: FontWeight.w700,
+  );
   static const bodyLarge = TextStyle(fontSize: 16, fontWeight: FontWeight.w700);
   static const bodyMedium = TextStyle(fontSize: 16);
   static const bodySmall = TextStyle(fontSize: 15);
@@ -72,7 +88,9 @@ class FullScreenImageViewer extends StatefulWidget {
 }
 
 class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
-  late final PageController controller = PageController(initialPage: widget.initialIndex);
+  late final PageController controller = PageController(
+    initialPage: widget.initialIndex,
+  );
   late int active = widget.initialIndex;
 
   @override
@@ -178,7 +196,9 @@ class HenaQenaApp extends StatelessWidget {
         theme: AppThemeController.theme(AppThemeController.current),
         home: _ThemeScope(
           key: ValueKey(themeId),
-          child: AuthSession.isSignedIn ? const HomeShell() : const WelcomeScreen(),
+          child: AuthSession.isSignedIn
+              ? const HomeShell()
+              : const WelcomeScreen(),
         ),
       ),
     );
@@ -223,10 +243,7 @@ class LogoMark extends StatelessWidget {
           Container(
             width: size * .18,
             height: size * .18,
-            decoration: BoxDecoration(
-              color: gold,
-              shape: BoxShape.circle,
-            ),
+            decoration: BoxDecoration(color: gold, shape: BoxShape.circle),
           ),
         ],
       ),
@@ -353,6 +370,7 @@ class AuthPage extends StatefulWidget {
   final List<String> setupInterests;
   final String? setupAge;
   final String? setupGender;
+
   /// When true, pop back to the screen that prompted this login instead of
   /// resetting the whole navigation stack to the home screen. Used when
   /// login is requested mid-task (e.g. session expired while submitting a
@@ -542,7 +560,9 @@ class _AuthPageState extends State<AuthPage> {
                 onPressed: submitting
                     ? null
                     : () async {
-                        final image = await imagePicker.pickImage(source: ImageSource.gallery);
+                        final image = await imagePicker.pickImage(
+                          source: ImageSource.gallery,
+                        );
                         if (image != null) setState(() => profileImage = image);
                       },
                 icon: const Icon(Icons.photo_library),
@@ -834,6 +854,7 @@ class _ContributionsPageState extends State<ContributionsPage> {
       contributions = ApiClient().fetchContributions();
     });
   }
+
   @override
   Widget build(BuildContext context) => Directionality(
     textDirection: TextDirection.rtl,
@@ -1017,9 +1038,7 @@ class _ContributionTile extends StatelessWidget {
       onTap: onTap,
       title: Text(title),
       subtitle: Text(subtitle, style: const TextStyle(color: muted)),
-      trailing: onTap == null
-          ? null
-          : Icon(Icons.chevron_left, color: teal),
+      trailing: onTap == null ? null : Icon(Icons.chevron_left, color: teal),
     ),
   );
 }
@@ -1072,7 +1091,9 @@ class UserProfilePage extends StatelessWidget {
                         backgroundColor: const Color(0xFFD8EFEC),
                         backgroundImage: data['avatarUrl'] == null
                             ? null
-                            : CachedNetworkImageProvider(data['avatarUrl'] as String),
+                            : CachedNetworkImageProvider(
+                                data['avatarUrl'] as String,
+                              ),
                         child: data['avatarUrl'] == null
                             ? Text(
                                 name.isEmpty ? 'ق' : name.characters.first,
@@ -1636,7 +1657,7 @@ class _HomeShellState extends State<HomeShell> {
                   FadeTransition(opacity: animation, child: child),
               child: KeyedSubtree(key: ValueKey(index), child: pages[index]),
             ),
-            const Positioned(
+            Positioned(
               top: 0,
               right: 0,
               left: 0,
@@ -1644,7 +1665,7 @@ class _HomeShellState extends State<HomeShell> {
                 bottom: false,
                 child: Padding(
                   padding: EdgeInsets.fromLTRB(18, 10, 18, 0),
-                  child: PersistentTopActions(),
+                  child: PersistentTopActions(sectionIndex: index),
                 ),
               ),
             ),
@@ -1673,7 +1694,95 @@ class _HomeShellState extends State<HomeShell> {
 }
 
 class PersistentTopActions extends StatelessWidget {
-  const PersistentTopActions({super.key});
+  const PersistentTopActions({super.key, required this.sectionIndex});
+
+  final int sectionIndex;
+
+  void _openAdd(BuildContext context) {
+    final options = switch (sectionIndex) {
+      1 => [
+        _AddAction(
+          'إضافة نشاط',
+          Icons.storefront_outlined,
+          () => const AddActivityPage(),
+        ),
+        _AddAction(
+          'الإبلاغ عن نشاط ناقص',
+          Icons.report_problem_outlined,
+          () => const SupportPage(),
+        ),
+      ],
+      2 => [
+        _AddAction(
+          'اقتراح سعر',
+          Icons.sell_outlined,
+          () => const SupportPage(),
+        ),
+        _AddAction(
+          'اقتراح عرض',
+          Icons.local_offer_outlined,
+          () => const SupportPage(),
+        ),
+      ],
+      3 => [
+        _AddAction(
+          'إضافة تنبيه محلي',
+          Icons.campaign_outlined,
+          () => const SupportPage(),
+        ),
+      ],
+      4 => [
+        _AddAction(
+          'إضافة إعلان',
+          Icons.add_business_outlined,
+          () => const CreateListingPage(),
+        ),
+      ],
+      _ => const <_AddAction>[],
+    };
+    if (options.length == 1) {
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => options.first.page()));
+      return;
+    }
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'إضافة جديدة',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 8),
+              for (final option in options)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(
+                    option.icon,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  title: Text(option.label),
+                  trailing: const Icon(Icons.chevron_left),
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    Navigator.of(
+                      context,
+                    ).push(MaterialPageRoute(builder: (_) => option.page()));
+                  },
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1682,28 +1791,33 @@ class PersistentTopActions extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
         _TopActionButton(
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const NotificationsPage()),
-          ),
+          onTap: () => Navigator.of(
+            context,
+          ).push(MaterialPageRoute(builder: (_) => const NotificationsPage())),
           child: Icon(Icons.notifications_none, color: colors.primary),
         ),
         const SizedBox(width: 8),
         _TopActionButton(
-          onTap: () => Navigator.of(
-            context,
-          ).push(MaterialPageRoute(builder: (_) => const AccountPage())),
-          child: CircleAvatar(
-            radius: 15,
-            backgroundColor: colors.primary,
-            child: const Text(
-              'م',
-              style: TextStyle(color: Colors.white, fontSize: 12),
-            ),
+          onTap: () => sectionIndex == 0
+              ? Navigator.of(
+                  context,
+                ).push(MaterialPageRoute(builder: (_) => const SettingsPage()))
+              : _openAdd(context),
+          child: Icon(
+            sectionIndex == 0 ? Icons.settings_outlined : Icons.add,
+            color: colors.primary,
           ),
         ),
       ],
     );
   }
+}
+
+class _AddAction {
+  const _AddAction(this.label, this.icon, this.page);
+  final String label;
+  final IconData icon;
+  final Widget Function() page;
 }
 
 class _TopActionButton extends StatelessWidget {
@@ -1747,7 +1861,8 @@ class BasePage extends StatelessWidget {
     final refresh =
         onRefresh ??
         () async => Future<void>.delayed(const Duration(milliseconds: 450));
-    final effectiveShowBackButton = showBackButton && Navigator.of(context).canPop();
+    final effectiveShowBackButton =
+        showBackButton && Navigator.of(context).canPop();
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Material(
@@ -1758,40 +1873,48 @@ class BasePage extends StatelessWidget {
             displacement: 24,
             onRefresh: refresh,
             child: ListView(
-              padding: EdgeInsets.fromLTRB(horizontalPadding, 12, horizontalPadding, 24),
+              padding: EdgeInsets.fromLTRB(
+                horizontalPadding,
+                12,
+                horizontalPadding,
+                24,
+              ),
               children: [
                 Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 18 - horizontalPadding),
-                  child: header ??
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        if (effectiveShowBackButton)
-                          IconButton(
-                            onPressed: () => Navigator.of(context).pop(),
-                            icon: Icon(
-                              Icons.arrow_forward_outlined,
-                              color: colors.primary,
-                            ),
-                          )
-                        else if (title == null)
-                          const BrandText()
-                        else if (title!.isNotEmpty)
-                          Text(
-                            title!,
-                            style: TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.w700,
-                              color: colors.primary,
-                            ),
-                          )
-                        else
-                          const Spacer(),
-                        // Reserves space for the persistent notification/account
-                        // buttons that HomeShell floats above every tab.
-                        const SizedBox(width: 92),
-                      ],
-                    ),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: 18 - horizontalPadding,
+                  ),
+                  child:
+                      header ??
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          if (effectiveShowBackButton)
+                            IconButton(
+                              onPressed: () => Navigator.of(context).pop(),
+                              icon: Icon(
+                                Icons.arrow_forward_outlined,
+                                color: colors.primary,
+                              ),
+                            )
+                          else if (title == null)
+                            const BrandText()
+                          else if (title!.isNotEmpty)
+                            Text(
+                              title!,
+                              style: TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.w700,
+                                color: colors.primary,
+                              ),
+                            )
+                          else
+                            const Spacer(),
+                          // Reserves space for the persistent notification/account
+                          // buttons that HomeShell floats above every tab.
+                          const SizedBox(width: 92),
+                        ],
+                      ),
                 ),
                 const SizedBox(height: 12),
                 child,
@@ -2018,31 +2141,43 @@ class _HomePageState extends State<HomePage> {
                       const SizedBox(height: 20),
                       const SectionTitle(title: 'فئات قريبة منك'),
                       const SizedBox(height: 11),
-                      CategoryRail(items: categoryItems, onSelected: _openDirectory),
+                      CategoryRail(
+                        items: categoryItems,
+                        onSelected: _openDirectory,
+                      ),
                       const SizedBox(height: 20),
                       const SectionTitle(title: 'مختارات قنا'),
                       const SizedBox(height: 9),
                       FutureBuilder<List<ProviderSummary>>(
                         future: featured,
                         builder: (context, snapshot) {
-                          if (snapshot.connectionState == ConnectionState.waiting) {
+                          if (snapshot.connectionState ==
+                              ConnectionState.waiting) {
                             return LinearProgressIndicator(color: teal);
                           }
-                          final items = snapshot.data ?? const <ProviderSummary>[];
+                          final items =
+                              snapshot.data ?? const <ProviderSummary>[];
                           if (snapshot.hasError || items.isEmpty) {
                             return const _StateMessage(
                               icon: Icons.storefront_outlined,
                               title: 'لا توجد مختارات منشورة حالياً',
-                              subtitle: 'المختارات تظهر من الأنشطة المعتمدة في الدليل.',
+                              subtitle:
+                                  'المختارات تظهر من الأنشطة المعتمدة في الدليل.',
                             );
                           }
                           return Column(
                             children: [
-                              for (var index = 0; index < items.take(4).length; index++)
+                              for (
+                                var index = 0;
+                                index < items.take(4).length;
+                                index++
+                              )
                                 MotionIn(
                                   delay: index * 50,
                                   child: MiniItem(
-                                    icon: categoryIcon(items[index].categoryName),
+                                    icon: categoryIcon(
+                                      items[index].categoryName,
+                                    ),
                                     imageUrl: items[index].displayImageUrl,
                                     title: items[index].name,
                                     subtitle: items[index].subtitle,
@@ -2069,10 +2204,12 @@ class _HomePageState extends State<HomePage> {
                       FutureBuilder<List<ProviderSummary>>(
                         future: newPlaces,
                         builder: (context, snapshot) {
-                          if (snapshot.connectionState == ConnectionState.waiting) {
+                          if (snapshot.connectionState ==
+                              ConnectionState.waiting) {
                             return LinearProgressIndicator(color: teal);
                           }
-                          final items = snapshot.data ?? const <ProviderSummary>[];
+                          final items =
+                              snapshot.data ?? const <ProviderSummary>[];
                           if (snapshot.hasError || items.isEmpty) {
                             return const SizedBox.shrink();
                           }
@@ -2244,7 +2381,14 @@ class _MergedHeroBannerState extends State<MergedHeroBanner>
           gradient: LinearGradient(
             begin: Alignment.topRight,
             end: Alignment.bottomLeft,
-            colors: [palette.deep, Color.lerp(palette.primary, palette.deep, controller.value * .35)!],
+            colors: [
+              palette.deep,
+              Color.lerp(
+                palette.primary,
+                palette.deep,
+                controller.value * .35,
+              )!,
+            ],
           ),
           boxShadow: [
             BoxShadow(
@@ -2319,9 +2463,16 @@ class _MergedHeroBannerState extends State<MergedHeroBanner>
                   },
                   style: const TextStyle(fontSize: 16),
                   decoration: InputDecoration(
-                    prefixIcon: Icon(Icons.search, color: palette.primary, size: 24),
+                    prefixIcon: Icon(
+                      Icons.search,
+                      color: palette.primary,
+                      size: 24,
+                    ),
                     hintText: 'بتدور على خدمة أو مكان؟',
-                    contentPadding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
+                    contentPadding: const EdgeInsets.symmetric(
+                      vertical: 18,
+                      horizontal: 16,
+                    ),
                     fillColor: Colors.white,
                   ),
                 ),
@@ -2330,11 +2481,18 @@ class _MergedHeroBannerState extends State<MergedHeroBanner>
                   alignment: Alignment.centerRight,
                   child: Text(
                     '📍 ${widget.selectedArea}',
-                    style: const TextStyle(color: Color(0xDDF7F6F2), fontSize: 15, fontWeight: FontWeight.w500),
+                    style: const TextStyle(
+                      color: Color(0xDDF7F6F2),
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 18),
-                Container(height: 1, color: Colors.white.withValues(alpha: .16)),
+                Container(
+                  height: 1,
+                  color: Colors.white.withValues(alpha: .16),
+                ),
                 const SizedBox(height: 14),
                 const _HeroWeatherSection(),
               ],
@@ -2361,7 +2519,9 @@ class _HeroWeatherSectionState extends State<_HeroWeatherSection> {
     builder: (context, snapshot) {
       final data = snapshot.data;
       if (data == null) return const SizedBox.shrink();
-      final (currentIcon, currentLabel) = _weatherIconAndLabel(data.weatherCode);
+      final (currentIcon, currentLabel) = _weatherIconAndLabel(
+        data.weatherCode,
+      );
       return Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
@@ -2376,9 +2536,16 @@ class _HeroWeatherSectionState extends State<_HeroWeatherSection> {
             ),
           ),
           const SizedBox(width: 6),
-          Text(currentLabel, style: const TextStyle(color: Color(0xDDF7F6F2), fontSize: 12)),
+          Text(
+            currentLabel,
+            style: const TextStyle(color: Color(0xDDF7F6F2), fontSize: 12),
+          ),
           const SizedBox(width: 10),
-          Container(width: 1, height: 22, color: Colors.white.withValues(alpha: .2)),
+          Container(
+            width: 1,
+            height: 22,
+            color: Colors.white.withValues(alpha: .2),
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Row(
@@ -2390,14 +2557,21 @@ class _HeroWeatherSectionState extends State<_HeroWeatherSection> {
                   children: [
                     Text(
                       _weatherDayNames[day.date.weekday % 7],
-                      style: const TextStyle(color: Color(0xBBF7F6F2), fontSize: 10),
+                      style: const TextStyle(
+                        color: Color(0xBBF7F6F2),
+                        fontSize: 10,
+                      ),
                     ),
                     const SizedBox(width: 4),
                     Icon(icon, size: 14, color: Colors.white),
                     const SizedBox(width: 4),
                     Text(
                       '${day.maxTemp.round()}°',
-                      style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ],
                 );
@@ -2549,7 +2723,10 @@ class _PromoCarouselState extends State<PromoCarousel> {
         setState(() => rotationSeconds = seconds);
       }
     });
-    _rotationTimer = Timer.periodic(const Duration(seconds: 1), (_) => _syncToServerTime());
+    _rotationTimer = Timer.periodic(
+      const Duration(seconds: 1),
+      (_) => _syncToServerTime(),
+    );
   }
 
   @override
@@ -2683,7 +2860,10 @@ class _PromoCarouselState extends State<PromoCarousel> {
                                   color: Colors.white,
                                   fontWeight: FontWeight.w700,
                                   shadows: [
-                                    Shadow(color: Colors.black45, blurRadius: 6),
+                                    Shadow(
+                                      color: Colors.black45,
+                                      blurRadius: 6,
+                                    ),
                                   ],
                                 ),
                               ),
@@ -2694,7 +2874,10 @@ class _PromoCarouselState extends State<PromoCarousel> {
                                   color: Colors.white.withValues(alpha: .92),
                                   fontSize: 13,
                                   shadows: const [
-                                    Shadow(color: Colors.black45, blurRadius: 6),
+                                    Shadow(
+                                      color: Colors.black45,
+                                      blurRadius: 6,
+                                    ),
                                   ],
                                 ),
                               ),
@@ -2715,7 +2898,11 @@ class _PromoCarouselState extends State<PromoCarousel> {
                           '${promo['_count']?['reactions'] ?? 0}',
                           style: const TextStyle(color: Colors.white),
                         ),
-                        const Icon(Icons.open_in_new, color: Colors.white, size: 18),
+                        const Icon(
+                          Icons.open_in_new,
+                          color: Colors.white,
+                          size: 18,
+                        ),
                       ],
                     ),
                   ),
@@ -2892,6 +3079,7 @@ class _DirectoryPageState extends State<DirectoryPage> {
       return null;
     }
   }
+
   @override
   void initState() {
     super.initState();
@@ -3311,16 +3499,17 @@ class _FilterSheetState extends State<_FilterSheet> {
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
-              children: ['الافتراضي', 'الأعلى تقييمًا', 'الأحدث', 'الأكثر مراجعات']
-                  .map(
-                    (item) => ChoiceChip(
-                      label: Text(item),
-                      selected: sort == item,
-                      onSelected: (_) => setState(() => sort = item),
-                      selectedColor: const Color(0xFFD8EFEC),
-                    ),
-                  )
-                  .toList(),
+              children:
+                  ['الافتراضي', 'الأعلى تقييمًا', 'الأحدث', 'الأكثر مراجعات']
+                      .map(
+                        (item) => ChoiceChip(
+                          label: Text(item),
+                          selected: sort == item,
+                          onSelected: (_) => setState(() => sort = item),
+                          selectedColor: const Color(0xFFD8EFEC),
+                        ),
+                      )
+                      .toList(),
             ),
             const SizedBox(height: 10),
             SwitchListTile(
@@ -3363,7 +3552,10 @@ class _FilterSheetState extends State<_FilterSheet> {
               children: [
                 Text(
                   'نطاق المسافة',
-                  style: TextStyle(color: deepTeal, fontWeight: FontWeight.w700),
+                  style: TextStyle(
+                    color: deepTeal,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
                 const Spacer(),
                 Text(
@@ -3380,7 +3572,9 @@ class _FilterSheetState extends State<_FilterSheet> {
               max: 20,
               divisions: 19,
               activeColor: teal,
-              label: maxDistanceKm == null ? 'بلا حد' : '${maxDistanceKm!.round()} كم',
+              label: maxDistanceKm == null
+                  ? 'بلا حد'
+                  : '${maxDistanceKm!.round()} كم',
               onChanged: (value) => setState(() => maxDistanceKm = value),
             ),
             if (maxDistanceKm != null)
@@ -3433,7 +3627,11 @@ class PickedLocation {
 }
 
 class LocationPickerPage extends StatefulWidget {
-  const LocationPickerPage({super.key, this.initialLatitude, this.initialLongitude});
+  const LocationPickerPage({
+    super.key,
+    this.initialLatitude,
+    this.initialLongitude,
+  });
   final double? initialLatitude;
   final double? initialLongitude;
 
@@ -3534,7 +3732,10 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
         }
         return;
       }
-      final target = LatLng(locations.first.latitude, locations.first.longitude);
+      final target = LatLng(
+        locations.first.latitude,
+        locations.first.longitude,
+      );
       setState(() => center = target);
       mapController?.animateCamera(CameraUpdate.newLatLng(target));
       await _resolveAddress(target);
@@ -3568,7 +3769,11 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
             child: Center(
               child: Padding(
                 padding: EdgeInsets.only(bottom: 40),
-                child: Icon(Icons.location_on, size: 44, color: Colors.redAccent),
+                child: Icon(
+                  Icons.location_on,
+                  size: 44,
+                  color: Colors.redAccent,
+                ),
               ),
             ),
           ),
@@ -3779,7 +3984,15 @@ class ProviderMapPage extends StatelessWidget {
   return (Icons.wb_sunny_outlined, 'معتدل');
 }
 
-const _weatherDayNames = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+const _weatherDayNames = [
+  'الأحد',
+  'الاثنين',
+  'الثلاثاء',
+  'الأربعاء',
+  'الخميس',
+  'الجمعة',
+  'السبت',
+];
 
 // Categories are admin-managed free text (not a fixed enum), so this maps
 // common keywords to a representative icon instead of relying on exact
@@ -3850,7 +4063,8 @@ List<(String, IconData)> _providerAttributeLabels(ProviderDetails data) => [
   if (data.accessible) ('متاح لذوي الإعاقة', Icons.accessible_outlined),
   if (data.hasParking) ('يوجد موقف سيارات', Icons.local_parking_outlined),
   if (data.acceptsCards) ('يقبل الدفع الإلكتروني', Icons.credit_card_outlined),
-  if (data.homeService) ('يوفر خدمة منزلية', Icons.home_repair_service_outlined),
+  if (data.homeService)
+    ('يوفر خدمة منزلية', Icons.home_repair_service_outlined),
   if (data.needsBooking) ('يحتاج حجزًا مسبقًا', Icons.event_available_outlined),
   if (data.open24h) ('متاح 24 ساعة', Icons.access_time_filled_outlined),
   if (data.hasDelivery) ('يوفر توصيلًا', Icons.delivery_dining_outlined),
@@ -4129,9 +4343,9 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
         listId = created['id'] as String;
       } catch (_) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('تعذر إنشاء القائمة')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('تعذر إنشاء القائمة')));
         }
         return;
       }
@@ -4308,7 +4522,9 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                           backgroundColor: const Color(0xFFD8EFEC),
                           backgroundImage: data?.displayImageUrl == null
                               ? null
-                              : CachedNetworkImageProvider(data!.displayImageUrl!),
+                              : CachedNetworkImageProvider(
+                                  data!.displayImageUrl!,
+                                ),
                           child: data?.displayImageUrl == null
                               ? Icon(widget.icon, color: deepTeal, size: 30)
                               : null,
@@ -4426,13 +4642,16 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                       ),
                     ),
                   ),
-                  if (SocialPlatform.of(data?.socialPlatform) case final social?) ...[
+                  if (SocialPlatform.of(data?.socialPlatform)
+                      case final social?) ...[
                     const SizedBox(width: 8),
                     Expanded(
                       child: OutlinedButton.icon(
                         style: OutlinedButton.styleFrom(
                           foregroundColor: social.color,
-                          side: BorderSide(color: social.color.withValues(alpha: .4)),
+                          side: BorderSide(
+                            color: social.color.withValues(alpha: .4),
+                          ),
                         ),
                         onPressed: () => _external(
                           AppActions.openUrl(data?.socialUrl),
@@ -4441,7 +4660,11 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                         icon: FaIcon(social.icon, size: 16),
                         label: FittedBox(
                           fit: BoxFit.scaleDown,
-                          child: Text(social.label, maxLines: 1, softWrap: false),
+                          child: Text(
+                            social.label,
+                            maxLines: 1,
+                            softWrap: false,
+                          ),
                         ),
                       ),
                     ),
@@ -4513,8 +4736,9 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                           permission == LocationPermission.deniedForever) {
                         return null;
                       }
-                      return await Geolocator.getCurrentPosition()
-                          .timeout(const Duration(seconds: 5));
+                      return await Geolocator.getCurrentPosition().timeout(
+                        const Duration(seconds: 5),
+                      );
                     } catch (_) {
                       return null;
                     }
@@ -4522,7 +4746,8 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                   builder: (context, positionSnapshot) {
                     final position = positionSnapshot.data;
                     if (position == null) return const SizedBox.shrink();
-                    final km = Geolocator.distanceBetween(
+                    final km =
+                        Geolocator.distanceBetween(
                           position.latitude,
                           position.longitude,
                           data!.latitude!,
@@ -4544,7 +4769,8 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                     );
                   },
                 ),
-              if (data != null && _providerAttributeLabels(data).isNotEmpty) ...[
+              if (data != null &&
+                  _providerAttributeLabels(data).isNotEmpty) ...[
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(
@@ -4554,7 +4780,10 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                             padding: const EdgeInsets.only(left: 8),
                             child: Chip(
                               avatar: Icon(label.$2, size: 16, color: teal),
-                              label: Text(label.$1, style: const TextStyle(fontSize: 12)),
+                              label: Text(
+                                label.$1,
+                                style: const TextStyle(fontSize: 12),
+                              ),
                               backgroundColor: const Color(0xFFEFF8F6),
                               side: BorderSide.none,
                               visualDensity: VisualDensity.compact,
@@ -5138,10 +5367,7 @@ class _ScorePicker extends StatelessWidget {
           width: 82,
           child: Text(
             label,
-            style: TextStyle(
-              fontWeight: FontWeight.w700,
-              color: deepTeal,
-            ),
+            style: TextStyle(fontWeight: FontWeight.w700, color: deepTeal),
           ),
         ),
         ...List.generate(
@@ -5508,10 +5734,7 @@ class _LivePulseState extends State<LivePulse>
               child: Container(
                 width: 6,
                 height: 6,
-                decoration: BoxDecoration(
-                  color: teal,
-                  shape: BoxShape.circle,
-                ),
+                decoration: BoxDecoration(color: teal, shape: BoxShape.circle),
               ),
             ),
           ),
@@ -6298,7 +6521,8 @@ class _CreateListingPageState extends State<CreateListingPage> {
       final uploaded = await api.uploadProviderImages(selectedImages);
       final logoUrl = logoImage == null
           ? null
-          : (await api.uploadProviderImages([logoImage!])).first['url'] as String?;
+          : (await api.uploadProviderImages([logoImage!])).first['url']
+                as String?;
       await _saveDraft();
       await api.submitListing(
         title: title.text.trim(),
@@ -6443,9 +6667,7 @@ class _CreateListingPageState extends State<CreateListingPage> {
           const SizedBox(height: 18),
           TextField(
             controller: title,
-            decoration: const InputDecoration(
-              labelText: 'عنوان الإعلان',
-            ),
+            decoration: const InputDecoration(labelText: 'عنوان الإعلان'),
           ),
           const SizedBox(height: 12),
           TextField(
@@ -6827,7 +7049,9 @@ class _AccountPageState extends State<AccountPage> {
                       backgroundColor: AppThemeController.current.primary,
                       backgroundImage: profile?['avatarUrl'] == null
                           ? null
-                          : CachedNetworkImageProvider(profile!['avatarUrl'] as String),
+                          : CachedNetworkImageProvider(
+                              profile!['avatarUrl'] as String,
+                            ),
                       child: profile?['avatarUrl'] == null
                           ? Text(
                               profileName.isEmpty
@@ -7010,11 +7234,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                               ))
                       : FileImage(File(avatar!.path)) as ImageProvider,
                   child: avatar == null && widget.profile?['avatarUrl'] == null
-                      ? Icon(
-                          Icons.person_outline,
-                          color: deepTeal,
-                          size: 42,
-                        )
+                      ? Icon(Icons.person_outline, color: deepTeal, size: 42)
                       : null,
                 ),
                 PositionedDirectional(
@@ -7104,9 +7324,9 @@ class _FavoritesPageState extends State<FavoritesPage> {
       _reload();
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تعذر إنشاء القائمة')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('تعذر إنشاء القائمة')));
       }
     }
   }
@@ -7118,9 +7338,9 @@ class _FavoritesPageState extends State<FavoritesPage> {
       _reload();
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تعذر حذف القائمة')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('تعذر حذف القائمة')));
       }
     }
   }
@@ -7151,23 +7371,27 @@ class _FavoritesPageState extends State<FavoritesPage> {
               },
             );
           }
-          final allProviders = snapshot.data?['providers'] as List<dynamic>? ?? [];
+          final allProviders =
+              snapshot.data?['providers'] as List<dynamic>? ?? [];
           final providers = selectedListId == null
               ? allProviders
               : allProviders
-                  .where(
-                    (item) =>
-                        (item as Map<String, dynamic>)['favoriteListId'] ==
-                        selectedListId,
-                  )
-                  .toList();
+                    .where(
+                      (item) =>
+                          (item as Map<String, dynamic>)['favoriteListId'] ==
+                          selectedListId,
+                    )
+                    .toList();
           final listings = snapshot.data?['listings'] as List<dynamic>? ?? [];
           final listsChips = FutureBuilder<List<Map<String, dynamic>>>(
             future: lists,
             builder: (context, listSnapshot) {
               final availableLists = listSnapshot.data ?? const [];
               return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 8,
+                ),
                 child: SizedBox(
                   height: 38,
                   child: ListView(
@@ -7176,7 +7400,8 @@ class _FavoritesPageState extends State<FavoritesPage> {
                       ChoiceChip(
                         label: const Text('الكل'),
                         selected: selectedListId == null,
-                        onSelected: (_) => setState(() => selectedListId = null),
+                        onSelected: (_) =>
+                            setState(() => selectedListId = null),
                       ),
                       const SizedBox(width: 6),
                       for (final list in availableLists) ...[
@@ -7247,60 +7472,67 @@ class _FavoritesPageState extends State<FavoritesPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-              if (providers.isNotEmpty) ...[
-                const SectionTitle(title: 'الأماكن والخدمات'),
-                const SizedBox(height: 8),
-                for (final value in providers)
-                  Builder(
-                    builder: (context) {
-                      final provider = value as Map<String, dynamic>;
-                      return MiniItem(
-                        icon: categoryIcon(api.firstCategoryNameFor(provider)),
-                        imageUrl: api.displayImageUrlFor(provider),
-                        title: provider['name'] as String? ?? 'نشاط',
-                        subtitle: provider['area']?['name'] as String? ?? 'قنا',
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => ProviderDetailPage(
-                              providerId: provider['id'] as String,
+                    if (providers.isNotEmpty) ...[
+                      const SectionTitle(title: 'الأماكن والخدمات'),
+                      const SizedBox(height: 8),
+                      for (final value in providers)
+                        Builder(
+                          builder: (context) {
+                            final provider = value as Map<String, dynamic>;
+                            return MiniItem(
+                              icon: categoryIcon(
+                                api.firstCategoryNameFor(provider),
+                              ),
+                              imageUrl: api.displayImageUrlFor(provider),
                               title: provider['name'] as String? ?? 'نشاط',
-                              icon: Icons.storefront_outlined,
                               subtitle:
                                   provider['area']?['name'] as String? ?? 'قنا',
-                            ),
-                          ),
+                              onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => ProviderDetailPage(
+                                    providerId: provider['id'] as String,
+                                    title:
+                                        provider['name'] as String? ?? 'نشاط',
+                                    icon: Icons.storefront_outlined,
+                                    subtitle:
+                                        provider['area']?['name'] as String? ??
+                                        'قنا',
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
                         ),
-                      );
-                    },
-                  ),
-                const SizedBox(height: 18),
-              ],
-              if (listings.isNotEmpty) ...[
-                const SectionTitle(title: 'الإعلانات'),
-                const SizedBox(height: 8),
-                for (final value in listings)
-                  Builder(
-                    builder: (context) {
-                      final listing = value as Map<String, dynamic>;
-                      return MiniItem(
-                        icon: categoryIcon(listing['category'] as String?),
-                        imageUrl: api.displayImageUrlFor(listing),
-                        title: listing['title'] as String? ?? 'إعلان',
-                        subtitle:
-                            '${listing['price']} جنيه · ${listing['area']?['name'] ?? 'قنا'}',
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => ListingDetailPage(
-                              listingId: listing['id'] as String,
-                            ),
-                          ),
+                      const SizedBox(height: 18),
+                    ],
+                    if (listings.isNotEmpty) ...[
+                      const SectionTitle(title: 'الإعلانات'),
+                      const SizedBox(height: 8),
+                      for (final value in listings)
+                        Builder(
+                          builder: (context) {
+                            final listing = value as Map<String, dynamic>;
+                            return MiniItem(
+                              icon: categoryIcon(
+                                listing['category'] as String?,
+                              ),
+                              imageUrl: api.displayImageUrlFor(listing),
+                              title: listing['title'] as String? ?? 'إعلان',
+                              subtitle:
+                                  '${listing['price']} جنيه · ${listing['area']?['name'] ?? 'قنا'}',
+                              onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => ListingDetailPage(
+                                    listingId: listing['id'] as String,
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
                         ),
-                      );
-                    },
-                  ),
-              ],
+                    ],
                   ],
                 ),
               ),
@@ -7393,14 +7625,18 @@ class _SavedSearchesPageState extends State<SavedSearchesPage> {
                       ? Text(search['query'] as String)
                       : null,
                   trailing: IconButton(
-                    icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                    icon: const Icon(
+                      Icons.delete_outline,
+                      color: Colors.redAccent,
+                    ),
                     onPressed: () => _delete(search['id'] as String),
                   ),
                   onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) =>
-                          DirectoryPage(initialQuery: search['query'] as String?),
+                      builder: (_) => DirectoryPage(
+                        initialQuery: search['query'] as String?,
+                      ),
                     ),
                   ),
                 ),
@@ -7931,9 +8167,11 @@ class _AddActivityPageState extends State<AddActivityPage> {
       prefs.setString('provider_draft_phone', phone.text),
       prefs.setString('provider_draft_whatsapp', whatsapp.text),
       prefs.setString('provider_draft_socialUrl', socialUrl.text),
-      if (socialPlatform != null) prefs.setString('provider_draft_socialPlatform', socialPlatform!),
+      if (socialPlatform != null)
+        prefs.setString('provider_draft_socialPlatform', socialPlatform!),
       if (areaId != null) prefs.setString('provider_draft_areaId', areaId!),
-      if (categoryId != null) prefs.setString('provider_draft_categoryId', categoryId!),
+      if (categoryId != null)
+        prefs.setString('provider_draft_categoryId', categoryId!),
       prefs.setString('provider_draft_mode', mode),
       prefs.setString('provider_draft_phoneType', phoneType),
       prefs.setString('provider_draft_opening', opening),
@@ -8162,7 +8400,9 @@ class _AddActivityPageState extends State<AddActivityPage> {
             color: latitude == null ? null : teal,
           ),
           label: Text(
-            latitude == null ? 'حدد الموقع على الخريطة (اختياري)' : 'تم تحديد الموقع على الخريطة',
+            latitude == null
+                ? 'حدد الموقع على الخريطة (اختياري)'
+                : 'تم تحديد الموقع على الخريطة',
           ),
         ),
       ],
@@ -8232,8 +8472,10 @@ class _AddActivityPageState extends State<AddActivityPage> {
             labelText: 'رابط ${SocialPlatform.of(socialPlatform)?.label}',
             hintText: 'https://...',
           ),
-          validator: (value) => socialPlatform != null &&
-                  (value == null || Uri.tryParse(value.trim())?.hasScheme != true)
+          validator: (value) =>
+              socialPlatform != null &&
+                  (value == null ||
+                      Uri.tryParse(value.trim())?.hasScheme != true)
               ? 'اكتب رابطًا صحيحًا'
               : null,
         ),
@@ -8254,7 +8496,10 @@ class _AddActivityPageState extends State<AddActivityPage> {
           ],
         ),
       const SizedBox(height: 14),
-      Text('خصائص إضافية', style: TextStyle(color: deepTeal, fontWeight: FontWeight.w700)),
+      Text(
+        'خصائص إضافية',
+        style: TextStyle(color: deepTeal, fontWeight: FontWeight.w700),
+      ),
       const SizedBox(height: 8),
       Wrap(
         spacing: 8,
@@ -8343,10 +8588,7 @@ class _AddActivityPageState extends State<AddActivityPage> {
           Expanded(
             child: Text(
               'الصور ${selectedImages.isEmpty ? imageCount : selectedImages.length} / 10',
-              style: TextStyle(
-                color: deepTeal,
-                fontWeight: FontWeight.w700,
-              ),
+              style: TextStyle(color: deepTeal, fontWeight: FontWeight.w700),
             ),
           ),
           IconButton(
@@ -8510,7 +8752,8 @@ class _AddActivityPageState extends State<AddActivityPage> {
       final uploadedImages = await api.uploadProviderImages(selectedImages);
       final logoUrl = logoImage == null
           ? null
-          : (await api.uploadProviderImages([logoImage!])).first['url'] as String?;
+          : (await api.uploadProviderImages([logoImage!])).first['url']
+                as String?;
       await _saveDraft();
       await api.submitProvider(
         data: {
@@ -9577,10 +9820,7 @@ class _AdminControlPageState extends State<AdminControlPage> {
           children: [
             Text(
               'مرحباً ${AuthSession.adminName ?? ''}',
-              style: TextStyle(
-                color: deepTeal,
-                fontWeight: FontWeight.w700,
-              ),
+              style: TextStyle(color: deepTeal, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 16),
             _AdminQueue(
