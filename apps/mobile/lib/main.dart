@@ -1140,7 +1140,6 @@ class _ContributionTile extends StatelessWidget {
       onTap: onTap,
       title: Text(title),
       subtitle: Text(subtitle, style: const TextStyle(color: muted)),
-      trailing: onTap == null ? null : Icon(Icons.chevron_left, color: teal),
     ),
   );
 }
@@ -1711,7 +1710,6 @@ class _SetupFlowState extends State<SetupFlow> {
         subtitle,
         style: const TextStyle(color: muted, fontSize: 12),
       ),
-      trailing: const Icon(Icons.chevron_left, color: muted),
     ),
   );
 }
@@ -1907,7 +1905,6 @@ class PersistentTopActions extends StatelessWidget {
                     color: Theme.of(context).colorScheme.primary,
                   ),
                   title: Text(option.label),
-                  trailing: const Icon(Icons.chevron_left),
                   onTap: () {
                     Navigator.pop(sheetContext);
                     Navigator.of(
@@ -2415,7 +2412,7 @@ class HomeUtilityCards extends StatelessWidget {
     children: [
       _UtilityCard(
         title: 'تاكل إيه؟',
-        subtitle: 'جاوب كام سؤال ونرشحلك أكل يناسبك في قنا',
+        subtitle: 'اختيار أكل',
         icon: Icons.restaurant_menu_rounded,
         large: true,
         onTap: () => _open(context, const FoodChooserPage()),
@@ -2426,7 +2423,7 @@ class HomeUtilityCards extends StatelessWidget {
           Expanded(
             child: _UtilityCard(
               title: 'تركب إيه؟',
-              subtitle: 'اطلب مشوار قريب منك',
+              subtitle: 'طلب مشوار',
               icon: Icons.local_taxi_outlined,
               onTap: () => _open(context, const RideRequestPage()),
             ),
@@ -2435,7 +2432,7 @@ class HomeUtilityCards extends StatelessWidget {
           Expanded(
             child: _UtilityCard(
               title: 'توصل إمتى؟',
-              subtitle: 'مواعيد القطارات من وإلى قنا',
+              subtitle: 'مواعيد قطارات',
               icon: Icons.train_outlined,
               onTap: () => _open(context, const TrainSchedulePage()),
             ),
@@ -2489,7 +2486,6 @@ class _UtilityCard extends StatelessWidget {
                 ],
               ),
             ),
-            const Icon(Icons.arrow_back_ios_new_rounded, size: 16),
           ],
         ),
       ),
@@ -3495,9 +3491,6 @@ class _MiniItemState extends State<MiniItem> {
             widget.subtitle,
             style: const TextStyle(color: muted, fontSize: 12),
           ),
-          trailing: widget.onTap == null
-              ? null
-              : const Icon(Icons.chevron_left, color: muted),
         ),
       ),
     ),
@@ -4461,7 +4454,6 @@ class _ProviderMapPageState extends State<ProviderMapPage> {
                   ),
                   title: Text(provider.name),
                   subtitle: Text(provider.address ?? provider.subtitle),
-                  trailing: const Icon(Icons.chevron_left),
                   onTap: () => _openProvider(provider),
                 ),
               );
@@ -7815,7 +7807,6 @@ class _AccountPageState extends State<AccountPage> {
                         color: AppThemeController.current.primary,
                       ),
                     ),
-                    trailing: const Icon(Icons.chevron_left),
                   ),
                 ),
               ),
@@ -10382,7 +10373,6 @@ class _SettingsPageState extends State<SettingsPage> {
                 'ساعدنا نضيف نشاط موثوق لقنا',
                 style: TextStyle(color: muted),
               ),
-              trailing: Icon(Icons.chevron_left, color: deepTeal),
             ),
           ),
           const SizedBox(height: 18),
