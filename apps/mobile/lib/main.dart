@@ -7517,12 +7517,15 @@ class _FavoritesPageState extends State<FavoritesPage> {
   late Future<Map<String, dynamic>> favorites = api.fetchFavorites();
   late Future<List<Map<String, dynamic>>> lists = api.fetchFavoriteLists();
 
-  void _reload() {
+  Future<void> _reload() async {
     if (!mounted) return;
+    late final Future<Map<String, dynamic>> nextFavorites;
+    late final Future<List<Map<String, dynamic>>> nextLists;
     setState(() {
-      favorites = api.fetchFavorites();
-      lists = api.fetchFavoriteLists();
+      favorites = nextFavorites = api.fetchFavorites();
+      lists = nextLists = api.fetchFavoriteLists();
     });
+    await Future.wait([nextFavorites, nextLists]);
   }
 
   Future<void> _createList() async {
@@ -7587,21 +7590,41 @@ class _FavoritesPageState extends State<FavoritesPage> {
         future: favorites,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return Center(child: CircularProgressIndicator(color: teal));
+            return RefreshIndicator(
+              onRefresh: _reload,
+              color: teal,
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                children: [
+                  const SizedBox(height: 120),
+                  Center(child: CircularProgressIndicator(color: teal)),
+                ],
+              ),
+            );
           }
           if (snapshot.hasError) {
-            return _StateMessage(
-              icon: Icons.lock_outline,
-              title: 'سجّل الدخول لعرض المفضلة',
-              subtitle: 'المفضلة محفوظة على حسابك وتظهر على كل أجهزتك.',
-              actionLabel: 'تسجيل الدخول',
-              onAction: () async {
-                await Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const AuthPage()),
-                );
-                _reload();
-              },
+            return RefreshIndicator(
+              onRefresh: _reload,
+              color: teal,
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                children: [
+                  const SizedBox(height: 110),
+                  _StateMessage(
+                    icon: Icons.lock_outline,
+                    title: 'سجّل الدخول لعرض المفضلة',
+                    subtitle: 'المفضلة محفوظة على حسابك وتظهر على كل أجهزتك.',
+                    actionLabel: 'تسجيل الدخول',
+                    onAction: () async {
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const AuthPage()),
+                      );
+                      _reload();
+                    },
+                  ),
+                ],
+              ),
             );
           }
           final allProviders =
@@ -7683,93 +7706,104 @@ class _FavoritesPageState extends State<FavoritesPage> {
             },
           );
           if (providers.isEmpty && listings.isEmpty) {
-            return Column(
-              children: [
-                listsChips,
-                const Expanded(
-                  child: _StateMessage(
+            return RefreshIndicator(
+              onRefresh: _reload,
+              color: teal,
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                children: [
+                  listsChips,
+                  const SizedBox(height: 100),
+                  const _StateMessage(
                     icon: Icons.favorite_border,
                     title: 'المفضلة فاضية',
                     subtitle: 'احفظ الأماكن والإعلانات المهمة وهتلاقيها هنا.',
                   ),
-                ),
-              ],
+                ],
+              ),
             );
           }
-          return ListView(
-            padding: EdgeInsets.zero,
-            children: [
-              listsChips,
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 18),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    if (providers.isNotEmpty) ...[
-                      const SectionTitle(title: 'الأماكن والخدمات'),
-                      const SizedBox(height: 8),
-                      for (final value in providers)
-                        Builder(
-                          builder: (context) {
-                            final provider = value as Map<String, dynamic>;
-                            return MiniItem(
-                              icon: categoryIcon(
-                                api.firstCategoryNameFor(provider),
-                              ),
-                              imageUrl: api.displayImageUrlFor(provider),
-                              title: provider['name'] as String? ?? 'نشاط',
-                              subtitle:
-                                  provider['area']?['name'] as String? ?? 'قنا',
-                              onTap: () => Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => ProviderDetailPage(
-                                    providerId: provider['id'] as String,
-                                    title:
-                                        provider['name'] as String? ?? 'نشاط',
-                                    icon: Icons.storefront_outlined,
-                                    subtitle:
-                                        provider['area']?['name'] as String? ??
-                                        'قنا',
+          return RefreshIndicator(
+            onRefresh: _reload,
+            color: teal,
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: EdgeInsets.zero,
+              children: [
+                listsChips,
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 18),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (providers.isNotEmpty) ...[
+                        const SectionTitle(title: 'الأماكن والخدمات'),
+                        const SizedBox(height: 8),
+                        for (final value in providers)
+                          Builder(
+                            builder: (context) {
+                              final provider = value as Map<String, dynamic>;
+                              return MiniItem(
+                                icon: categoryIcon(
+                                  api.firstCategoryNameFor(provider),
+                                ),
+                                imageUrl: api.displayImageUrlFor(provider),
+                                title: provider['name'] as String? ?? 'نشاط',
+                                subtitle:
+                                    provider['area']?['name'] as String? ??
+                                    'قنا',
+                                onTap: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => ProviderDetailPage(
+                                      providerId: provider['id'] as String,
+                                      title:
+                                          provider['name'] as String? ?? 'نشاط',
+                                      icon: Icons.storefront_outlined,
+                                      subtitle:
+                                          provider['area']?['name']
+                                              as String? ??
+                                          'قنا',
+                                    ),
                                   ),
                                 ),
-                              ),
-                            );
-                          },
-                        ),
-                      const SizedBox(height: 18),
-                    ],
-                    if (listings.isNotEmpty) ...[
-                      const SectionTitle(title: 'الإعلانات'),
-                      const SizedBox(height: 8),
-                      for (final value in listings)
-                        Builder(
-                          builder: (context) {
-                            final listing = value as Map<String, dynamic>;
-                            return MiniItem(
-                              icon: categoryIcon(
-                                listing['category'] as String?,
-                              ),
-                              imageUrl: api.displayImageUrlFor(listing),
-                              title: listing['title'] as String? ?? 'إعلان',
-                              subtitle:
-                                  '${listing['price']} جنيه · ${listing['area']?['name'] ?? 'قنا'}',
-                              onTap: () => Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => ListingDetailPage(
-                                    listingId: listing['id'] as String,
+                              );
+                            },
+                          ),
+                        const SizedBox(height: 18),
+                      ],
+                      if (listings.isNotEmpty) ...[
+                        const SectionTitle(title: 'الإعلانات'),
+                        const SizedBox(height: 8),
+                        for (final value in listings)
+                          Builder(
+                            builder: (context) {
+                              final listing = value as Map<String, dynamic>;
+                              return MiniItem(
+                                icon: categoryIcon(
+                                  listing['category'] as String?,
+                                ),
+                                imageUrl: api.displayImageUrlFor(listing),
+                                title: listing['title'] as String? ?? 'إعلان',
+                                subtitle:
+                                    '${listing['price']} جنيه · ${listing['area']?['name'] ?? 'قنا'}',
+                                onTap: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => ListingDetailPage(
+                                      listingId: listing['id'] as String,
+                                    ),
                                   ),
                                 ),
-                              ),
-                            );
-                          },
-                        ),
+                              );
+                            },
+                          ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           );
         },
       ),
@@ -7787,9 +7821,11 @@ class _SavedSearchesPageState extends State<SavedSearchesPage> {
   final api = ApiClient();
   late Future<List<Map<String, dynamic>>> searches = api.fetchSavedSearches();
 
-  void _reload() {
+  Future<void> _reload() async {
     if (!mounted) return;
-    setState(() => searches = api.fetchSavedSearches());
+    late final Future<List<Map<String, dynamic>>> next;
+    setState(() => searches = next = api.fetchSavedSearches());
+    await next;
   }
 
   Future<void> _delete(String id) async {
@@ -7814,67 +7850,102 @@ class _SavedSearchesPageState extends State<SavedSearchesPage> {
         future: searches,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return Center(child: CircularProgressIndicator(color: teal));
+            return RefreshIndicator(
+              onRefresh: _reload,
+              color: teal,
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                children: [
+                  const SizedBox(height: 120),
+                  Center(child: CircularProgressIndicator(color: teal)),
+                ],
+              ),
+            );
           }
           if (snapshot.hasError) {
-            return _StateMessage(
-              icon: Icons.lock_outline,
-              title: 'سجّل الدخول لعرض البحوث المحفوظة',
-              subtitle: 'بحوثك المحفوظة تظهر هنا بعد تسجيل الدخول.',
-              actionLabel: 'تسجيل الدخول',
-              onAction: () async {
-                await Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const AuthPage()),
-                );
-                _reload();
-              },
+            return RefreshIndicator(
+              onRefresh: _reload,
+              color: teal,
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                children: [
+                  const SizedBox(height: 110),
+                  _StateMessage(
+                    icon: Icons.lock_outline,
+                    title: 'سجّل الدخول لعرض البحوث المحفوظة',
+                    subtitle: 'بحوثك المحفوظة تظهر هنا بعد تسجيل الدخول.',
+                    actionLabel: 'تسجيل الدخول',
+                    onAction: () async {
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const AuthPage()),
+                      );
+                      _reload();
+                    },
+                  ),
+                ],
+              ),
             );
           }
           final items = snapshot.data ?? const [];
           if (items.isEmpty) {
-            return const _StateMessage(
-              icon: Icons.bookmark_border,
-              title: 'لا توجد بحوث محفوظة',
-              subtitle: 'من صفحة "مين؟" دوس "احفظ البحث" لتحفظ بحثك هنا.',
+            return RefreshIndicator(
+              onRefresh: _reload,
+              color: teal,
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                children: const [
+                  SizedBox(height: 110),
+                  _StateMessage(
+                    icon: Icons.bookmark_border,
+                    title: 'لا توجد بحوث محفوظة',
+                    subtitle: 'من صفحة "مين؟" دوس "احفظ البحث" لتحفظ بحثك هنا.',
+                  ),
+                ],
+              ),
             );
           }
-          return ListView.builder(
-            padding: const EdgeInsets.all(18),
-            itemCount: items.length,
-            itemBuilder: (context, index) {
-              final search = items[index];
-              return Card(
-                elevation: 0,
-                margin: const EdgeInsets.only(bottom: 8),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(15),
-                  side: const BorderSide(color: Color(0xFFE0E8E6)),
-                ),
-                child: ListTile(
-                  leading: Icon(Icons.bookmark, color: teal),
-                  title: Text(search['label'] as String? ?? 'بحث محفوظ'),
-                  subtitle: search['query'] != null
-                      ? Text(search['query'] as String)
-                      : null,
-                  trailing: IconButton(
-                    icon: const Icon(
-                      Icons.delete_outline,
-                      color: Colors.redAccent,
-                    ),
-                    onPressed: () => _delete(search['id'] as String),
+          return RefreshIndicator(
+            onRefresh: _reload,
+            color: teal,
+            child: ListView.builder(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(18),
+              itemCount: items.length,
+              itemBuilder: (context, index) {
+                final search = items[index];
+                return Card(
+                  elevation: 0,
+                  margin: const EdgeInsets.only(bottom: 8),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(15),
+                    side: const BorderSide(color: Color(0xFFE0E8E6)),
                   ),
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => DirectoryPage(
-                        initialQuery: search['query'] as String?,
+                  child: ListTile(
+                    leading: Icon(Icons.bookmark, color: teal),
+                    title: Text(search['label'] as String? ?? 'بحث محفوظ'),
+                    subtitle: search['query'] != null
+                        ? Text(search['query'] as String)
+                        : null,
+                    trailing: IconButton(
+                      icon: const Icon(
+                        Icons.delete_outline,
+                        color: Colors.redAccent,
+                      ),
+                      onPressed: () => _delete(search['id'] as String),
+                    ),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => DirectoryPage(
+                          initialQuery: search['query'] as String?,
+                        ),
                       ),
                     ),
                   ),
-                ),
-              );
-            },
+                );
+              },
+            ),
           );
         },
       ),
@@ -7891,11 +7962,11 @@ class MyListingsPage extends StatefulWidget {
 class _MyListingsPageState extends State<MyListingsPage> {
   final api = ApiClient();
   late Future<Map<String, dynamic>> contributions = api.fetchContributions();
-  void _reload() {
+  Future<void> _reload() async {
     if (!mounted) return;
-    setState(() {
-      contributions = api.fetchContributions();
-    });
+    late final Future<Map<String, dynamic>> next;
+    setState(() => contributions = next = api.fetchContributions());
+    await next;
   }
 
   String _status(String? value) => switch (value) {
@@ -7960,61 +8031,86 @@ class _MyListingsPageState extends State<MyListingsPage> {
         future: contributions,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return Center(child: CircularProgressIndicator(color: teal));
+            return RefreshIndicator(
+              onRefresh: _reload,
+              color: teal,
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                children: [
+                  const SizedBox(height: 120),
+                  Center(child: CircularProgressIndicator(color: teal)),
+                ],
+              ),
+            );
           }
           final items =
               (snapshot.data?['listings'] as Map<String, dynamic>?)?['data']
                   as List<dynamic>? ??
               [];
           if (snapshot.hasError || items.isEmpty) {
-            return const _StateMessage(
-              icon: Icons.campaign_outlined,
-              title: 'مفيش إعلانات على حسابك',
-              subtitle: 'أضف إعلانًا من قسم «عندك؟» وتابع حالته هنا.',
+            return RefreshIndicator(
+              onRefresh: _reload,
+              color: teal,
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                children: const [
+                  SizedBox(height: 110),
+                  _StateMessage(
+                    icon: Icons.campaign_outlined,
+                    title: 'مفيش إعلانات على حسابك',
+                    subtitle: 'أضف إعلانًا من قسم «عندك؟» وتابع حالته هنا.',
+                  ),
+                ],
+              ),
             );
           }
-          return ListView.builder(
-            padding: const EdgeInsets.all(18),
-            itemCount: items.length,
-            itemBuilder: (context, index) {
-              final item = items[index] as Map<String, dynamic>;
-              final status = item['status'] as String?;
-              return Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    children: [
-                      ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: Text(item['title'] as String? ?? 'إعلان'),
-                        subtitle: Text(
-                          '${item['price']} جنيه · ${_status(status)}',
+          return RefreshIndicator(
+            onRefresh: _reload,
+            color: teal,
+            child: ListView.builder(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(18),
+              itemCount: items.length,
+              itemBuilder: (context, index) {
+                final item = items[index] as Map<String, dynamic>;
+                final status = item['status'] as String?;
+                return Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      children: [
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(item['title'] as String? ?? 'إعلان'),
+                          subtitle: Text(
+                            '${item['price']} جنيه · ${_status(status)}',
+                          ),
                         ),
-                      ),
-                      Row(
-                        children: [
-                          if (status == 'EXPIRED' || status == 'ARCHIVED')
+                        Row(
+                          children: [
+                            if (status == 'EXPIRED' || status == 'ARCHIVED')
+                              Expanded(
+                                child: FilledButton(
+                                  onPressed: () => _renew(item['id'] as String),
+                                  child: const Text('إعادة نشر'),
+                                ),
+                              ),
+                            if (status == 'EXPIRED' || status == 'ARCHIVED')
+                              const SizedBox(width: 8),
                             Expanded(
-                              child: FilledButton(
-                                onPressed: () => _renew(item['id'] as String),
-                                child: const Text('إعادة نشر'),
+                              child: OutlinedButton(
+                                onPressed: () => _delete(item['id'] as String),
+                                child: const Text('حذف نهائي'),
                               ),
                             ),
-                          if (status == 'EXPIRED' || status == 'ARCHIVED')
-                            const SizedBox(width: 8),
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: () => _delete(item['id'] as String),
-                              child: const Text('حذف نهائي'),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              );
-            },
+                );
+              },
+            ),
           );
         },
       ),
