@@ -2295,6 +2295,8 @@ class _HomePageState extends State<HomePage> {
                     children: [
                       PromoCarousel(areaId: selectedAreaId),
                       const SizedBox(height: 20),
+                      const HomeUtilityCards(),
+                      const SizedBox(height: 22),
                       const SectionTitle(title: 'فئات قريبة منك'),
                       const SizedBox(height: 11),
                       CategoryRail(
@@ -2406,6 +2408,337 @@ class _HomePageState extends State<HomePage> {
       ),
     );
   }
+}
+
+class HomeUtilityCards extends StatelessWidget {
+  const HomeUtilityCards({super.key});
+
+  void _open(BuildContext context, Widget page) =>
+      Navigator.push(context, MaterialPageRoute(builder: (_) => page));
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      _UtilityCard(
+        title: 'تاكل إيه؟',
+        subtitle: 'جاوب كام سؤال ونرشحلك أكل يناسبك في قنا',
+        icon: Icons.restaurant_menu_rounded,
+        large: true,
+        onTap: () => _open(context, const FoodChooserPage()),
+      ),
+      const SizedBox(height: 10),
+      Row(
+        children: [
+          Expanded(
+            child: _UtilityCard(
+              title: 'تركب إيه؟',
+              subtitle: 'اطلب مشوار قريب منك',
+              icon: Icons.local_taxi_outlined,
+              onTap: () => _open(context, const RideRequestPage()),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: _UtilityCard(
+              title: 'توصل إمتى؟',
+              subtitle: 'مواعيد القطارات من وإلى قنا',
+              icon: Icons.train_outlined,
+              onTap: () => _open(context, const TrainSchedulePage()),
+            ),
+          ),
+        ],
+      ),
+    ],
+  );
+}
+
+class _UtilityCard extends StatelessWidget {
+  const _UtilityCard({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.onTap,
+    this.large = false,
+  });
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final VoidCallback onTap;
+  final bool large;
+
+  @override
+  Widget build(BuildContext context) => Card(
+    margin: EdgeInsets.zero,
+    elevation: 0,
+    color: Theme.of(context).colorScheme.primaryContainer,
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+    child: InkWell(
+      borderRadius: BorderRadius.circular(18),
+      onTap: onTap,
+      child: Padding(
+        padding: EdgeInsets.all(large ? 18 : 14),
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: large ? 25 : 20,
+              backgroundColor: Colors.white.withValues(alpha: .8),
+              child: Icon(icon, color: teal, size: large ? 27 : 22),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: AppTextStyles.bodyLarge),
+                  const SizedBox(height: 3),
+                  Text(subtitle, style: AppTextStyles.labelSmall),
+                ],
+              ),
+            ),
+            const Icon(Icons.arrow_back_ios_new_rounded, size: 16),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class FoodChooserPage extends StatefulWidget {
+  const FoodChooserPage({super.key});
+  @override
+  State<FoodChooserPage> createState() => _FoodChooserPageState();
+}
+
+class _FoodChooserPageState extends State<FoodChooserPage> {
+  final answers = <String>[];
+  final questions = const [
+    ('نفسك في إيه؟', ['فراخ', 'لحمة', 'سمك', 'صايم', 'مش فارقة']),
+    ('تحبها إزاي؟', ['مشوي', 'مقلي', 'وجبة كاملة', 'خفيف']),
+    ('نوع الوجبة؟', ['معجنات', 'ساندوتش', 'مكرونة', 'طواجن', 'أي حاجة']),
+    ('ميزانيتك؟', ['اقتصادي', 'متوسط', 'مفتوح']),
+  ];
+  int step = 0;
+
+  void _pick(String answer) {
+    setState(() {
+      if (answers.length > step) {
+        answers[step] = answer;
+        answers.removeRange(step + 1, answers.length);
+      } else {
+        answers.add(answer);
+      }
+      if (step < questions.length - 1) {
+        step++;
+      } else {
+        final query = answers
+            .where((item) => item != 'مش فارقة' && item != 'أي حاجة')
+            .join(' ');
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => DirectoryPage(initialQuery: query)),
+        );
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => Directionality(
+    textDirection: TextDirection.rtl,
+    child: Scaffold(
+      appBar: HenaAppBar(title: const Text('تاكل إيه؟')),
+      body: ListView(
+        padding: const EdgeInsets.all(18),
+        children: [
+          LinearProgressIndicator(
+            value: (step + 1) / questions.length,
+            color: teal,
+          ),
+          const SizedBox(height: 28),
+          Text(questions[step].$1, style: AppTextStyles.displayMedium),
+          const SizedBox(height: 8),
+          const Text('اختار إجابة واحدة، ونقربك من الأكل اللي يناسبك.'),
+          const SizedBox(height: 22),
+          for (final option in questions[step].$2)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: OutlinedButton(
+                onPressed: () => _pick(option),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(54),
+                  side: BorderSide(color: teal.withValues(alpha: .3)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+                child: Text(option),
+              ),
+            ),
+        ],
+      ),
+    ),
+  );
+}
+
+class RideRequestPage extends StatefulWidget {
+  const RideRequestPage({super.key});
+  @override
+  State<RideRequestPage> createState() => _RideRequestPageState();
+}
+
+class _RideRequestPageState extends State<RideRequestPage> {
+  final from = TextEditingController();
+  final to = TextEditingController();
+  String role = 'راكب';
+  String vehicle = 'موتوسيكل';
+  bool sending = false;
+
+  @override
+  void dispose() {
+    from.dispose();
+    to.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (!AuthSession.isSignedIn) {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const AuthPage(returnOnSuccess: true),
+        ),
+      );
+      if (!mounted || !AuthSession.isSignedIn) return;
+    }
+    if (from.text.trim().isEmpty || to.text.trim().isEmpty) {
+      showTopToast(
+        context,
+        message: 'اكتب نقطة البداية والوجهة',
+        isError: true,
+      );
+      return;
+    }
+    setState(() => sending = true);
+    try {
+      await ApiClient().submitSupportTicket(
+        subject: 'طلب مشوار — $role — $vehicle',
+        message:
+            'من: ${from.text.trim()}\nإلى: ${to.text.trim()}\nنوع المستخدم: $role\nنوع المركبة: $vehicle',
+      );
+      if (mounted)
+        showTopToast(context, message: 'تم إرسال طلبك للمراجعة والتواصل معك');
+    } catch (_) {
+      if (mounted)
+        showTopToast(
+          context,
+          message: 'تعذر إرسال الطلب حاليًا',
+          isError: true,
+        );
+    } finally {
+      if (mounted) setState(() => sending = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Directionality(
+    textDirection: TextDirection.rtl,
+    child: Scaffold(
+      appBar: HenaAppBar(title: const Text('تركب إيه؟')),
+      body: ListView(
+        padding: const EdgeInsets.all(18),
+        children: [
+          SegmentedButton<String>(
+            segments: const [
+              ButtonSegment(value: 'راكب', label: Text('أنا راكب')),
+              ButtonSegment(value: 'سائق', label: Text('أنا سائق')),
+            ],
+            selected: {role},
+            onSelectionChanged: (value) => setState(() => role = value.first),
+          ),
+          const SizedBox(height: 14),
+          DropdownButtonFormField<String>(
+            value: vehicle,
+            decoration: const InputDecoration(labelText: 'نوع المركبة'),
+            items: const ['موتوسيكل', 'ملاكي', 'تاكسي']
+                .map((item) => DropdownMenuItem(value: item, child: Text(item)))
+                .toList(),
+            onChanged: (value) => setState(() => vehicle = value ?? vehicle),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: from,
+            decoration: const InputDecoration(labelText: 'منين؟'),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: to,
+            decoration: const InputDecoration(labelText: 'رايح فين؟'),
+          ),
+          const SizedBox(height: 20),
+          FilledButton(
+            onPressed: sending ? null : _submit,
+            child: Text(sending ? 'جارٍ الإرسال…' : 'اطلب المشوار'),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class TrainSchedulePage extends StatefulWidget {
+  const TrainSchedulePage({super.key});
+  @override
+  State<TrainSchedulePage> createState() => _TrainSchedulePageState();
+}
+
+class _TrainSchedulePageState extends State<TrainSchedulePage> {
+  String direction = 'إلى قنا';
+  final station = TextEditingController();
+
+  @override
+  void dispose() {
+    station.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Directionality(
+    textDirection: TextDirection.rtl,
+    child: Scaffold(
+      appBar: HenaAppBar(title: const Text('توصل إمتى؟')),
+      body: ListView(
+        padding: const EdgeInsets.all(18),
+        children: [
+          const Text('مواعيد القطارات تُحدّث يدويًا من الإدارة حاليًا.'),
+          const SizedBox(height: 18),
+          SegmentedButton<String>(
+            segments: const [
+              ButtonSegment(value: 'إلى قنا', label: Text('إلى قنا')),
+              ButtonSegment(value: 'من قنا', label: Text('من قنا')),
+            ],
+            selected: {direction},
+            onSelectionChanged: (value) =>
+                setState(() => direction = value.first),
+          ),
+          const SizedBox(height: 14),
+          TextField(
+            controller: station,
+            decoration: const InputDecoration(labelText: 'المحطة أو المحافظة'),
+          ),
+          const SizedBox(height: 20),
+          Card(
+            child: ListTile(
+              leading: Icon(Icons.info_outline, color: teal),
+              title: const Text('آخر تحديث'),
+              subtitle: const Text(
+                'سيظهر جدول الإدارة هنا فور إضافة المواعيد.',
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class SectionTitle extends StatelessWidget {
