@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { createHash, randomBytes, randomInt, scrypt as scryptCallback } from 'node:crypto';
-import { mkdir, unlink, writeFile } from 'node:fs/promises';
+import { mkdir, unlink, writeFile, readdir, stat, readFile, rm } from 'node:fs/promises';
+import { execFile as execFileCallback } from 'node:child_process';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import cors from 'cors';
@@ -33,8 +34,11 @@ app.set('trust proxy', 1);
 const port = Number(process.env.PORT ?? 4000);
 const host = process.env.API_HOST ?? '127.0.0.1';
 const uploadRoot = process.env.UPLOADS_DIR ?? path.join(process.cwd(), 'uploads');
+const backupRoot = process.env.BACKUP_DIR ?? path.join(process.cwd(), 'backups');
+const backupConfigPath = path.join(backupRoot, 'schedule.json');
 const publicApiBaseUrl = (process.env.PUBLIC_API_BASE_URL ?? `http://127.0.0.1:${port}`).replace(/\/$/, '');
 const scrypt = promisify(scryptCallback);
+const execFile = promisify(execFileCallback);
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
 const passwordHash = async (password: string) => { const salt = randomBytes(16); const derived = await scrypt(password, salt, 64) as Buffer; return `${salt.toString('hex')}:${derived.toString('hex')}`; };
 const verifyPassword = async (password: string, stored: string) => { const [saltHex, storedHash] = stored.split(':'); const salt = Buffer.from(saltHex, 'hex'); const derived = await scrypt(password, salt, 64) as Buffer; return derived.toString('hex') === storedHash; };
@@ -45,6 +49,41 @@ const adminSessionFromRequest = async (req: express.Request) => { const token = 
 const requireAdmin = async (req: express.Request, res: express.Response, next: express.NextFunction) => { const expected = process.env.ADMIN_API_KEY ?? (process.env.NODE_ENV !== 'production' ? 'dev-henaqena-admin' : undefined); const provided = typeof req.headers['x-admin-key'] === 'string' ? req.headers['x-admin-key'] : ''; if (expected && provided === expected) return next(); if (await adminSessionFromRequest(req)) return next(); return res.status(403).json({ message: 'صلاحيات الإدارة مطلوبة' }); };
 const requireAdminRoles = (roles: string[]) => async (req: express.Request, res: express.Response, next: express.NextFunction) => { const expected = process.env.ADMIN_API_KEY ?? (process.env.NODE_ENV !== 'production' ? 'dev-henaqena-admin' : undefined); const provided = typeof req.headers['x-admin-key'] === 'string' ? req.headers['x-admin-key'] : ''; if (expected && provided === expected) return next(); const session = await adminSessionFromRequest(req); if (!session || !roles.includes(session.admin.role)) return res.status(403).json({ message: 'الدور الإداري لا يسمح بهذه العملية' }); next(); };
 const audit = (action: string, entity: string, entityId: string, metadata?: Record<string, unknown>) => prisma.auditLog.create({ data: { action, entity, entityId, metadata: metadata as any } });
+type BackupSchedule = { enabled: boolean; interval: '3d' | '6d' | 'week' | 'month'; nextRunAt: string | null; updatedAt: string };
+const backupIntervals: Record<BackupSchedule['interval'], number> = { '3d': 3, '6d': 6, week: 7, month: 30 };
+const defaultBackupSchedule = (): BackupSchedule => ({ enabled: false, interval: 'week', nextRunAt: null, updatedAt: new Date().toISOString() });
+const readBackupSchedule = async (): Promise<BackupSchedule> => {
+  try { return { ...defaultBackupSchedule(), ...JSON.parse(await readFile(backupConfigPath, 'utf8')) } as BackupSchedule; } catch { return defaultBackupSchedule(); }
+};
+const writeBackupSchedule = async (schedule: BackupSchedule) => { await mkdir(backupRoot, { recursive: true }); await writeFile(backupConfigPath, JSON.stringify(schedule, null, 2)); };
+const createDatabaseBackup = async () => {
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) throw new Error('DATABASE_URL غير مهيأ');
+  await mkdir(backupRoot, { recursive: true });
+  const filename = `henaqena-${new Date().toISOString().replace(/[:.]/g, '-')}.dump`;
+  const target = path.join(backupRoot, filename);
+  await execFile('pg_dump', ['--format=custom', '--no-owner', '--file', target, databaseUrl], { timeout: 10 * 60 * 1000 });
+  return { filename, target };
+};
+const listDatabaseBackups = async () => {
+  await mkdir(backupRoot, { recursive: true });
+  const entries = await readdir(backupRoot);
+  const files = await Promise.all(entries.filter((name) => name.endsWith('.dump')).map(async (filename) => ({ filename, size: (await stat(path.join(backupRoot, filename))).size })));
+  return files.sort((a, b) => b.filename.localeCompare(a.filename));
+};
+let backupTimer: NodeJS.Timeout | undefined;
+const startBackupScheduler = () => {
+  if (backupTimer) clearInterval(backupTimer);
+  backupTimer = setInterval(async () => {
+    const schedule = await readBackupSchedule();
+    if (!schedule.enabled || !schedule.nextRunAt || new Date(schedule.nextRunAt) > new Date()) return;
+    try {
+      await createDatabaseBackup();
+      const next = new Date(Date.now() + backupIntervals[schedule.interval] * 24 * 60 * 60 * 1000);
+      await writeBackupSchedule({ ...schedule, nextRunAt: next.toISOString(), updatedAt: new Date().toISOString() });
+    } catch (error) { console.error('Automatic database backup failed', error); }
+  }, 60 * 1000);
+};
 const publicAuthorSelect = { id: true, name: true, avatarUrl: true, isProfilePrivate: true, points: true, level: true } as const;
 const verificationWebhooks: Record<string, string | undefined> = {
   whatsapp: process.env.WHATSAPP_OTP_WEBHOOK_URL,
@@ -997,6 +1036,57 @@ app.get('/api/admin/overview', requireAdmin, async (_req, res, next) => {
   } catch (error) { next(error); }
 });
 
+const backupName = z.string().regex(/^henaqena-[A-Za-z0-9_.-]+\.dump$/);
+app.get('/api/admin/backups', requireAdmin, async (_req, res, next) => {
+  try { res.json({ backups: await listDatabaseBackups(), schedule: await readBackupSchedule() }); } catch (error) { next(error); }
+});
+app.post('/api/admin/backups', requireAdmin, async (_req, res, next) => {
+  try { const backup = await createDatabaseBackup(); await audit('database.backup_created', 'database', backup.filename); res.status(201).json({ filename: backup.filename, backups: await listDatabaseBackups() }); } catch (error) { next(error); }
+});
+app.delete('/api/admin/backups/:filename', requireAdminRoles(['OWNER']), async (req, res, next) => {
+  try { const filename = backupName.parse(req.params.filename); await unlink(path.join(backupRoot, filename)); await audit('database.backup_deleted', 'database', filename); res.json({ deleted: true }); } catch (error) { next(error); }
+});
+app.post('/api/admin/backups/restore', requireAdminRoles(['OWNER']), async (req, res, next) => {
+  try {
+    const { filename, confirm } = z.object({ filename: backupName, confirm: z.literal('RESTORE_HENA_QENA') }).parse(req.body);
+    const databaseUrl = process.env.DATABASE_URL;
+    if (!databaseUrl) throw new Error('DATABASE_URL غير مهيأ');
+    await execFile('pg_restore', ['--clean', '--if-exists', '--no-owner', '--dbname', databaseUrl, path.join(backupRoot, filename)], { timeout: 20 * 60 * 1000 });
+    await audit('database.restored', 'database', filename);
+    res.json({ restored: true, filename });
+  } catch (error) { next(error); }
+});
+app.patch('/api/admin/backups/schedule', requireAdminRoles(['OWNER']), async (req, res, next) => {
+  try {
+    const input = z.object({ enabled: z.boolean(), interval: z.enum(['3d', '6d', 'week', 'month']) }).parse(req.body);
+    const nextRunAt = input.enabled ? new Date(Date.now() + backupIntervals[input.interval] * 24 * 60 * 60 * 1000).toISOString() : null;
+    const schedule = { ...input, nextRunAt, updatedAt: new Date().toISOString() } satisfies BackupSchedule;
+    await writeBackupSchedule(schedule); await audit('database.backup_schedule_updated', 'database', 'schedule', input); res.json(schedule);
+  } catch (error) { next(error); }
+});
+
+const resetScope = z.enum(['providers', 'listings', 'reviews', 'ads', 'prices', 'now', 'users', 'notifications', 'audit', 'uploads']);
+app.post('/api/admin/maintenance/reset', requireAdminRoles(['OWNER']), async (req, res, next) => {
+  try {
+    const { scopes, confirm } = z.object({ scopes: z.array(resetScope).min(1), confirm: z.literal('RESET_HENA_QENA') }).parse(req.body);
+    const unique = [...new Set(scopes)];
+    await prisma.$transaction(async (tx) => {
+      if (unique.includes('reviews')) { await tx.reviewHelpful.deleteMany(); await tx.reviewReply.deleteMany(); await tx.review.deleteMany(); }
+      if (unique.includes('providers')) { await tx.providerFavorite.deleteMany(); await tx.providerReport.deleteMany(); await tx.providerService.deleteMany(); await tx.providerOffer.deleteMany(); await tx.providerCategory.deleteMany(); await tx.providerImage.deleteMany(); await tx.provider.deleteMany(); }
+      if (unique.includes('listings')) { await tx.listingFavorite.deleteMany(); await tx.listingInterest.deleteMany(); await tx.listingReport.deleteMany(); await tx.listingImage.deleteMany(); await tx.listing.deleteMany(); }
+      if (unique.includes('ads')) { await tx.adReaction.deleteMany(); await tx.ad.deleteMany(); }
+      if (unique.includes('prices')) await tx.priceGuide.deleteMany();
+      if (unique.includes('now')) { await tx.nowHelpful.deleteMany(); await tx.nowUpdate.deleteMany(); }
+      if (unique.includes('notifications')) await tx.notification.deleteMany();
+      if (unique.includes('users')) { await tx.session.deleteMany(); await tx.verificationCode.deleteMany(); await tx.user.deleteMany({ where: { role: { not: 'SYSTEM' } } }); }
+      if (unique.includes('audit')) await tx.auditLog.deleteMany();
+    });
+    if (unique.includes('uploads')) { await rm(uploadRoot, { recursive: true, force: true }); await mkdir(uploadRoot, { recursive: true }); }
+    await audit('maintenance.reset', 'database', 'scoped-reset', { scopes: unique });
+    res.json({ reset: true, scopes: unique });
+  } catch (error) { next(error); }
+});
+
 app.get('/api/admin/team', requireAdmin, async (_req, res, next) => {
   try { res.json(await prisma.adminAccount.findMany({ select: { id: true, name: true, email: true, role: true, isActive: true, lastLoginAt: true, createdAt: true }, orderBy: { createdAt: 'desc' } })); } catch (error) { next(error); }
 });
@@ -1257,6 +1347,19 @@ app.delete('/api/admin/providers/:id', requireAdmin, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+app.delete('/api/admin/listings/:id', requireAdmin, async (req, res, next) => {
+  try { const id = String(req.params.id); const listing = await prisma.listing.findUnique({ where: { id }, select: { id: true, title: true } }); if (!listing) return res.status(404).json({ message: 'الإعلان غير موجود' }); await prisma.listing.delete({ where: { id } }); await audit('listing.deleted', 'listing', id, { title: listing.title }); res.json({ deleted: true }); } catch (error) { next(error); }
+});
+app.delete('/api/admin/services/:id', requireAdmin, async (req, res, next) => {
+  try { const id = String(req.params.id); const item = await prisma.providerService.delete({ where: { id } }); await audit('service.deleted', 'providerService', id, { name: item.name }); res.json({ deleted: true }); } catch (error) { next(error); }
+});
+app.delete('/api/admin/offers/:id', requireAdmin, async (req, res, next) => {
+  try { const id = String(req.params.id); const item = await prisma.providerOffer.delete({ where: { id } }); await audit('offer.deleted', 'providerOffer', id, { title: item.title }); res.json({ deleted: true }); } catch (error) { next(error); }
+});
+app.delete('/api/admin/ads/:id', requireAdmin, async (req, res, next) => {
+  try { const id = String(req.params.id); const item = await prisma.ad.delete({ where: { id } }); await audit('ad.deleted', 'ad', id, { name: item.name }); res.json({ deleted: true }); } catch (error) { next(error); }
+});
+
 app.patch('/api/admin/providers/:id/content', requireAdmin, async (req, res, next) => {
   try {
     const input = z.object({ name: z.string().trim().min(2).max(120).optional(), description: z.string().trim().max(1000).nullable().optional(), phone: z.union([z.string().regex(/^01[0125][0-9]{8}$/), z.literal('')]).optional(), whatsapp: z.union([z.string().regex(/^01[0125][0-9]{8}$/), z.literal('')]).optional(), address: z.string().trim().max(240).nullable().optional(), openingTime: z.string().regex(/^\d{2}:\d{2}$/).nullable().optional(), closingTime: z.string().regex(/^\d{2}:\d{2}$/).nullable().optional(), isVerified: z.boolean().optional(), ...Object.fromEntries(Object.keys(providerAttributesFields).map((key) => [key, z.boolean().optional()])) }).parse(req.body);
@@ -1474,5 +1577,7 @@ app.listen(port, host, () => {
     void runListingLifecycle().catch((error) => console.error('[listing-lifecycle]', error));
     const lifecycleTimer = setInterval(() => void runListingLifecycle().catch((error) => console.error('[listing-lifecycle]', error)), 6 * 60 * 60 * 1000);
     lifecycleTimer.unref();
+    startBackupScheduler();
+    backupTimer?.unref();
   }
 });

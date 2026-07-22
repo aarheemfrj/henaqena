@@ -183,3 +183,42 @@ export async function createListingAdmin(formData: FormData) {
   revalidatePath('/admin/listings'); revalidatePath('/listings');
   redirect('/admin/listings?created=1');
 }
+
+export async function createDatabaseBackup() {
+  if (!await hasAdminSession()) redirect('/admin/login');
+  await apiPost('/api/admin/backups', {});
+  revalidatePath('/admin/maintenance');
+}
+
+export async function updateBackupSchedule(formData: FormData) {
+  if (!await hasAdminSession()) redirect('/admin/login');
+  await apiPatch('/api/admin/backups/schedule', {
+    enabled: formData.get('enabled') === 'on',
+    interval: String(formData.get('interval') ?? 'week'),
+  });
+  revalidatePath('/admin/maintenance');
+}
+
+export async function restoreDatabaseBackup(formData: FormData) {
+  if (!await hasAdminSession()) redirect('/admin/login');
+  await apiPost('/api/admin/backups/restore', {
+    filename: String(formData.get('filename') ?? ''),
+    confirm: 'RESTORE_HENA_QENA',
+  });
+  revalidatePath('/admin/maintenance');
+}
+
+export async function deleteDatabaseBackup(formData: FormData) {
+  if (!await hasAdminSession()) redirect('/admin/login');
+  await apiDelete(`/api/admin/backups/${encodeURIComponent(String(formData.get('filename') ?? ''))}`);
+  revalidatePath('/admin/maintenance');
+}
+
+export async function factoryReset(formData: FormData) {
+  if (!await hasAdminSession()) redirect('/admin/login');
+  if (String(formData.get('confirm') ?? '') !== 'RESET_HENA_QENA') redirect('/admin/maintenance?error=confirm');
+  const scopes = formData.getAll('scopes').map(String);
+  await apiPost('/api/admin/maintenance/reset', { scopes, confirm: 'RESET_HENA_QENA' });
+  revalidatePath('/admin');
+  revalidatePath('/admin/maintenance');
+}

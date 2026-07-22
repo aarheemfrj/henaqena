@@ -31,9 +31,10 @@ const groups = [
       { href: '/admin/data-collection', label: 'تجميع البيانات', icon: '⌘' },
     ],
   },
-  {
-    label: 'الإدارة',
-    items: [
+    {
+      label: 'الإدارة',
+      items: [
+      { href: '/admin/maintenance', label: 'النسخ والصيانة', icon: '⟳' },
       { href: '/admin/users', label: 'المستخدمون', icon: '◎' },
       { href: '/admin/team', label: 'فريق العمل', icon: '◉' },
     ],
