@@ -2186,7 +2186,12 @@ class BasePage extends StatelessWidget {
                       ),
                 ),
                 const SizedBox(height: 12),
-                child,
+                Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 760),
+                    child: child,
+                  ),
+                ),
               ],
             ),
           ),
@@ -3832,6 +3837,7 @@ class _DirectoryPageState extends State<DirectoryPage> {
   Future<List<ProviderSummary>> _fetchProviders({
     String? searchQuery,
     bool force = false,
+    int? pageSize,
   }) async {
     final sort = filters.sort == 'الأعلى تقييمًا'
         ? 'rating'
@@ -3849,6 +3855,7 @@ class _DirectoryPageState extends State<DirectoryPage> {
       hasParking: filters.hasParking,
       acceptsCards: filters.acceptsCards,
       sort: sort,
+      pageSize: pageSize,
       skipCache: force,
     );
     if (query.isEmpty || results.isNotEmpty) {
@@ -3887,7 +3894,13 @@ class _DirectoryPageState extends State<DirectoryPage> {
 
   Future<void> _openMap() async {
     searchDebounce?.cancel();
-    final currentResults = _fetchProviders(searchQuery: searchController.text);
+    // The map is an explicit user action: bypass the short list cache and
+    // request the full directory so an old empty response cannot hide pins.
+    final currentResults = _fetchProviders(
+      searchQuery: searchController.text,
+      force: true,
+      pageSize: 50,
+    );
     setState(() {
       providersFuture = currentResults;
     });
@@ -4622,6 +4635,31 @@ class ProviderMapPage extends StatefulWidget {
   State<ProviderMapPage> createState() => _ProviderMapPageState();
 }
 
+const _qenaAreaCenters = <String, ll.LatLng>{
+  'وسط البلد': ll.LatLng(26.1554, 32.7162),
+  'مدينة العمال': ll.LatLng(26.1605, 32.7058),
+  'الشؤون': ll.LatLng(26.1702, 32.7078),
+  'المساكن': ll.LatLng(26.1492, 32.7290),
+  'نجع سعيد': ll.LatLng(26.1438, 32.7412),
+  'المعنى': ll.LatLng(26.1352, 32.7220),
+  'الحميدات': ll.LatLng(26.1662, 32.7350),
+  'الأحوال': ll.LatLng(26.1512, 32.6988),
+  'عمر فندي': ll.LatLng(26.1588, 32.7198),
+  'المنشية': ll.LatLng(26.1480, 32.7110),
+};
+
+ll.LatLng _providerMapPoint(ProviderSummary provider, int index) {
+  if (provider.latitude != null && provider.longitude != null) {
+    return ll.LatLng(provider.latitude!, provider.longitude!);
+  }
+  final base =
+      _qenaAreaCenters[provider.subtitle] ?? const ll.LatLng(26.1551, 32.7160);
+  // Keep address-less imported activities visible without stacking every
+  // fallback pin in exactly the same pixel. Exact coordinates always win.
+  final offset = ((index % 7) - 3) * 0.00055;
+  return ll.LatLng(base.latitude + offset, base.longitude + offset * .8);
+}
+
 class _ProviderMapPageState extends State<ProviderMapPage> {
   static const _qena = LatLng(26.1551, 32.7160);
   LatLng center = _qena;
@@ -4742,14 +4780,10 @@ class _ProviderMapPageState extends State<ProviderMapPage> {
               subtitle: 'ارجع للدليل وحاول مرة تانية.',
             );
           }
-          final mapped = (snapshot.data ?? const <ProviderSummary>[])
-              .where(
-                (item) =>
-                    item.latitude != null ||
-                    item.longitude != null ||
-                    item.address?.isNotEmpty == true,
-              )
-              .toList();
+          // Keep every approved result in the map/list. Imported activities
+          // can have an address before exact coordinates are entered; those
+          // use a small area-centre fallback until a precise pin is saved.
+          final mapped = snapshot.data ?? const <ProviderSummary>[];
           if (mapped.isEmpty) {
             return const _StateMessage(
               icon: Icons.map_outlined,
@@ -4759,22 +4793,20 @@ class _ProviderMapPageState extends State<ProviderMapPage> {
           }
           final ordered = [...mapped]
             ..sort((a, b) {
-              final aDistance = a.latitude == null || a.longitude == null
-                  ? double.infinity
-                  : Geolocator.distanceBetween(
-                      center.latitude,
-                      center.longitude,
-                      a.latitude!,
-                      a.longitude!,
-                    );
-              final bDistance = b.latitude == null || b.longitude == null
-                  ? double.infinity
-                  : Geolocator.distanceBetween(
-                      center.latitude,
-                      center.longitude,
-                      b.latitude!,
-                      b.longitude!,
-                    );
+              final aPoint = _providerMapPoint(a, mapped.indexOf(a));
+              final bPoint = _providerMapPoint(b, mapped.indexOf(b));
+              final aDistance = Geolocator.distanceBetween(
+                center.latitude,
+                center.longitude,
+                aPoint.latitude,
+                aPoint.longitude,
+              );
+              final bDistance = Geolocator.distanceBetween(
+                center.latitude,
+                center.longitude,
+                bPoint.latitude,
+                bPoint.longitude,
+              );
               return aDistance.compareTo(bDistance);
             });
           final list = ListView.separated(
@@ -4845,9 +4877,7 @@ class _InternalQenaMapState extends State<InternalQenaMap> {
   ll.LatLng? _userPosition;
   StreamSubscription<Position>? _positionSubscription;
 
-  List<ProviderSummary> get _mapped => widget.providers
-      .where((item) => item.latitude != null && item.longitude != null)
-      .toList();
+  List<ProviderSummary> get _mapped => widget.providers;
 
   Future<void> _locateUser() async {
     setState(() => _locating = true);
@@ -4930,14 +4960,14 @@ class _InternalQenaMapState extends State<InternalQenaMap> {
             child: const Icon(Icons.navigation, color: Colors.white, size: 16),
           ),
         ),
-      for (final provider in mapped)
+      for (final entry in mapped.asMap().entries)
         fmap.Marker(
-          point: ll.LatLng(provider.latitude!, provider.longitude!),
+          point: _providerMapPoint(entry.value, entry.key),
           width: 170,
           height: 56,
           alignment: Alignment.bottomCenter,
           child: GestureDetector(
-            onTap: () => widget.onProviderTap(provider),
+            onTap: () => widget.onProviderTap(entry.value),
             child: Directionality(
               textDirection: TextDirection.rtl,
               child: Row(
@@ -4959,7 +4989,7 @@ class _InternalQenaMapState extends State<InternalQenaMap> {
                         ],
                       ),
                       child: Text(
-                        provider.name,
+                        entry.value.name,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
@@ -4974,7 +5004,7 @@ class _InternalQenaMapState extends State<InternalQenaMap> {
                     width: 38,
                     height: 38,
                     decoration: BoxDecoration(
-                      color: _qenaMapCategoryColor(provider.categoryName),
+                      color: _qenaMapCategoryColor(entry.value.categoryName),
                       shape: BoxShape.circle,
                       border: Border.all(color: Colors.white, width: 3),
                       boxShadow: const [
@@ -4982,7 +5012,7 @@ class _InternalQenaMapState extends State<InternalQenaMap> {
                       ],
                     ),
                     child: Icon(
-                      categoryIcon(provider.categoryName),
+                      categoryIcon(entry.value.categoryName),
                       color: Colors.white,
                       size: 18,
                     ),
