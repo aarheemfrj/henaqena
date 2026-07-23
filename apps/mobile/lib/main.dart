@@ -6041,47 +6041,6 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                   ),
                 ),
               ],
-              if (data?.categorySlug != null) ...[
-                const SizedBox(height: 18),
-                const SectionTitle(title: 'أماكن مشابهة'),
-                const SizedBox(height: 8),
-                FutureBuilder<List<ProviderSummary>>(
-                  future: ApiClient().fetchProviders(
-                    category: data!.categorySlug,
-                    pageSize: 6,
-                  ),
-                  builder: (context, similarSnapshot) {
-                    final similar = (similarSnapshot.data ?? const [])
-                        .where((item) => item.id != data.id)
-                        .take(5)
-                        .toList();
-                    if (similar.isEmpty) return const SizedBox.shrink();
-                    return Column(
-                      children: similar
-                          .map(
-                            (item) => MiniItem(
-                              icon: categoryIcon(item.categoryName),
-                              imageUrl: item.displayImageUrl,
-                              title: item.name,
-                              subtitle: item.subtitle,
-                              onTap: () => Navigator.pushReplacement(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => ProviderDetailPage(
-                                    providerId: item.id,
-                                    title: item.name,
-                                    icon: Icons.storefront_outlined,
-                                    subtitle: item.subtitle,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          )
-                          .toList(),
-                    );
-                  },
-                ),
-              ],
               const SizedBox(height: 18),
               const SectionTitle(title: 'التقييمات الموجودة'),
               const SizedBox(height: 8),
@@ -6152,6 +6111,47 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                   'لسه مفيش تقييمات. كن أول واحد يقيّم المكان.',
                   style: TextStyle(color: muted),
                 ),
+              if (data?.categorySlug != null) ...[
+                const SizedBox(height: 18),
+                const SectionTitle(title: 'أماكن مشابهة'),
+                const SizedBox(height: 8),
+                FutureBuilder<List<ProviderSummary>>(
+                  future: ApiClient().fetchProviders(
+                    category: data!.categorySlug,
+                    pageSize: 6,
+                  ),
+                  builder: (context, similarSnapshot) {
+                    final similar = (similarSnapshot.data ?? const [])
+                        .where((item) => item.id != data.id)
+                        .take(5)
+                        .toList();
+                    if (similar.isEmpty) return const SizedBox.shrink();
+                    return Column(
+                      children: similar
+                          .map(
+                            (item) => MiniItem(
+                              icon: categoryIcon(item.categoryName),
+                              imageUrl: item.displayImageUrl,
+                              title: item.name,
+                              subtitle: item.subtitle,
+                              onTap: () => Navigator.pushReplacement(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => ProviderDetailPage(
+                                    providerId: item.id,
+                                    title: item.name,
+                                    icon: Icons.storefront_outlined,
+                                    subtitle: item.subtitle,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          )
+                          .toList(),
+                    );
+                  },
+                ),
+              ],
             ],
           );
         },
