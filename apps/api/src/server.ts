@@ -1082,6 +1082,17 @@ app.get('/api/admin/review-queue', requireAdmin, async (_req, res, next) => {
   } catch (error) { next(error); }
 });
 
+app.get('/api/admin/reports/summary', requireAdmin, async (_req, res, next) => {
+  try {
+    const [providers, listings, ads, reviews, pendingProviders, pendingListings, pendingAds, missingProviderLocation, missingProviderPhone] = await Promise.all([
+      prisma.provider.count({ where: { deletedAt: null } }), prisma.listing.count({ where: { deletedAt: null } }), prisma.ad.count({ where: { deletedAt: null } }), prisma.review.count(),
+      prisma.provider.count({ where: { status: ReviewStatus.PENDING } }), prisma.listing.count({ where: { status: ListingStatus.PENDING } }), prisma.ad.count({ where: { status: ReviewStatus.PENDING } }),
+      prisma.provider.count({ where: { deletedAt: null, OR: [{ latitude: null }, { longitude: null }] } }), prisma.provider.count({ where: { deletedAt: null, phone: null } }),
+    ]);
+    res.json({ totals: { providers, listings, ads, reviews }, pending: { providers: pendingProviders, listings: pendingListings, ads: pendingAds }, quality: { missingProviderLocation, missingProviderPhone } });
+  } catch (error) { next(error); }
+});
+
 app.patch('/api/admin/lifecycle/:entity/:id', requireAdmin, async (req, res, next) => {
   try {
     const entity = lifecycleEntitySchema.parse(String(req.params.entity));

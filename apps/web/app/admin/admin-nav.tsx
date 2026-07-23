@@ -9,6 +9,7 @@ const groups = [
     items: [
       { href: '/admin', label: 'ملخص اليوم', icon: '◉' },
       { href: '/admin/audit', label: 'سجل العمليات', icon: '≡' },
+      { href: '/admin/analytics', label: 'التقارير والجودة', icon: '▥' },
     ],
   },
   {
