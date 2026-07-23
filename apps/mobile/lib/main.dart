@@ -3583,8 +3583,8 @@ class _MiniItemState extends State<MiniItem> {
               ),
               if ((widget.rating ?? 0) > 0)
                 Positioned(
-                  top: -5,
-                  left: -8,
+                  top: -8,
+                  right: -8,
                   child: Container(
                     constraints: const BoxConstraints(minWidth: 30),
                     padding: const EdgeInsets.symmetric(
