@@ -159,11 +159,17 @@ model Area {
 
 model Provider {
   id             String             @id @default(cuid())
+  externalId     String?            @unique
   name           String
   description    String?
   logoUrl        String?
   phone          String?
   whatsapp       String?
+  email          String?
+  website        String?
+  facebookUrl    String?
+  instagramUrl   String?
+  tiktokUrl      String?
   socialPlatform String?
   socialUrl      String?
   address        String?
@@ -173,6 +179,7 @@ model Provider {
   phoneType      String             @default("BUSINESS")
   openingTime    String?
   closingTime    String?
+  openingHours   Json?
   communityAdded Boolean            @default(true)
   submissionKind String             @default("COMMUNITY")
   isVerified     Boolean            @default(false)
@@ -198,6 +205,9 @@ model Provider {
   services       ProviderService[]
   offers         ProviderOffer[]
   favorites      ProviderFavorite[]
+  archivedAt     DateTime?
+  deletedAt      DateTime?
+  archiveReason  String?
 }
 
 model ProviderReport {
@@ -277,6 +287,9 @@ model ProviderService {
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
   provider    Provider     @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  archivedAt  DateTime?
+  deletedAt   DateTime?
+  archiveReason String?
 
   @@index([providerId, status])
 }
@@ -291,6 +304,9 @@ model ProviderOffer {
   status      ReviewStatus @default(PENDING)
   createdAt   DateTime     @default(now())
   provider    Provider     @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  archivedAt  DateTime?
+  deletedAt   DateTime?
+  archiveReason String?
 
   @@index([providerId, status, endsAt])
 }
@@ -330,6 +346,9 @@ model Listing {
   reports     ListingReport[]
   createdAt   DateTime          @default(now())
   expiresAt   DateTime?
+  archivedAt  DateTime?
+  deletedAt   DateTime?
+  archiveReason String?
 }
 
 model ListingFavorite {
@@ -417,6 +436,9 @@ model ReviewReply {
   review      Review       @relation(fields: [reviewId], references: [id], onDelete: Cascade)
   author      User         @relation(fields: [authorId], references: [id])
   createdAt   DateTime     @default(now())
+  archivedAt  DateTime?
+  deletedAt   DateTime?
+  archiveReason String?
 
   @@index([status, moderatedAt])
 }
@@ -435,6 +457,9 @@ model Ad {
   area        Area?        @relation(fields: [areaId], references: [id])
   reactions   AdReaction[]
   createdAt   DateTime     @default(now())
+  archivedAt  DateTime?
+  deletedAt   DateTime?
+  archiveReason String?
 }
 
 model AdReaction {
@@ -461,6 +486,9 @@ model PriceGuide {
   area       Area?        @relation(fields: [areaId], references: [id])
   createdAt  DateTime     @default(now())
   updatedAt  DateTime     @updatedAt
+  archivedAt DateTime?
+  deletedAt  DateTime?
+  archiveReason String?
 
   @@index([status, updatedAt])
 }
@@ -478,6 +506,9 @@ model NowUpdate {
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
   helpfulVotes NowHelpful[]
+  archivedAt DateTime?
+  deletedAt DateTime?
+  archiveReason String?
 
   @@index([status, startsAt, endsAt])
 }

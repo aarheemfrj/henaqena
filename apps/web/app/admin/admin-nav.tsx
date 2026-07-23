@@ -9,6 +9,7 @@ const groups = [
     items: [
       { href: '/admin', label: 'ملخص اليوم', icon: '◉' },
       { href: '/admin/audit', label: 'سجل العمليات', icon: '≡' },
+      { href: '/admin/analytics', label: 'التقارير والجودة', icon: '▥' },
     ],
   },
   {
@@ -19,6 +20,7 @@ const groups = [
       { href: '/admin/reviews', label: 'التقييمات', icon: '☆' },
       { href: '/admin/reports', label: 'البلاغات والدعم', icon: '!' },
       { href: '/admin/services', label: 'الخدمات والعروض', icon: '◈' },
+      { href: '/admin/review-center', label: 'مركز الاعتماد', icon: '✓' },
     ],
   },
   {
@@ -29,6 +31,8 @@ const groups = [
       { href: '/admin/now', label: 'دلوقتي', icon: 'ϟ' },
       { href: '/admin/import', label: 'استيراد البيانات', icon: '⇩' },
       { href: '/admin/data-collection', label: 'تجميع البيانات', icon: '⌘' },
+      { href: '/admin/archive', label: 'الأرشيف والاسترجاع', icon: '↺' },
+      { href: '/admin/catalog', label: 'سجل البيانات', icon: '▤' },
     ],
   },
     {
@@ -37,6 +41,7 @@ const groups = [
       { href: '/admin/maintenance', label: 'النسخ والصيانة', icon: '⟳' },
       { href: '/admin/users', label: 'المستخدمون', icon: '◎' },
       { href: '/admin/team', label: 'فريق العمل', icon: '◉' },
+      { href: '/admin/security', label: 'الأمان والأدوار', icon: '⌑' },
     ],
   },
 ];

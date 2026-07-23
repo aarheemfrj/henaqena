@@ -119,6 +119,17 @@ const authLimiter = createRateLimiter(5, 15 * 60 * 1000); // 5 attempts per 15 m
 const verificationLimiter = createRateLimiter(10, 60 * 60 * 1000); // 10 attempts per hour
 
 app.get('/health', (_req, res) => res.json({ ok: true, service: 'hena-qena-api' }));
+app.get('/api/bootstrap', async (_req, res, next) => {
+  try {
+    const [areas, categories, settings] = await Promise.all([
+      prisma.area.findMany({ where: { isActive: true }, orderBy: { name: 'asc' }, select: { id: true, name: true, city: true } }),
+      prisma.category.findMany({ where: { isActive: true }, orderBy: { name: 'asc' }, select: { id: true, name: true, slug: true } }),
+      prisma.platformSettings.upsert({ where: { id: 'default' }, update: {}, create: { id: 'default' } }),
+    ]);
+    res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+    res.json({ generatedAt: new Date().toISOString(), areas, categories, settings: { adRotationSeconds: settings.adRotationSeconds, dataRefreshSeconds: settings.dataRefreshSeconds } });
+  } catch (error) { next(error); }
+});
 app.get('/ready', async (_req, res) => {
   try { await prisma.$queryRaw`SELECT 1`; res.json({ ok: true, database: 'ready' }); } catch { res.status(503).json({ ok: false, database: 'unavailable' }); }
 });
@@ -386,6 +397,8 @@ app.get('/api/providers', async (req, res, next) => {
     let providers = await prisma.provider.findMany({
       where: {
         status: ReviewStatus.APPROVED,
+        archivedAt: null,
+        deletedAt: null,
         ...(verifiedOnly ? { isVerified: true } : {}),
         ...(areaId ? { areaId } : {}),
         ...(category ? { categories: { some: { category: { slug: category } } } } : {}),
@@ -518,13 +531,13 @@ app.get('/api/providers/:id', async (req, res, next) => {
   try {
     const session = await sessionFromRequest(req);
     const provider = await prisma.provider.findUnique({
-      where: { id: req.params.id },
+      where: { id: req.params.id, archivedAt: null, deletedAt: null },
       include: {
         area: true,
         images: { orderBy: { sortOrder: 'asc' } },
         categories: { include: { category: true } },
-        services: { where: { status: ReviewStatus.APPROVED }, orderBy: { createdAt: 'desc' } },
-        offers: { where: { status: ReviewStatus.APPROVED, startsAt: { lte: new Date() }, endsAt: { gte: new Date() } }, orderBy: { endsAt: 'asc' } },
+        services: { where: { status: ReviewStatus.APPROVED, archivedAt: null, deletedAt: null }, orderBy: { createdAt: 'desc' } },
+        offers: { where: { status: ReviewStatus.APPROVED, archivedAt: null, deletedAt: null, startsAt: { lte: new Date() }, endsAt: { gte: new Date() } }, orderBy: { endsAt: 'asc' } },
         reviews: { where: { status: ReviewStatus.APPROVED }, include: { author: { select: publicAuthorSelect }, replies: { where: { status: ReviewStatus.APPROVED }, include: { author: { select: publicAuthorSelect } } }, _count: { select: { helpfulVotes: true } } }, orderBy: { createdAt: 'desc' } },
         _count: { select: { favorites: true } },
       },
@@ -568,7 +581,7 @@ app.get('/api/offers', async (req, res, next) => {
     const areaId = typeof req.query.areaId === 'string' ? req.query.areaId : undefined;
     const now = new Date();
     const offers = await prisma.providerOffer.findMany({
-      where: { status: ReviewStatus.APPROVED, startsAt: { lte: now }, endsAt: { gte: now }, ...(areaId ? { provider: { areaId, status: ReviewStatus.APPROVED } } : { provider: { status: ReviewStatus.APPROVED } }) },
+      where: { status: ReviewStatus.APPROVED, archivedAt: null, deletedAt: null, startsAt: { lte: now }, endsAt: { gte: now }, ...(areaId ? { provider: { areaId, status: ReviewStatus.APPROVED, archivedAt: null, deletedAt: null } } : { provider: { status: ReviewStatus.APPROVED, archivedAt: null, deletedAt: null } }) },
       include: { provider: { select: { id: true, name: true, area: true } } },
       orderBy: { endsAt: 'asc' },
       take: 100,
@@ -588,6 +601,8 @@ app.get('/api/listings', async (req, res, next) => {
       prisma.listing.findMany({
         where: {
           status: ListingStatus.ACTIVE,
+          archivedAt: null,
+          deletedAt: null,
           ...(areaId ? { areaId } : {}),
           ...(category ? { category } : {}),
           ...(q ? { OR: [{ title: { contains: q, mode: 'insensitive' } }, { description: { contains: q, mode: 'insensitive' } }] } : {}),
@@ -605,6 +620,8 @@ app.get('/api/listings', async (req, res, next) => {
       prisma.listing.count({
         where: {
           status: ListingStatus.ACTIVE,
+          archivedAt: null,
+          deletedAt: null,
           ...(areaId ? { areaId } : {}),
           ...(category ? { category } : {}),
           ...(q ? { OR: [{ title: { contains: q, mode: 'insensitive' } }, { description: { contains: q, mode: 'insensitive' } }] } : {}),
@@ -859,7 +876,7 @@ app.get('/api/ads', async (req, res, next) => {
     const session = await sessionFromRequest(req);
     const areaId = typeof req.query.areaId === 'string' ? req.query.areaId : undefined;
     const now = new Date();
-    const ads = await prisma.ad.findMany({ where: { status: ReviewStatus.APPROVED, startsAt: { lte: now }, endsAt: { gte: now }, OR: [{ areaId: null }, ...(areaId ? [{ areaId }] : [])] }, include: { _count: { select: { reactions: true } } }, orderBy: [{ weight: 'desc' }, { reactions: { _count: 'desc' } }, { createdAt: 'desc' }] });
+    const ads = await prisma.ad.findMany({ where: { status: ReviewStatus.APPROVED, archivedAt: null, deletedAt: null, startsAt: { lte: now }, endsAt: { gte: now }, OR: [{ areaId: null }, ...(areaId ? [{ areaId }] : [])] }, include: { _count: { select: { reactions: true } } }, orderBy: [{ weight: 'desc' }, { reactions: { _count: 'desc' } }, { createdAt: 'desc' }] });
     const reactions = session ? await prisma.adReaction.findMany({ where: { userId: session.userId, adId: { in: ads.map((ad) => ad.id) } }, select: { adId: true } }) : [];
     const reactedIds = new Set(reactions.map((item) => item.adId));
     res.json(ads.map((ad) => ({ ...ad, viewerReacted: reactedIds.has(ad.id) })));
@@ -873,7 +890,7 @@ app.post('/api/ads/:id/react', async (req, res, next) => {
     const session = await sessionFromRequest(req);
     if (!session) return res.status(401).json({ message: 'سجّل الدخول أولاً' });
     const adId = String(req.params.id);
-    const ad = await prisma.ad.findFirst({ where: { id: adId, status: ReviewStatus.APPROVED, startsAt: { lte: new Date() }, endsAt: { gte: new Date() } } });
+    const ad = await prisma.ad.findFirst({ where: { id: adId, status: ReviewStatus.APPROVED, archivedAt: null, deletedAt: null, startsAt: { lte: new Date() }, endsAt: { gte: new Date() } } });
     if (!ad) return res.status(404).json({ message: 'الإعلان غير متاح' });
     const existing = await prisma.adReaction.findUnique({ where: { userId_adId: { userId: session.userId, adId } } });
     if (existing) await prisma.adReaction.delete({ where: { userId_adId: { userId: session.userId, adId } } });
@@ -898,7 +915,7 @@ app.get('/api/prices', async (req, res, next) => {
   try {
     const areaId = typeof req.query.areaId === 'string' ? req.query.areaId : undefined;
     const category = typeof req.query.category === 'string' ? req.query.category : undefined;
-    const prices = await prisma.priceGuide.findMany({ where: { status: ReviewStatus.APPROVED, ...(category ? { category } : {}), ...(areaId ? { OR: [{ areaId: null }, { areaId }] } : {}) }, include: { area: true }, orderBy: { updatedAt: 'desc' }, take: 100 });
+    const prices = await prisma.priceGuide.findMany({ where: { status: ReviewStatus.APPROVED, archivedAt: null, deletedAt: null, ...(category ? { category } : {}), ...(areaId ? { OR: [{ areaId: null }, { areaId }] } : {}) }, include: { area: true }, orderBy: { updatedAt: 'desc' }, take: 100 });
     res.json(prices);
   } catch (error) { next(error); }
 });
@@ -929,7 +946,7 @@ app.get('/api/now', async (req, res, next) => {
   try {
     const areaId = typeof req.query.areaId === 'string' ? req.query.areaId : undefined;
     const now = new Date();
-    const updates = await prisma.nowUpdate.findMany({ where: { status: ReviewStatus.APPROVED, startsAt: { lte: now }, ...(areaId ? { OR: [{ areaId: null }, { areaId }] } : {}), AND: [{ OR: [{ endsAt: null }, { endsAt: { gte: now } }] }] }, include: { area: true, _count: { select: { helpfulVotes: true } } }, orderBy: { createdAt: 'desc' }, take: 100 });
+    const updates = await prisma.nowUpdate.findMany({ where: { status: ReviewStatus.APPROVED, archivedAt: null, deletedAt: null, startsAt: { lte: now }, ...(areaId ? { OR: [{ areaId: null }, { areaId }] } : {}), AND: [{ OR: [{ endsAt: null }, { endsAt: { gte: now } }] }] }, include: { area: true, _count: { select: { helpfulVotes: true } } }, orderBy: { createdAt: 'desc' }, take: 100 });
     res.json(updates);
   } catch (error) { next(error); }
 });
@@ -1128,6 +1145,128 @@ app.get('/api/admin/audit', requireAdmin, async (req, res, next) => {
     res.json(logs);
   } catch (error) { next(error); }
 });
+
+const lifecycleEntitySchema = z.enum(['provider', 'service', 'offer', 'listing', 'ad', 'price', 'now', 'reply']);
+const lifecycleActionSchema = z.object({
+  action: z.enum(['ARCHIVE', 'RESTORE', 'DELETE', 'UNDELETE', 'PURGE']),
+  reason: z.string().trim().max(500).optional(),
+});
+
+app.get('/api/admin/archive', requireAdmin, async (req, res, next) => {
+  try {
+    const entity = lifecycleEntitySchema.parse(String(req.query.entity ?? 'provider'));
+    const includeActive = req.query.includeActive === 'true';
+    const where = includeActive ? {} : { OR: [{ archivedAt: { not: null } }, { deletedAt: { not: null } }] };
+    let items: unknown[];
+    if (entity === 'provider') items = await prisma.provider.findMany({ where, include: { area: true }, orderBy: { updatedAt: 'desc' }, take: 500 });
+    else if (entity === 'service') items = await prisma.providerService.findMany({ where, include: { provider: { select: { id: true, name: true } } }, orderBy: { updatedAt: 'desc' }, take: 500 });
+    else if (entity === 'offer') items = await prisma.providerOffer.findMany({ where, include: { provider: { select: { id: true, name: true } } }, orderBy: { createdAt: 'desc' }, take: 500 });
+    else if (entity === 'listing') items = await prisma.listing.findMany({ where, include: { area: true }, orderBy: { createdAt: 'desc' }, take: 500 });
+    else if (entity === 'ad') items = await prisma.ad.findMany({ where, include: { area: true }, orderBy: { createdAt: 'desc' }, take: 500 });
+    else if (entity === 'price') items = await prisma.priceGuide.findMany({ where, include: { area: true }, orderBy: { updatedAt: 'desc' }, take: 500 });
+    else if (entity === 'now') items = await prisma.nowUpdate.findMany({ where, include: { area: true }, orderBy: { updatedAt: 'desc' }, take: 500 });
+    else items = await prisma.reviewReply.findMany({ where, include: { author: { select: { id: true, name: true } } }, orderBy: { createdAt: 'desc' }, take: 500 });
+    res.json({ entity, items });
+  } catch (error) { next(error); }
+});
+
+app.get('/api/admin/catalog', requireAdmin, async (req, res, next) => {
+  try {
+    const entity = z.enum(['providers', 'listings', 'ads', 'services', 'offers', 'prices', 'now']).parse(String(req.query.entity ?? 'providers'));
+    const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+    const status = typeof req.query.status === 'string' ? req.query.status : undefined;
+    let items: unknown[];
+    if (entity === 'providers') items = await prisma.provider.findMany({ where: { ...(status ? { status: status as ReviewStatus } : {}), ...(q ? { name: { contains: q, mode: 'insensitive' } } : {}) }, include: { area: true }, orderBy: { updatedAt: 'desc' }, take: 500 });
+    else if (entity === 'listings') items = await prisma.listing.findMany({ where: { ...(status ? { status: status as ListingStatus } : {}), ...(q ? { title: { contains: q, mode: 'insensitive' } } : {}) }, include: { area: true }, orderBy: { createdAt: 'desc' }, take: 500 });
+    else if (entity === 'ads') items = await prisma.ad.findMany({ where: { ...(status ? { status: status as ReviewStatus } : {}), ...(q ? { name: { contains: q, mode: 'insensitive' } } : {}) }, orderBy: { createdAt: 'desc' }, take: 500 });
+    else if (entity === 'services') items = await prisma.providerService.findMany({ where: { ...(status ? { status: status as ReviewStatus } : {}), ...(q ? { name: { contains: q, mode: 'insensitive' } } : {}) }, include: { provider: { select: { id: true, name: true } } }, orderBy: { updatedAt: 'desc' }, take: 500 });
+    else if (entity === 'offers') items = await prisma.providerOffer.findMany({ where: { ...(status ? { status: status as ReviewStatus } : {}), ...(q ? { title: { contains: q, mode: 'insensitive' } } : {}) }, include: { provider: { select: { id: true, name: true } } }, orderBy: { createdAt: 'desc' }, take: 500 });
+    else if (entity === 'prices') items = await prisma.priceGuide.findMany({ where: { ...(status ? { status: status as ReviewStatus } : {}), ...(q ? { name: { contains: q, mode: 'insensitive' } } : {}) }, include: { area: true }, orderBy: { updatedAt: 'desc' }, take: 500 });
+    else items = await prisma.nowUpdate.findMany({ where: { ...(status ? { status: status as ReviewStatus } : {}), ...(q ? { title: { contains: q, mode: 'insensitive' } } : {}) }, include: { area: true }, orderBy: { updatedAt: 'desc' }, take: 500 });
+    res.json({ entity, items });
+  } catch (error) { next(error); }
+});
+
+app.get('/api/admin/review-queue', requireAdmin, async (_req, res, next) => {
+  try {
+    const [providers, listings, ads, services, offers, prices, now, reviews, replies] = await Promise.all([
+      prisma.provider.findMany({ where: { status: ReviewStatus.PENDING }, select: { id: true, name: true, createdAt: true } }),
+      prisma.listing.findMany({ where: { status: ListingStatus.PENDING }, select: { id: true, title: true, createdAt: true } }),
+      prisma.ad.findMany({ where: { status: ReviewStatus.PENDING }, select: { id: true, name: true, createdAt: true } }),
+      prisma.providerService.findMany({ where: { status: ReviewStatus.PENDING }, select: { id: true, name: true, createdAt: true, provider: { select: { name: true } } } }),
+      prisma.providerOffer.findMany({ where: { status: ReviewStatus.PENDING }, select: { id: true, title: true, createdAt: true, provider: { select: { name: true } } } }),
+      prisma.priceGuide.findMany({ where: { status: ReviewStatus.PENDING }, select: { id: true, name: true, createdAt: true } }),
+      prisma.nowUpdate.findMany({ where: { status: ReviewStatus.PENDING }, select: { id: true, title: true, createdAt: true } }),
+      prisma.review.findMany({ where: { status: ReviewStatus.PENDING }, select: { id: true, comment: true, createdAt: true } }),
+      prisma.reviewReply.findMany({ where: { status: ReviewStatus.PENDING }, select: { id: true, text: true, createdAt: true } }),
+    ]);
+    const items = [
+      ...providers.map((item) => ({ ...item, entity: 'provider', label: item.name })),
+      ...listings.map((item) => ({ ...item, entity: 'listing', label: item.title })),
+      ...ads.map((item) => ({ ...item, entity: 'ad', label: item.name })),
+      ...services.map((item) => ({ ...item, entity: 'service', label: item.name, context: item.provider.name })),
+      ...offers.map((item) => ({ ...item, entity: 'offer', label: item.title, context: item.provider.name })),
+      ...prices.map((item) => ({ ...item, entity: 'price', label: item.name })),
+      ...now.map((item) => ({ ...item, entity: 'now', label: item.title })),
+      ...reviews.map((item) => ({ ...item, entity: 'review', label: item.comment ?? 'تقييم بدون تعليق' })),
+      ...replies.map((item) => ({ ...item, entity: 'reply', label: item.text })),
+    ].sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime());
+    res.json({ items });
+  } catch (error) { next(error); }
+});
+
+app.get('/api/admin/reports/summary', requireAdmin, async (_req, res, next) => {
+  try {
+    const [providers, listings, ads, reviews, pendingProviders, pendingListings, pendingAds, missingProviderLocation, missingProviderPhone] = await Promise.all([
+      prisma.provider.count({ where: { deletedAt: null } }), prisma.listing.count({ where: { deletedAt: null } }), prisma.ad.count({ where: { deletedAt: null } }), prisma.review.count(),
+      prisma.provider.count({ where: { status: ReviewStatus.PENDING } }), prisma.listing.count({ where: { status: ListingStatus.PENDING } }), prisma.ad.count({ where: { status: ReviewStatus.PENDING } }),
+      prisma.provider.count({ where: { deletedAt: null, OR: [{ latitude: null }, { longitude: null }] } }), prisma.provider.count({ where: { deletedAt: null, phone: null } }),
+    ]);
+    res.json({ totals: { providers, listings, ads, reviews }, pending: { providers: pendingProviders, listings: pendingListings, ads: pendingAds }, quality: { missingProviderLocation, missingProviderPhone } });
+  } catch (error) { next(error); }
+});
+
+app.patch('/api/admin/lifecycle/:entity/:id', requireAdmin, async (req, res, next) => {
+  try {
+    const entity = lifecycleEntitySchema.parse(String(req.params.entity));
+    const { action, reason } = lifecycleActionSchema.parse(req.body);
+    if (action === 'PURGE') {
+      const expected = process.env.ADMIN_API_KEY ?? (process.env.NODE_ENV !== 'production' ? 'dev-henaqena-admin' : undefined);
+      const provided = typeof req.headers['x-admin-key'] === 'string' ? req.headers['x-admin-key'] : '';
+      const session = await adminSessionFromRequest(req);
+      if (!(expected && provided === expected) && (!session || session.admin.role !== 'OWNER')) return res.status(403).json({ message: 'الحذف النهائي متاح لمدير النظام فقط' });
+    }
+    const id = String(req.params.id);
+    const lifecycleData = action === 'ARCHIVE'
+      ? { archivedAt: new Date(), archiveReason: reason ?? null }
+      : action === 'DELETE'
+        ? { deletedAt: new Date(), archiveReason: reason ?? null }
+        : { archivedAt: null, deletedAt: null, archiveReason: null };
+    let item: unknown;
+    if (action === 'PURGE') {
+      if (entity === 'provider') item = await prisma.provider.delete({ where: { id } });
+      else if (entity === 'service') item = await prisma.providerService.delete({ where: { id } });
+      else if (entity === 'offer') item = await prisma.providerOffer.delete({ where: { id } });
+      else if (entity === 'listing') item = await prisma.listing.delete({ where: { id } });
+      else if (entity === 'ad') item = await prisma.ad.delete({ where: { id } });
+      else if (entity === 'price') item = await prisma.priceGuide.delete({ where: { id } });
+      else if (entity === 'now') item = await prisma.nowUpdate.delete({ where: { id } });
+      else item = await prisma.reviewReply.delete({ where: { id } });
+    } else {
+      if (entity === 'provider') item = await prisma.provider.update({ where: { id }, data: lifecycleData });
+      else if (entity === 'service') item = await prisma.providerService.update({ where: { id }, data: lifecycleData });
+      else if (entity === 'offer') item = await prisma.providerOffer.update({ where: { id }, data: lifecycleData });
+      else if (entity === 'listing') item = await prisma.listing.update({ where: { id }, data: lifecycleData });
+      else if (entity === 'ad') item = await prisma.ad.update({ where: { id }, data: lifecycleData });
+      else if (entity === 'price') item = await prisma.priceGuide.update({ where: { id }, data: lifecycleData });
+      else if (entity === 'now') item = await prisma.nowUpdate.update({ where: { id }, data: lifecycleData });
+      else item = await prisma.reviewReply.update({ where: { id }, data: lifecycleData });
+    }
+    await audit(`lifecycle.${action.toLowerCase()}`, entity, id, { reason });
+    res.json({ ok: true, entity, id, action, item });
+  } catch (error) { next(error); }
+});
+
 app.get('/api/admin/services', requireAdmin, async (_req, res, next) => { try { res.json(await prisma.providerService.findMany({ include: { provider: { select: { id: true, name: true } } }, orderBy: { createdAt: 'desc' }, take: 250 })); } catch (error) { next(error); } });
 app.get('/api/admin/offers', requireAdmin, async (_req, res, next) => { try { res.json(await prisma.providerOffer.findMany({ include: { provider: { select: { id: true, name: true } } }, orderBy: { createdAt: 'desc' }, take: 250 })); } catch (error) { next(error); } });
 app.patch('/api/admin/services/:id', requireAdmin, async (req, res, next) => { try { const { status } = moderationSchema.parse(req.body); const item = await prisma.providerService.update({ where: { id: String(req.params.id) }, data: { status } }); await audit(`service.${status.toLowerCase()}`, 'providerService', item.id, { status }); res.json(item); } catch (error) { next(error); } });
@@ -1256,6 +1395,124 @@ app.post('/api/admin/providers', requireAdmin, async (req, res, next) => {
     });
     await audit('provider.admin_create', 'provider', provider.id, { name: provider.name });
     res.status(201).json(provider);
+  } catch (error) { next(error); }
+});
+
+const canonicalImportRow = z.object({
+  externalId: z.string().trim().max(160).optional(),
+  name: z.string().trim().min(2).max(160),
+  category: z.string().trim().max(120).default('أخرى'),
+  subcategory: z.string().trim().max(120).optional(),
+  description: z.string().trim().max(1200).optional(),
+  city: z.string().trim().max(120).default('قنا'),
+  area: z.string().trim().max(120).default('قنا'),
+  village: z.string().trim().max(120).optional(),
+  address: z.string().trim().max(300).optional(),
+  phone: z.string().trim().max(40).optional(),
+  whatsapp: z.string().trim().max(40).optional(),
+  email: z.string().trim().email().max(180).optional().or(z.literal('')),
+  website: z.string().trim().max(300).optional(),
+  facebook: z.string().trim().max(300).optional(),
+  instagram: z.string().trim().max(300).optional(),
+  tiktok: z.string().trim().max(300).optional(),
+  latitude: z.coerce.number().min(-90).max(90).optional(),
+  longitude: z.coerce.number().min(-180).max(180).optional(),
+  openingTime: z.string().trim().max(20).optional(),
+  closingTime: z.string().trim().max(20).optional(),
+  openingHours: z.unknown().optional(),
+  serviceMode: z.enum(['LOCAL', 'ONLINE']).default('LOCAL'),
+  phoneType: z.enum(['BUSINESS', 'PERSONAL']).default('BUSINESS'),
+  isVerified: z.coerce.boolean().default(true),
+  imageUrls: z.array(z.string().trim().url().max(500)).max(10).default([]),
+});
+
+const canonicalImportSchema = z.object({
+  rows: z.array(z.record(z.string(), z.unknown())).min(1).max(10000),
+  publishMode: z.enum(['DIRECT', 'REVIEW']).default('DIRECT'),
+  duplicateMode: z.enum(['SKIP', 'UPDATE', 'CREATE']).default('UPDATE'),
+});
+
+const cleanImportUrl = (value?: string) => {
+  if (!value?.trim()) return undefined;
+  try { return new URL(value.trim()).toString(); } catch { return undefined; }
+};
+
+app.post('/api/admin/import/providers/v2', requireAdmin, async (req, res, next) => {
+  try {
+    const input = canonicalImportSchema.parse(req.body);
+    let created = 0; let updated = 0; let skipped = 0; let failed = 0;
+    const errors: string[] = [];
+
+    for (let index = 0; index < input.rows.length; index += 1) {
+      try {
+        const raw = input.rows[index];
+        const row = canonicalImportRow.parse({
+          ...raw,
+          imageUrls: Array.from({ length: 10 }, (_, imageIndex) => raw[`image_${imageIndex + 1}`]).filter((value): value is string => typeof value === 'string' && value.trim().length > 0),
+          latitude: raw.latitude === '' ? undefined : raw.latitude,
+          longitude: raw.longitude === '' ? undefined : raw.longitude,
+          openingHours: raw.openingHours || undefined,
+        });
+        const areaId = await resolveAreaId(undefined, row.area || row.city);
+        const categoryId = await resolveCategoryId(undefined, row.category);
+        const phone = row.phone || undefined;
+        const duplicate = row.externalId
+          ? await prisma.provider.findUnique({ where: { externalId: row.externalId } })
+          : await prisma.provider.findFirst({ where: { areaId, OR: [{ name: { equals: row.name, mode: 'insensitive' } }, ...(phone ? [{ phone }] : [])] } });
+
+        if (duplicate && input.duplicateMode === 'SKIP') { skipped += 1; continue; }
+        if (duplicate && input.duplicateMode === 'CREATE') {
+          row.externalId = undefined;
+        }
+
+        const status = input.publishMode === 'DIRECT' ? ReviewStatus.APPROVED : ReviewStatus.PENDING;
+        const providerData = {
+          externalId: row.externalId,
+          name: row.name,
+          description: row.description || row.subcategory || undefined,
+          phone,
+          whatsapp: row.whatsapp || undefined,
+          email: row.email || undefined,
+          website: cleanImportUrl(row.website),
+          facebookUrl: cleanImportUrl(row.facebook),
+          instagramUrl: cleanImportUrl(row.instagram),
+          tiktokUrl: cleanImportUrl(row.tiktok),
+          address: row.address || undefined,
+          latitude: row.latitude,
+          longitude: row.longitude,
+          areaId,
+          serviceMode: row.serviceMode,
+          phoneType: row.phoneType,
+          openingTime: row.openingTime || undefined,
+          closingTime: row.closingTime || undefined,
+          openingHours: row.openingHours ?? undefined,
+          communityAdded: false,
+          submissionKind: 'ADMIN_IMPORT',
+          status,
+          isVerified: input.publishMode === 'DIRECT' && row.isVerified,
+        };
+
+        let provider: { id: string };
+        if (duplicate && input.duplicateMode === 'UPDATE') {
+          provider = await prisma.provider.update({ where: { id: duplicate.id }, data: providerData });
+          await prisma.providerCategory.deleteMany({ where: { providerId: provider.id } });
+          await prisma.providerCategory.create({ data: { providerId: provider.id, categoryId } });
+          if (row.imageUrls.length) {
+            await prisma.providerImage.deleteMany({ where: { providerId: provider.id } });
+            await prisma.providerImage.createMany({ data: row.imageUrls.map((url, imageIndex) => ({ providerId: provider.id, url, sortOrder: imageIndex, kind: 'import' })) });
+          }
+          updated += 1;
+        } else {
+          provider = await prisma.provider.create({ data: { ...providerData, images: { create: (row.imageUrls.length ? row.imageUrls : ['/assets/brand/temp-logo-mark.svg']).map((url, imageIndex) => ({ url, sortOrder: imageIndex, kind: row.imageUrls.length ? 'import' : 'temporary' })) }, categories: { create: { categoryId } } } });
+          created += 1;
+        }
+        await audit('provider.imported', 'provider', provider.id, { mode: input.publishMode, duplicateMode: input.duplicateMode, row: index + 2 });
+      } catch (error) {
+        failed += 1;
+        errors.push(`السطر ${index + 2}: ${error instanceof Error ? error.message.slice(0, 180) : 'بيانات غير صالحة'}`);
+      }
+    }
+    res.status(201).json({ created, updated, skipped, failed, errors });
   } catch (error) { next(error); }
 });
 

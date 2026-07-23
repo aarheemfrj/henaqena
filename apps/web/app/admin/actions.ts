@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import { apiDelete, apiPatch, apiPost } from '@/lib/api';
 import { clearAdminSession, createAdminSession, hasAdminSession } from '@/lib/admin-session';
 import { getApiBaseUrl } from '@/lib/api';
+import * as XLSX from 'xlsx';
 
 export async function loginAdmin(formData: FormData) {
   const email = String(formData.get('email') ?? ''); const password = String(formData.get('password') ?? '');
@@ -124,10 +125,81 @@ export async function moderateReport(formData: FormData) {
   if (!await hasAdminSession()) redirect('/admin/login'); const id = String(formData.get('id') ?? ''); const status = String(formData.get('status') ?? ''); if (!id || !['APPROVED', 'REJECTED'].includes(status)) return; await apiPatch(`/api/admin/provider-reports/${id}`, { status }); revalidatePath('/admin/reports');
 }
 
+export async function updateLifecycle(formData: FormData) {
+  if (!await hasAdminSession()) redirect('/admin/login');
+  const entity = String(formData.get('entity') ?? '');
+  const id = String(formData.get('id') ?? '');
+  const action = String(formData.get('action') ?? '');
+  const reason = String(formData.get('reason') ?? '').trim();
+  if (!entity || !id || !['ARCHIVE', 'RESTORE', 'DELETE', 'UNDELETE', 'PURGE'].includes(action)) return;
+  await apiPatch(`/api/admin/lifecycle/${entity}/${id}`, { action, reason: reason || undefined });
+  revalidatePath('/admin/archive');
+  revalidatePath('/admin');
+  revalidatePath('/providers');
+  revalidatePath('/listings');
+  revalidatePath('/');
+}
+
+export async function moderateQueueItem(formData: FormData) {
+  if (!await hasAdminSession()) redirect('/admin/login');
+  const entity = String(formData.get('entity') ?? ''); const id = String(formData.get('id') ?? ''); const status = String(formData.get('status') ?? '');
+  if (!id || !['APPROVED', 'REJECTED', 'ACTIVE', 'ARCHIVED'].includes(status)) return;
+  const path = entity === 'provider' ? `/api/admin/providers/${id}` : entity === 'listing' ? `/api/admin/listings/${id}` : entity === 'ad' ? `/api/admin/ads/${id}` : entity === 'service' ? `/api/admin/services/${id}` : entity === 'offer' ? `/api/admin/offers/${id}` : entity === 'price' ? `/api/admin/prices/${id}` : entity === 'now' ? `/api/admin/now/${id}` : entity === 'review' ? `/api/admin/reviews/${id}` : `/api/admin/replies/${id}`;
+  await apiPatch(path, { status, note: String(formData.get('note') ?? '') || undefined });
+  revalidatePath('/admin/review-center'); revalidatePath('/admin'); revalidatePath('/');
+}
+
 export async function importProviders(formData: FormData) {
   if (!await hasAdminSession()) redirect('/admin/login');
   const file = formData.get('file'); if (!(file instanceof File)) return;
   const csv = await file.text(); await apiPost('/api/admin/import/providers', { csv }); revalidatePath('/admin/providers'); revalidatePath('/admin/import');
+}
+
+const importHeaderAliases: Record<string, string> = {
+  external_id: 'externalId', id: 'externalId', 'المعرف': 'externalId', 'كود النشاط': 'externalId',
+  name: 'name', 'الاسم': 'name', 'اسم النشاط': 'name',
+  category: 'category', 'الفئة': 'category', 'التصنيف': 'category',
+  subcategory: 'subcategory', 'التصنيف الفرعي': 'subcategory',
+  description: 'description', 'الوصف': 'description',
+  city: 'city', 'المدينة': 'city', center: 'area', area: 'area', 'المركز': 'area', 'المنطقة': 'area',
+  village: 'village', 'القرية': 'village', address: 'address', 'العنوان': 'address',
+  phone: 'phone', mobile: 'phone', 'الهاتف': 'phone', 'التليفون': 'phone', whatsapp: 'whatsapp', 'واتساب': 'whatsapp',
+  email: 'email', 'البريد': 'email', website: 'website', 'الموقع': 'website',
+  facebook: 'facebook', 'فيس بوك': 'facebook', instagram: 'instagram', 'انستاجرام': 'instagram', tiktok: 'tiktok', 'تيك توك': 'tiktok',
+  latitude: 'latitude', lat: 'latitude', 'خط العرض': 'latitude', longitude: 'longitude', lng: 'longitude', lon: 'longitude', 'خط الطول': 'longitude',
+  opening_time: 'openingTime', opening: 'openingTime', 'فتح': 'openingTime', 'مواعيد الفتح': 'openingTime',
+  closing_time: 'closingTime', closing: 'closingTime', 'غلق': 'closingTime', 'مواعيد الاغلاق': 'closingTime',
+  opening_hours: 'openingHours', 'مواعيد العمل': 'openingHours',
+  service_mode: 'serviceMode', 'نوع الخدمة': 'serviceMode', phone_type: 'phoneType', 'نوع الرقم': 'phoneType',
+  verified: 'isVerified', is_verified: 'isVerified', 'موثق': 'isVerified',
+};
+
+const normalizeImportHeader = (header: unknown) => {
+  const value = String(header ?? '').trim();
+  const key = value.toLowerCase().replace(/[\s-]+/g, '_');
+  return importHeaderAliases[key] ?? importHeaderAliases[value] ?? key;
+};
+
+export async function importProvidersV2(formData: FormData) {
+  if (!await hasAdminSession()) redirect('/admin/login');
+  const file = formData.get('file');
+  if (!(file instanceof File) || file.size === 0) redirect('/admin/import?error=file');
+  try {
+    const workbook = XLSX.read(new Uint8Array(await file.arrayBuffer()), { type: 'array', cellDates: false });
+    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+    if (!firstSheet) redirect('/admin/import?error=sheet');
+    const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(firstSheet, { defval: '' });
+    const rows = rawRows.map((raw) => Object.fromEntries(Object.entries(raw).map(([key, value]) => [normalizeImportHeader(key), value])));
+    const result = await apiPost<{ created: number; updated: number; skipped: number; failed: number; errors: string[] }>('/api/admin/import/providers/v2', {
+      rows,
+      publishMode: String(formData.get('publishMode') ?? 'DIRECT'),
+      duplicateMode: String(formData.get('duplicateMode') ?? 'UPDATE'),
+    });
+    revalidatePath('/admin/import'); revalidatePath('/admin/providers'); revalidatePath('/providers'); revalidatePath('/');
+    redirect(`/admin/import?created=${result.created}&updated=${result.updated}&skipped=${result.skipped}&failed=${result.failed}`);
+  } catch {
+    redirect('/admin/import?error=processing');
+  }
 }
 
 export async function moderateService(formData: FormData) { if (!await hasAdminSession()) redirect('/admin/login'); const id = String(formData.get('id') ?? ''); const status = String(formData.get('status') ?? ''); if (!id || !['APPROVED', 'REJECTED'].includes(status)) return; await apiPatch(`/api/admin/services/${id}`, { status }); revalidatePath('/admin/services'); }
