@@ -1720,6 +1720,7 @@ class HomeShell extends StatefulWidget {
 class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   int index = 0;
   int refreshEpoch = 0;
+  int unreadNotifications = 0;
   DateTime? backgroundedAt;
   List<Widget> get pages => [
     HomePage(key: ValueKey('home-$refreshEpoch')),
@@ -1741,12 +1742,39 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     index = value;
   });
 
+  Future<void> _loadUnreadNotifications() async {
+    if (!AuthSession.isSignedIn) {
+      if (mounted && unreadNotifications != 0) {
+        setState(() => unreadNotifications = 0);
+      }
+      return;
+    }
+    try {
+      final items = await ApiClient().fetchNotifications();
+      if (!mounted) return;
+      final count = items.where((item) => item['readAt'] == null).length;
+      if (count != unreadNotifications) {
+        setState(() => unreadNotifications = count);
+      }
+    } catch (_) {
+      // The badge is auxiliary; a temporary network failure must not block UI.
+    }
+  }
+
+  Future<void> _openNotifications() async {
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const NotificationsPage()));
+    await _loadUnreadNotifications();
+  }
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     // A fresh launch should prioritize the current platform data over cache.
     ApiClient().clearCache();
+    unawaited(_loadUnreadNotifications());
   }
 
   @override
@@ -1763,6 +1791,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       return;
     }
     if (state == AppLifecycleState.resumed) {
+      unawaited(_loadUnreadNotifications());
       final elapsed = backgroundedAt == null
           ? Duration.zero
           : DateTime.now().difference(backgroundedAt!);
@@ -1798,7 +1827,11 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
                 bottom: false,
                 child: Padding(
                   padding: EdgeInsets.fromLTRB(18, 10, 18, 0),
-                  child: PersistentTopActions(sectionIndex: index),
+                  child: PersistentTopActions(
+                    sectionIndex: index,
+                    notificationCount: unreadNotifications,
+                    onNotificationsTap: _openNotifications,
+                  ),
                 ),
               ),
             ),
@@ -1827,9 +1860,16 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
 }
 
 class PersistentTopActions extends StatelessWidget {
-  const PersistentTopActions({super.key, required this.sectionIndex});
+  const PersistentTopActions({
+    super.key,
+    required this.sectionIndex,
+    required this.notificationCount,
+    required this.onNotificationsTap,
+  });
 
   final int sectionIndex;
+  final int notificationCount;
+  final VoidCallback onNotificationsTap;
 
   void _openAdd(BuildContext context) {
     final options = switch (sectionIndex) {
@@ -1923,10 +1963,19 @@ class PersistentTopActions extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
         _TopActionButton(
-          onTap: () => Navigator.of(
-            context,
-          ).push(MaterialPageRoute(builder: (_) => const NotificationsPage())),
-          child: Icon(Icons.notifications_none, color: colors.primary),
+          onTap: onNotificationsTap,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Icon(Icons.notifications_none, color: colors.primary),
+              if (notificationCount > 0)
+                Positioned(
+                  top: -8,
+                  right: -8,
+                  child: _NotificationBadge(count: notificationCount),
+                ),
+            ],
+          ),
         ),
         const SizedBox(width: 8),
         _TopActionButton(
@@ -1968,6 +2017,39 @@ class _TopActionButton extends StatelessWidget {
       child: Padding(padding: const EdgeInsets.all(7), child: child),
     ),
   );
+}
+
+class _NotificationBadge extends StatelessWidget {
+  const _NotificationBadge({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = count > 9 ? '9+' : '$count';
+    return Container(
+      constraints: const BoxConstraints(minWidth: 17, minHeight: 17),
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFFD92D63),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.white, width: 1.5),
+        boxShadow: const [
+          BoxShadow(color: Colors.black12, blurRadius: 3, offset: Offset(0, 1)),
+        ],
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 9,
+          height: 1,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
 }
 
 class BasePage extends StatelessWidget {
