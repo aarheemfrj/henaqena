@@ -7630,6 +7630,15 @@ class _ListingDetailPageState extends State<ListingDetailPage> {
   }
 
   Future<void> _report() async {
+    if (!AuthSession.isSignedIn) {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const AuthPage(returnOnSuccess: true),
+        ),
+      );
+      if (!AuthSession.isSignedIn || !mounted) return;
+    }
     final reason = await showModalBottomSheet<String>(
       context: context,
       useSafeArea: true,
@@ -7670,16 +7679,12 @@ class _ListingDetailPageState extends State<ListingDetailPage> {
       ).showSnackBar(const SnackBar(content: Text('تم إرسال البلاغ للمراجعة')));
     } catch (error) {
       if (!mounted) return;
-      if (error.toString().contains('unauthorized')) {
-        await Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const AuthPage()),
-        );
-        return;
-      }
+      final message = error.toString().contains('report_exists')
+          ? 'تم إرسال بلاغ على هذا الإعلان من قبل وهو قيد المراجعة'
+          : 'تعذر إرسال البلاغ، حاول مرة أخرى';
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('تعذر إرسال البلاغ')));
+      ).showSnackBar(SnackBar(content: Text(message)));
     }
   }
 

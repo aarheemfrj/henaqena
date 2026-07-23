@@ -677,7 +677,12 @@ app.post('/api/listings/:id/reports', async (req, res, next) => {
     const session = await sessionFromRequest(req);
     if (!session) return res.status(401).json({ message: 'سجّل الدخول أولاً' });
     const input = z.object({ reason: z.string().trim().min(3).max(300) }).parse(req.body);
-    const report = await prisma.listingReport.create({ data: { listingId: String(req.params.id), userId: session.userId, reason: input.reason } });
+    const listingId = String(req.params.id);
+    const listing = await prisma.listing.findUnique({ where: { id: listingId }, select: { id: true } });
+    if (!listing) return res.status(404).json({ message: 'الإعلان غير موجود' });
+    const pending = await prisma.listingReport.findFirst({ where: { listingId, userId: session.userId, status: ReviewStatus.PENDING }, select: { id: true } });
+    if (pending) return res.status(409).json({ message: 'تم إرسال بلاغ على هذا الإعلان من قبل وهو قيد المراجعة' });
+    const report = await prisma.listingReport.create({ data: { listingId, userId: session.userId, reason: input.reason } });
     res.status(201).json({ id: report.id, status: report.status });
   } catch (error) { next(error); }
 });

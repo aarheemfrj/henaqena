@@ -1335,6 +1335,7 @@ class ApiClient {
         )
         .timeout(const Duration(seconds: 8));
     if (response.statusCode == 401) throw Exception('unauthorized');
+    if (response.statusCode == 409) throw Exception('report_exists');
     if (response.statusCode != 201) throw Exception('listing_report_error');
   }
 
