@@ -2214,10 +2214,10 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _loadCategories() async {
     try {
-      final categories = await ApiClient().fetchCategories();
+      final bootstrap = await ApiClient().fetchBootstrap();
       if (!mounted) return;
       setState(() {
-        categoryItems = categories.map((item) => item.name).toList();
+        categoryItems = bootstrap.categories.map((item) => item.name).toList();
       });
     } catch (_) {
       // Home stays usable without the category rail if the platform is unreachable.
@@ -2228,10 +2228,10 @@ class _HomePageState extends State<HomePage> {
     try {
       final results = await Future.wait([
         ApiClient().fetchMe(),
-        ApiClient().fetchAreas(),
+        ApiClient().fetchBootstrap(),
       ]);
       final profile = results[0] as Map<String, dynamic>;
-      final areas = results[1] as List<AreaOption>;
+      final areas = (results[1] as BootstrapData).areas;
       final preferredIds = (profile['preferredAreaIds'] as List<dynamic>? ?? [])
           .cast<String>();
       final interests = (profile['interests'] as List<dynamic>? ?? [])
@@ -9691,6 +9691,7 @@ class _AddActivityPageState extends State<AddActivityPage> {
   bool needsBooking = false;
   bool open24h = false;
   bool hasDelivery = false;
+  late Future<BootstrapData> bootstrap;
   late Future<List<AreaOption>> areas;
   late Future<List<CategoryOption>> categories;
 
@@ -9726,8 +9727,9 @@ class _AddActivityPageState extends State<AddActivityPage> {
   @override
   void initState() {
     super.initState();
-    areas = api.fetchAreas();
-    categories = api.fetchCategories();
+    bootstrap = api.fetchBootstrap();
+    areas = bootstrap.then((data) => data.areas);
+    categories = bootstrap.then((data) => data.categories);
     _restoreDraft();
   }
 

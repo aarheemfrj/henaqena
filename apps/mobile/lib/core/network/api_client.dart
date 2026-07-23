@@ -272,6 +272,23 @@ class AreaOption {
       AreaOption(id: json['id'] as String, name: json['name'] as String);
 }
 
+class BootstrapData {
+  const BootstrapData({required this.categories, required this.areas, required this.settings});
+  final List<CategoryOption> categories;
+  final List<AreaOption> areas;
+  final Map<String, dynamic> settings;
+
+  factory BootstrapData.fromJson(Map<String, dynamic> json) => BootstrapData(
+    categories: (json['categories'] as List<dynamic>? ?? [])
+        .map((item) => CategoryOption.fromJson(Map<String, dynamic>.from(item as Map)))
+        .toList(),
+    areas: (json['areas'] as List<dynamic>? ?? [])
+        .map((item) => AreaOption.fromJson(Map<String, dynamic>.from(item as Map)))
+        .toList(),
+    settings: Map<String, dynamic>.from((json['settings'] as Map?)?.cast<String, dynamic>() ?? const {}),
+  );
+}
+
 String? _absoluteUrl(String baseUrl, String? value) {
   if (value == null || value.isEmpty) return null;
   // Old seed rows may still point at a deleted placeholder asset. Treat it as
@@ -338,6 +355,33 @@ class ApiClient {
       }
     } catch (e) {
       // Ignore cache clear errors
+    }
+  }
+
+  /// Loads the small reference-data bundle used during app startup in one
+  /// request. A short-lived network refresh is preferred; the last bundle is
+  /// used for up to seven days when the device is offline.
+  Future<BootstrapData> fetchBootstrap({bool forceRefresh = false}) async {
+    const cacheKey = 'bootstrap';
+    try {
+      if (!forceRefresh) {
+        final fresh = await _cacheGet(cacheKey, maxAge: const Duration(minutes: 2));
+        if (fresh != null && fresh.isNotEmpty) return BootstrapData.fromJson(Map<String, dynamic>.from(fresh.first as Map));
+      }
+      final response = await http.get(Uri.parse('$baseUrl/api/bootstrap')).timeout(const Duration(seconds: 4));
+      if (response.statusCode != 200) throw Exception('bootstrap_error');
+      final data = Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+      await _cacheSet(cacheKey, [data]);
+      // Keep the legacy caches warm for screens that still request a list
+      // independently (add-activity and profile preferences).
+      await _cacheSet('categories', (data['categories'] as List<dynamic>? ?? []));
+      await _cacheSet('areas', (data['areas'] as List<dynamic>? ?? []));
+      await _cacheSet('platform_settings', [data['settings'] ?? const {}]);
+      return BootstrapData.fromJson(data);
+    } catch (_) {
+      final cached = await _cacheGet(cacheKey, maxAge: const Duration(days: 7));
+      if (cached != null && cached.isNotEmpty) return BootstrapData.fromJson(Map<String, dynamic>.from(cached.first as Map));
+      rethrow;
     }
   }
 
