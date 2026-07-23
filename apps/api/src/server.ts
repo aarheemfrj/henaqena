@@ -1137,6 +1137,124 @@ app.post('/api/admin/providers', requireAdmin, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+const canonicalImportRow = z.object({
+  externalId: z.string().trim().max(160).optional(),
+  name: z.string().trim().min(2).max(160),
+  category: z.string().trim().max(120).default('أخرى'),
+  subcategory: z.string().trim().max(120).optional(),
+  description: z.string().trim().max(1200).optional(),
+  city: z.string().trim().max(120).default('قنا'),
+  area: z.string().trim().max(120).default('قنا'),
+  village: z.string().trim().max(120).optional(),
+  address: z.string().trim().max(300).optional(),
+  phone: z.string().trim().max(40).optional(),
+  whatsapp: z.string().trim().max(40).optional(),
+  email: z.string().trim().email().max(180).optional().or(z.literal('')),
+  website: z.string().trim().max(300).optional(),
+  facebook: z.string().trim().max(300).optional(),
+  instagram: z.string().trim().max(300).optional(),
+  tiktok: z.string().trim().max(300).optional(),
+  latitude: z.coerce.number().min(-90).max(90).optional(),
+  longitude: z.coerce.number().min(-180).max(180).optional(),
+  openingTime: z.string().trim().max(20).optional(),
+  closingTime: z.string().trim().max(20).optional(),
+  openingHours: z.unknown().optional(),
+  serviceMode: z.enum(['LOCAL', 'ONLINE']).default('LOCAL'),
+  phoneType: z.enum(['BUSINESS', 'PERSONAL']).default('BUSINESS'),
+  isVerified: z.coerce.boolean().default(true),
+  imageUrls: z.array(z.string().trim().url().max(500)).max(10).default([]),
+});
+
+const canonicalImportSchema = z.object({
+  rows: z.array(z.record(z.string(), z.unknown())).min(1).max(10000),
+  publishMode: z.enum(['DIRECT', 'REVIEW']).default('DIRECT'),
+  duplicateMode: z.enum(['SKIP', 'UPDATE', 'CREATE']).default('UPDATE'),
+});
+
+const cleanImportUrl = (value?: string) => {
+  if (!value?.trim()) return undefined;
+  try { return new URL(value.trim()).toString(); } catch { return undefined; }
+};
+
+app.post('/api/admin/import/providers/v2', requireAdmin, async (req, res, next) => {
+  try {
+    const input = canonicalImportSchema.parse(req.body);
+    let created = 0; let updated = 0; let skipped = 0; let failed = 0;
+    const errors: string[] = [];
+
+    for (let index = 0; index < input.rows.length; index += 1) {
+      try {
+        const raw = input.rows[index];
+        const row = canonicalImportRow.parse({
+          ...raw,
+          imageUrls: Array.from({ length: 10 }, (_, imageIndex) => raw[`image_${imageIndex + 1}`]).filter((value): value is string => typeof value === 'string' && value.trim().length > 0),
+          latitude: raw.latitude === '' ? undefined : raw.latitude,
+          longitude: raw.longitude === '' ? undefined : raw.longitude,
+          openingHours: raw.openingHours || undefined,
+        });
+        const areaId = await resolveAreaId(undefined, row.area || row.city);
+        const categoryId = await resolveCategoryId(undefined, row.category);
+        const phone = row.phone || undefined;
+        const duplicate = row.externalId
+          ? await prisma.provider.findUnique({ where: { externalId: row.externalId } })
+          : await prisma.provider.findFirst({ where: { areaId, OR: [{ name: { equals: row.name, mode: 'insensitive' } }, ...(phone ? [{ phone }] : [])] } });
+
+        if (duplicate && input.duplicateMode === 'SKIP') { skipped += 1; continue; }
+        if (duplicate && input.duplicateMode === 'CREATE') {
+          row.externalId = undefined;
+        }
+
+        const status = input.publishMode === 'DIRECT' ? ReviewStatus.APPROVED : ReviewStatus.PENDING;
+        const providerData = {
+          externalId: row.externalId,
+          name: row.name,
+          description: row.description || row.subcategory || undefined,
+          phone,
+          whatsapp: row.whatsapp || undefined,
+          email: row.email || undefined,
+          website: cleanImportUrl(row.website),
+          facebookUrl: cleanImportUrl(row.facebook),
+          instagramUrl: cleanImportUrl(row.instagram),
+          tiktokUrl: cleanImportUrl(row.tiktok),
+          address: row.address || undefined,
+          latitude: row.latitude,
+          longitude: row.longitude,
+          areaId,
+          serviceMode: row.serviceMode,
+          phoneType: row.phoneType,
+          openingTime: row.openingTime || undefined,
+          closingTime: row.closingTime || undefined,
+          openingHours: row.openingHours ?? undefined,
+          communityAdded: false,
+          submissionKind: 'ADMIN_IMPORT',
+          status,
+          isVerified: input.publishMode === 'DIRECT' && row.isVerified,
+        };
+
+        let provider: { id: string };
+        if (duplicate && input.duplicateMode === 'UPDATE') {
+          provider = await prisma.provider.update({ where: { id: duplicate.id }, data: providerData });
+          await prisma.providerCategory.deleteMany({ where: { providerId: provider.id } });
+          await prisma.providerCategory.create({ data: { providerId: provider.id, categoryId } });
+          if (row.imageUrls.length) {
+            await prisma.providerImage.deleteMany({ where: { providerId: provider.id } });
+            await prisma.providerImage.createMany({ data: row.imageUrls.map((url, imageIndex) => ({ providerId: provider.id, url, sortOrder: imageIndex, kind: 'import' })) });
+          }
+          updated += 1;
+        } else {
+          provider = await prisma.provider.create({ data: { ...providerData, images: { create: (row.imageUrls.length ? row.imageUrls : ['/assets/brand/temp-logo-mark.svg']).map((url, imageIndex) => ({ url, sortOrder: imageIndex, kind: row.imageUrls.length ? 'import' : 'temporary' })) }, categories: { create: { categoryId } } } });
+          created += 1;
+        }
+        await audit('provider.imported', 'provider', provider.id, { mode: input.publishMode, duplicateMode: input.duplicateMode, row: index + 2 });
+      } catch (error) {
+        failed += 1;
+        errors.push(`السطر ${index + 2}: ${error instanceof Error ? error.message.slice(0, 180) : 'بيانات غير صالحة'}`);
+      }
+    }
+    res.status(201).json({ created, updated, skipped, failed, errors });
+  } catch (error) { next(error); }
+});
+
 app.get('/api/admin/provider-reports', requireAdmin, async (_req, res, next) => {
   try { res.json(await prisma.providerReport.findMany({ include: { provider: true, reporter: true }, orderBy: { createdAt: 'desc' }, take: 100 })); } catch (error) { next(error); }
 });

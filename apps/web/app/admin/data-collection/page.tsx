@@ -4,9 +4,8 @@ import { apiGet } from '@/lib/api';
 import { hasAdminSession } from '@/lib/admin-session';
 import { RecordsPanel } from './RecordsPanel';
 import { DuplicatesPanel } from './DuplicatesPanel';
-import { JobLauncherCard } from './JobLauncherCard';
 import { JobsTable } from './JobsTable';
-import type { CollectedBusiness, CollectedRecordStatus, DataCollectionOverview, DataSourceOption, DuplicateCandidate, RecordsPage } from './types';
+import type { CollectedBusiness, CollectedRecordStatus, DataCollectionOverview, DuplicateCandidate, RecordsPage } from './types';
 
 const RECORDS_PAGE_SIZE = 50;
 
@@ -34,11 +33,9 @@ export default async function DataCollectionAdminPage({ searchParams }: { search
   const query = await searchParams;
   const tab = query.tab === 'duplicates' || query.tab === 'jobs' ? query.tab : 'records';
 
-  const [overview, sourcesResult] = await Promise.all([
+  const [overview] = await Promise.all([
     apiGet<DataCollectionOverview>('/api/admin/data-collection/overview', { admin: true })
       .catch(() => ({ statuses: {}, unresolvedDuplicates: 0, latestJobs: [] } as DataCollectionOverview)),
-    apiGet<{ items: DataSourceOption[] }>('/api/admin/data-collection/sources', { admin: true })
-      .catch(() => ({ items: [] as DataSourceOption[] })),
   ]);
 
   const totalRecords = Object.values(overview.statuses).reduce((sum, count) => sum + (count ?? 0), 0);
@@ -93,8 +90,9 @@ export default async function DataCollectionAdminPage({ searchParams }: { search
       <div className="stat"><small>آخر مهام الاستيراد</small><strong>{overview.latestJobs.length}</strong></div>
     </section>
 
-    <section className="section">
-      <JobLauncherCard sources={sourcesResult.items} />
+    <section className="section surface" style={{ padding: 18 }}>
+      <div className="sectionHead" style={{ marginBottom: 0 }}><div><span className="eyebrow">استيراد موحد</span><h2 style={{ margin: 0 }}>تريد إضافة بيانات من ملف؟</h2></div><Link className="primaryButton" href="/admin/import">فتح مركز الاستيراد</Link></div>
+      <p className="pageLead" style={{ marginBottom: 0 }}>كل عمليات Excel وCSV أصبحت في مركز واحد مع القوالب، المعاينة، كشف التكرار، والتحديث المباشر.</p>
     </section>
 
     <div className="tabBar">

@@ -159,11 +159,17 @@ model Area {
 
 model Provider {
   id             String             @id @default(cuid())
+  externalId     String?            @unique
   name           String
   description    String?
   logoUrl        String?
   phone          String?
   whatsapp       String?
+  email          String?
+  website        String?
+  facebookUrl    String?
+  instagramUrl   String?
+  tiktokUrl      String?
   socialPlatform String?
   socialUrl      String?
   address        String?
@@ -173,6 +179,7 @@ model Provider {
   phoneType      String             @default("BUSINESS")
   openingTime    String?
   closingTime    String?
+  openingHours   Json?
   communityAdded Boolean            @default(true)
   submissionKind String             @default("COMMUNITY")
   isVerified     Boolean            @default(false)
