@@ -6160,7 +6160,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                 final score =
                     ((review['quality'] as int? ?? 0) +
                         (review['commitment'] as int? ?? 0) +
-                        (review['value'] as int? ?? 0)) ~/
+                        (review['value'] as int? ?? 0)) /
                     3;
                 final reviewId = review['id'] as String;
                 final replies = (review['replies'] as List<dynamic>? ?? []).map(
@@ -6277,7 +6277,7 @@ class CommentBubble extends StatelessWidget {
   final String name;
   final String initial;
   final String text;
-  final int rating;
+  final double rating;
   final String timeLabel;
   final int helpfulCount;
   final bool helpfulActive;
@@ -6353,7 +6353,7 @@ class CommentBubble extends StatelessWidget {
                   Row(
                     children: [
                       Text(
-                        '$rating',
+                        rating.toStringAsFixed(1),
                         style: TextStyle(
                           color: teal,
                           fontWeight: FontWeight.w700,
