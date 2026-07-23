@@ -1054,6 +1054,34 @@ app.get('/api/admin/catalog', requireAdmin, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+app.get('/api/admin/review-queue', requireAdmin, async (_req, res, next) => {
+  try {
+    const [providers, listings, ads, services, offers, prices, now, reviews, replies] = await Promise.all([
+      prisma.provider.findMany({ where: { status: ReviewStatus.PENDING }, select: { id: true, name: true, createdAt: true } }),
+      prisma.listing.findMany({ where: { status: ListingStatus.PENDING }, select: { id: true, title: true, createdAt: true } }),
+      prisma.ad.findMany({ where: { status: ReviewStatus.PENDING }, select: { id: true, name: true, createdAt: true } }),
+      prisma.providerService.findMany({ where: { status: ReviewStatus.PENDING }, select: { id: true, name: true, createdAt: true, provider: { select: { name: true } } } }),
+      prisma.providerOffer.findMany({ where: { status: ReviewStatus.PENDING }, select: { id: true, title: true, createdAt: true, provider: { select: { name: true } } } }),
+      prisma.priceGuide.findMany({ where: { status: ReviewStatus.PENDING }, select: { id: true, name: true, createdAt: true } }),
+      prisma.nowUpdate.findMany({ where: { status: ReviewStatus.PENDING }, select: { id: true, title: true, createdAt: true } }),
+      prisma.review.findMany({ where: { status: ReviewStatus.PENDING }, select: { id: true, comment: true, createdAt: true } }),
+      prisma.reviewReply.findMany({ where: { status: ReviewStatus.PENDING }, select: { id: true, text: true, createdAt: true } }),
+    ]);
+    const items = [
+      ...providers.map((item) => ({ ...item, entity: 'provider', label: item.name })),
+      ...listings.map((item) => ({ ...item, entity: 'listing', label: item.title })),
+      ...ads.map((item) => ({ ...item, entity: 'ad', label: item.name })),
+      ...services.map((item) => ({ ...item, entity: 'service', label: item.name, context: item.provider.name })),
+      ...offers.map((item) => ({ ...item, entity: 'offer', label: item.title, context: item.provider.name })),
+      ...prices.map((item) => ({ ...item, entity: 'price', label: item.name })),
+      ...now.map((item) => ({ ...item, entity: 'now', label: item.title })),
+      ...reviews.map((item) => ({ ...item, entity: 'review', label: item.comment ?? 'تقييم بدون تعليق' })),
+      ...replies.map((item) => ({ ...item, entity: 'reply', label: item.text })),
+    ].sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime());
+    res.json({ items });
+  } catch (error) { next(error); }
+});
+
 app.patch('/api/admin/lifecycle/:entity/:id', requireAdmin, async (req, res, next) => {
   try {
     const entity = lifecycleEntitySchema.parse(String(req.params.entity));

@@ -140,6 +140,15 @@ export async function updateLifecycle(formData: FormData) {
   revalidatePath('/');
 }
 
+export async function moderateQueueItem(formData: FormData) {
+  if (!await hasAdminSession()) redirect('/admin/login');
+  const entity = String(formData.get('entity') ?? ''); const id = String(formData.get('id') ?? ''); const status = String(formData.get('status') ?? '');
+  if (!id || !['APPROVED', 'REJECTED', 'ACTIVE', 'ARCHIVED'].includes(status)) return;
+  const path = entity === 'provider' ? `/api/admin/providers/${id}` : entity === 'listing' ? `/api/admin/listings/${id}` : entity === 'ad' ? `/api/admin/ads/${id}` : entity === 'service' ? `/api/admin/services/${id}` : entity === 'offer' ? `/api/admin/offers/${id}` : entity === 'price' ? `/api/admin/prices/${id}` : entity === 'now' ? `/api/admin/now/${id}` : entity === 'review' ? `/api/admin/reviews/${id}` : `/api/admin/replies/${id}`;
+  await apiPatch(path, { status, note: String(formData.get('note') ?? '') || undefined });
+  revalidatePath('/admin/review-center'); revalidatePath('/admin'); revalidatePath('/');
+}
+
 export async function importProviders(formData: FormData) {
   if (!await hasAdminSession()) redirect('/admin/login');
   const file = formData.get('file'); if (!(file instanceof File)) return;
