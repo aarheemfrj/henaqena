@@ -1087,7 +1087,7 @@ app.patch('/api/admin/backups/schedule', requireAdminRoles(['OWNER']), async (re
   } catch (error) { next(error); }
 });
 
-const resetScope = z.enum(['providers', 'listings', 'reviews', 'ads', 'prices', 'now', 'users', 'notifications', 'audit', 'uploads']);
+const resetScope = z.enum(['providers', 'listings', 'reviews', 'ads', 'prices', 'now', 'users', 'notifications', 'audit', 'uploads', 'categories']);
 app.post('/api/admin/maintenance/reset', requireAdminRoles(['OWNER']), async (req, res, next) => {
   try {
     const { scopes, confirm } = z.object({ scopes: z.array(resetScope).min(1), confirm: z.literal('RESET_HENA_QENA') }).parse(req.body);
@@ -1099,6 +1099,11 @@ app.post('/api/admin/maintenance/reset', requireAdminRoles(['OWNER']), async (re
       if (unique.includes('ads')) { await tx.adReaction.deleteMany(); await tx.ad.deleteMany(); }
       if (unique.includes('prices')) await tx.priceGuide.deleteMany();
       if (unique.includes('now')) { await tx.nowHelpful.deleteMany(); await tx.nowUpdate.deleteMany(); }
+      if (unique.includes('categories')) {
+        // Categories with no provider data are disposable; categories that are
+        // still referenced remain visible and keep their relationships intact.
+        await tx.category.deleteMany({ where: { providers: { none: {} } } });
+      }
       if (unique.includes('notifications')) await tx.notification.deleteMany();
       if (unique.includes('users')) { await tx.session.deleteMany(); await tx.verificationCode.deleteMany(); await tx.user.deleteMany({ where: { role: { not: 'SYSTEM' } } }); }
       if (unique.includes('audit')) await tx.auditLog.deleteMany();

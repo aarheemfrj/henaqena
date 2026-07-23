@@ -10,7 +10,7 @@ const labels: Record<Schedule['interval'], string> = { '3d': 'كل 3 أيام', 
 const scopes = [
   ['providers', 'الأنشطة والخدمات الأساسية'], ['listings', 'الإعلانات المحلية'], ['reviews', 'التقييمات والردود'],
   ['ads', 'إعلانات الرئيسية'], ['prices', 'دليل الأسعار'], ['now', 'دلوقتي'], ['users', 'حسابات المستخدمين'],
-  ['notifications', 'الإشعارات'], ['audit', 'سجل العمليات'], ['uploads', 'الصور والملفات المرفوعة'],
+  ['notifications', 'الإشعارات'], ['audit', 'سجل العمليات'], ['uploads', 'الصور والملفات المرفوعة'], ['categories', 'الفئات غير المستخدمة'],
 ];
 
 function formatBytes(bytes: number) { return `${(bytes / 1024 / 1024).toFixed(2)} MB`; }
@@ -35,7 +35,7 @@ export default async function MaintenancePage() {
     <section className="surface section table"><div className="sectionHead"><h2>النسخ الموجودة</h2><span className="badge">{result.backups.length}</span></div>
       {result.backups.length === 0 ? <p className="empty">لا توجد نسخ محفوظة بعد.</p> : <table><thead><tr><th>الملف</th><th>الحجم</th><th>الإجراءات</th></tr></thead><tbody>{result.backups.map((backup) => <tr key={backup.filename}><td dir="ltr">{backup.filename}</td><td>{formatBytes(backup.size)}</td><td><div className="actionRow"><form action={restoreDatabaseBackup}><input type="hidden" name="filename" value={backup.filename} /><button className="approveButton" type="submit">استرجاع</button></form><form action={deleteDatabaseBackup}><input type="hidden" name="filename" value={backup.filename} /><button className="rejectButton" type="submit">حذف</button></form></div></td></tr>)}</tbody></table>}
     </section>
-    <section className="surface section"><div className="sectionHead"><h2>ضبط المصنع — حذف اختياري</h2><span className="badge">خطر</span></div><p className="muted">اختر ما تريد حذفه فقط. المناطق والتصنيفات وإعدادات المنصة لا تُحذف بهذا الإجراء.</p>
+    <section className="surface section"><div className="sectionHead"><h2>ضبط المصنع — حذف اختياري</h2><span className="badge">خطر</span></div><p className="muted">اختر ما تريد حذفه فقط. الفئات غير المستخدمة فقط يتم حذفها؛ الفئات المرتبطة بأنشطة تظل محفوظة.</p>
       <form action={factoryReset} className="formGrid dangerPanel">
         {scopes.map(([value, label]) => <label key={value}><input type="checkbox" name="scopes" value={value} /> {label}</label>)}
         <label>للتأكيد اكتب <code>RESET_HENA_QENA</code><input name="confirm" required placeholder="RESET_HENA_QENA" /></label>
