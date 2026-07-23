@@ -96,32 +96,29 @@ class ProviderSummary {
   // Display image: the owner's uploaded logo, falling back to the first
   // photo -- callers fall back further to a category icon when this is null.
   String? get displayImageUrl => logoUrl ?? imageUrl;
-  factory ProviderSummary.fromJson(
-    Map<String, dynamic> json,
-    String baseUrl,
-  ) => ProviderSummary(
-    id: json['id'] as String,
-    name: json['name'] as String,
-    description: json['description'] as String?,
-    address: json['address'] as String?,
-    latitude: (json['latitude'] as num?)?.toDouble(),
-    longitude: (json['longitude'] as num?)?.toDouble(),
-    logoUrl: _absoluteUrl(baseUrl, json['logoUrl'] as String?),
-    categoryName: _firstCategoryName(json['categories']),
-    imageUrl: _absoluteUrl(
-      baseUrl,
-      (json['images'] as List<dynamic>?)?.isNotEmpty == true
-          ? ((json['images'] as List<dynamic>).first
-                    as Map<String, dynamic>)['url']
-                as String?
-          : null,
-    ),
-    subtitle:
-        '${json['area']?['name'] ?? 'قنا'}${json['isVerified'] == true ? ' · موثق' : ''}',
-    rating: (json['rating'] as num? ?? 0).toDouble(),
-    reviewCount: (json['reviewCount'] as num? ?? 0).toInt(),
-    isVerified: json['isVerified'] == true,
-  );
+  factory ProviderSummary.fromJson(Map<String, dynamic> json, String baseUrl) =>
+      ProviderSummary(
+        id: json['id'] as String,
+        name: json['name'] as String,
+        description: json['description'] as String?,
+        address: json['address'] as String?,
+        latitude: (json['latitude'] as num?)?.toDouble(),
+        longitude: (json['longitude'] as num?)?.toDouble(),
+        logoUrl: _absoluteUrl(baseUrl, json['logoUrl'] as String?),
+        categoryName: _firstCategoryName(json['categories']),
+        imageUrl: _absoluteUrl(
+          baseUrl,
+          (json['images'] as List<dynamic>?)?.isNotEmpty == true
+              ? ((json['images'] as List<dynamic>).first
+                        as Map<String, dynamic>)['url']
+                    as String?
+              : null,
+        ),
+        subtitle: '${json['area']?['name'] ?? 'قنا'}',
+        rating: (json['rating'] as num? ?? 0).toDouble(),
+        reviewCount: (json['reviewCount'] as num? ?? 0).toInt(),
+        isVerified: json['isVerified'] == true,
+      );
 }
 
 String? _firstCategoryName(dynamic categoriesJson) {
