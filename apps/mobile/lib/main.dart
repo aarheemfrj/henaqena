@@ -3629,13 +3629,20 @@ class _MiniItemState extends State<MiniItem> {
               ),
               if (widget.isVerified) ...[
                 const SizedBox(width: 6),
-                Container(
-                  padding: const EdgeInsets.all(2),
-                  decoration: BoxDecoration(
-                    color: teal,
-                    shape: BoxShape.circle,
+                Transform.translate(
+                  offset: const Offset(0, -1.5),
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      color: teal,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.check,
+                      size: 11,
+                      color: Colors.white,
+                    ),
                   ),
-                  child: const Icon(Icons.check, size: 11, color: Colors.white),
                 ),
               ],
             ],
@@ -3645,22 +3652,24 @@ class _MiniItemState extends State<MiniItem> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                widget.subtitle,
+                [
+                  if (widget.categoryName?.isNotEmpty == true)
+                    widget.categoryName!,
+                  if (widget.subtitle.trim().isNotEmpty) widget.subtitle,
+                  if (widget.reviewCount > 0) '${widget.reviewCount} تقييم',
+                ].join(' · '),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: muted, fontSize: 12),
-              ),
-              if (widget.categoryName?.isNotEmpty == true)
-                Text(
-                  '${widget.categoryName}${widget.reviewCount > 0 ? ' · ${widget.reviewCount} تقييم' : ''}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: deepTeal,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                  ),
+                style: TextStyle(
+                  color: widget.categoryName?.isNotEmpty == true
+                      ? deepTeal
+                      : muted,
+                  fontSize: 11,
+                  fontWeight: widget.categoryName?.isNotEmpty == true
+                      ? FontWeight.w600
+                      : FontWeight.normal,
                 ),
+              ),
             ],
           ),
         ),
