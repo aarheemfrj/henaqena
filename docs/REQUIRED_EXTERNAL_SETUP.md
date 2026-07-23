@@ -14,6 +14,9 @@
 - المعرّف الموحد المحجوز في المشروع: `com.maalsoft.henaqena` لـ iOS وAndroid.
 - Google Cloud: أنشئ OAuth Client لكل من iOS وAndroid وWeb، وضع Client IDs العامة في `GOOGLE_CLIENT_IDS` على الـ API.
 - شغّل التطبيق مع `--dart-define=GOOGLE_CLIENT_ID=... --dart-define=GOOGLE_SERVER_CLIENT_ID=...`.
+- iOS: استخدم Client ID الخاص بـ iOS كـ `GOOGLE_CLIENT_ID`، وClient ID الخاص بـ Web كـ `GOOGLE_SERVER_CLIENT_ID`.
+- Android: استخدم Client ID الخاص بـ Android كـ `GOOGLE_CLIENT_ID`، وClient ID الخاص بـ Web كـ `GOOGLE_SERVER_CLIENT_ID`.
+- قيمة `GOOGLE_CLIENT_IDS` في الخادم تقبل قائمة مفصولة بفواصل وتشمل معرّفات Web وiOS وAndroid حتى يقبل الخادم أي منصة موثوقة.
 - Apple Developer: فعّل Sign in with Apple للـ App ID، وأنشئ Service ID وKey وReturn URL على دومين HTTPS.
 - ضع App ID وService ID المسموحين في `APPLE_CLIENT_IDS` على الـ API، وشغّل التطبيق مع `APPLE_SERVICE_ID` و`APPLE_REDIRECT_URI`.
 - التطبيق يرسل Identity Token للخادم؛ الخادم يتحقق من التوقيع والمصدر و`audience` من مفاتيح Google/Apple العامة قبل إنشاء جلسة هنا قنا.
