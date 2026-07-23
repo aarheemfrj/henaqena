@@ -576,6 +576,48 @@ class _AuthPageState extends State<AuthPage> {
     }
   }
 
+  Future<void> _socialSignIn(String provider) async {
+    final configured = provider == 'google'
+        ? SocialAuthConfig.googleReady
+        : SocialAuthConfig.appleReady;
+    if (!configured) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'المسار جاهز ويحتاج بيانات ${provider == 'google' ? 'Google Cloud' : 'Apple Developer'} وقت النشر.',
+          ),
+        ),
+      );
+      return;
+    }
+    setState(() => submitting = true);
+    try {
+      final service = SocialAuthService();
+      if (provider == 'google') {
+        await service.signInWithGoogle();
+      } else {
+        await service.signInWithApple();
+      }
+      if (!mounted) return;
+      final navigator = Navigator.of(context);
+      if (widget.returnOnSuccess && navigator.canPop()) {
+        navigator.pop(true);
+      } else {
+        navigator.pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const HomeShell()),
+          (_) => false,
+        );
+      }
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تعذر إكمال الدخول. حاول مرة تانية.')),
+      );
+    } finally {
+      if (mounted) setState(() => submitting = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Directionality(
     textDirection: TextDirection.rtl,
@@ -694,6 +736,22 @@ class _AuthPageState extends State<AuthPage> {
                 createAccount ? 'عندي حساب بالفعل' : 'إنشاء حساب جديد',
               ),
             ),
+            if (!createAccount) ...[
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: submitting ? null : () => _socialSignIn('google'),
+                icon: const Icon(Icons.g_mobiledata, size: 28),
+                label: const Text('المتابعة باستخدام Google'),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(48),
+                  foregroundColor: deepTeal,
+                  side: const BorderSide(color: Color(0xFFD6E5E2)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+              ),
+            ],
             if (!createAccount)
               TextButton(
                 onPressed: submitting
