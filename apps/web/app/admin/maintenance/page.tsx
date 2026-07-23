@@ -1,7 +1,7 @@
 import { apiGet } from '@/lib/api';
 import { hasAdminSession } from '@/lib/admin-session';
 import { redirect } from 'next/navigation';
-import { createDatabaseBackup, deleteDatabaseBackup, factoryReset, restoreDatabaseBackup, updateBackupSchedule } from '../actions';
+import { createDatabaseBackup, deleteDatabaseBackup, factoryReset, fullFactoryReset, restoreDatabaseBackup, updateBackupSchedule } from '../actions';
 
 export const dynamic = 'force-dynamic';
 type Backup = { filename: string; size: number };
@@ -15,11 +15,22 @@ const scopes = [
 
 function formatBytes(bytes: number) { return `${(bytes / 1024 / 1024).toFixed(2)} MB`; }
 
-export default async function MaintenancePage() {
+export default async function MaintenancePage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   if (!await hasAdminSession()) redirect('/admin/login');
+  const query = await searchParams;
   const result = await apiGet<{ backups: Backup[]; schedule: Schedule }>('/api/admin/backups', { admin: true });
+  const errorMessage = query.error === 'full-password'
+    ? 'اكتب كلمة مرور الحساب الرئيسي.'
+    : query.error === 'full-confirm'
+    ? 'اكتب عبارة التأكيد كاملة قبل المسح الشامل.'
+    : query.error === 'full-reset'
+    ? 'تعذر تنفيذ المسح الشامل. تأكد من كلمة المرور وصلاحية المالك.'
+    : query.error === 'confirm'
+    ? 'عبارة تأكيد ضبط المصنع غير صحيحة.'
+    : null;
   return <section>
     <div className="sectionHead"><div><span className="eyebrow">الأمان والاستمرارية</span><h1 className="pageTitle">النسخ والصيانة</h1></div></div>
+    {errorMessage && <p className="formError">{errorMessage}</p>}
     <p className="pageLead">كل عملية حساسة تحتاج صلاحية المالك وتُسجل في سجل العمليات. النسخ الاحتياطي لا يحذف أي بيانات.</p>
     <div className="adminLayout">
       <section className="surface section"><div className="sectionHead"><h2>نسخ احتياطي تلقائي</h2><span className="badge">{result.schedule.enabled ? 'مفعل' : 'متوقف'}</span></div>
@@ -40,6 +51,14 @@ export default async function MaintenancePage() {
         {scopes.map(([value, label]) => <label key={value}><input type="checkbox" name="scopes" value={value} /> {label}</label>)}
         <label>للتأكيد اكتب <code>RESET_HENA_QENA</code><input name="confirm" required placeholder="RESET_HENA_QENA" /></label>
         <button className="rejectButton" type="submit">تنفيذ الحذف المحدد</button>
+      </form>
+    </section>
+    <section className="surface section dangerPanel"><div className="sectionHead"><div><h2>مسح شامل لقاعدة البيانات</h2><p className="muted">يمسح كل الأنشطة والإعلانات والمستخدمين والإعدادات والملفات، ثم يعيد إنشاء حساب المدير الأساسي فقط.</p></div><span className="badge">خطر شديد</span></div>
+      <p className="muted">سيبقى حساب المدير الأساسي محفوظًا للمنصة والتطبيق: <strong dir="ltr">aarheemfrj@gmail.com · 01092034981</strong>. سيتم إنهاء جلسة الإدارة بعد التنفيذ، وسجّل الدخول من جديد.</p>
+      <form action={fullFactoryReset} className="formGrid">
+        <label>كلمة مرور الحساب الرئيسي<input name="ownerPassword" type="password" required autoComplete="current-password" /></label>
+        <label>للتأكيد اكتب <code>WIPE_HENA_QENA</code><input name="confirm" required placeholder="WIPE_HENA_QENA" /></label>
+        <button className="rejectButton" type="submit">مسح شامل وإبقاء حساب المدير</button>
       </form>
     </section>
   </section>;

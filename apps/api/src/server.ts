@@ -1098,6 +1098,20 @@ app.patch('/api/admin/backups/schedule', requireAdminRoles(['OWNER']), async (re
 });
 
 const resetScope = z.enum(['providers', 'listings', 'reviews', 'ads', 'prices', 'now', 'users', 'notifications', 'audit', 'uploads', 'categories']);
+const primaryOwnerEmail = (process.env.PRIMARY_OWNER_EMAIL ?? 'aarheemfrj@gmail.com').trim().toLowerCase();
+const primaryOwnerPhone = process.env.PRIMARY_OWNER_PHONE ?? '01092034981';
+const primaryOwnerName = process.env.PRIMARY_OWNER_NAME ?? 'Ahmed Abd-Elrheem';
+const fullResetTables = [
+  'AdminSession', 'Session', 'VerificationCode', 'AuditLog', 'ProviderReport',
+  'ProviderImage', 'ProviderFavorite', 'FavoriteList', 'SavedSearch',
+  'ProviderService', 'ProviderOffer', 'ProviderCategory', 'ListingFavorite',
+  'ListingInterest', 'ListingReport', 'ListingImage', 'ReviewHelpful',
+  'ReviewReply', 'AdReaction', 'NowHelpful', 'Notification', 'SupportTicket',
+  'DuplicateCandidate', 'CollectedBusiness', 'CollectionJob', 'DataSource',
+  'Provider', 'Listing', 'Review', 'Ad', 'PriceGuide', 'NowUpdate',
+  'Category', 'Area', 'PlatformSettings', 'User', 'AdminAccount',
+] as const;
+
 app.post('/api/admin/maintenance/reset', requireAdminRoles(['OWNER']), async (req, res, next) => {
   try {
     const { scopes, confirm } = z.object({ scopes: z.array(resetScope).min(1), confirm: z.literal('RESET_HENA_QENA') }).parse(req.body);
@@ -1115,12 +1129,75 @@ app.post('/api/admin/maintenance/reset', requireAdminRoles(['OWNER']), async (re
         await tx.category.deleteMany({ where: { providers: { none: {} } } });
       }
       if (unique.includes('notifications')) await tx.notification.deleteMany();
-      if (unique.includes('users')) { await tx.session.deleteMany(); await tx.verificationCode.deleteMany(); await tx.user.deleteMany({ where: { role: { not: 'SYSTEM' } } }); }
+      if (unique.includes('users')) {
+        await tx.session.deleteMany();
+        await tx.verificationCode.deleteMany();
+        await tx.user.deleteMany({ where: { AND: [{ role: { not: 'SYSTEM' } }, { email: { not: primaryOwnerEmail } }, { phone: { not: primaryOwnerPhone } }] } });
+        const owner = await tx.adminAccount.findUnique({ where: { email: primaryOwnerEmail } });
+        if (owner) {
+          await tx.user.upsert({
+            where: { email: primaryOwnerEmail },
+            update: { name: primaryOwnerName, phone: primaryOwnerPhone, passwordHash: owner.passwordHash, role: 'ADMIN', phoneVerifiedAt: new Date(), emailVerifiedAt: new Date(), authProvider: 'password' },
+            create: { name: primaryOwnerName, email: primaryOwnerEmail, phone: primaryOwnerPhone, passwordHash: owner.passwordHash, role: 'ADMIN', phoneVerifiedAt: new Date(), emailVerifiedAt: new Date(), authProvider: 'password' },
+          });
+        }
+      }
       if (unique.includes('audit')) await tx.auditLog.deleteMany();
     });
     if (unique.includes('uploads')) { await rm(uploadRoot, { recursive: true, force: true }); await mkdir(uploadRoot, { recursive: true }); }
     await audit('maintenance.reset', 'database', 'scoped-reset', { scopes: unique });
     res.json({ reset: true, scopes: unique });
+  } catch (error) { next(error); }
+});
+
+app.post('/api/admin/maintenance/reset-all', requireAdminRoles(['OWNER']), async (req, res, next) => {
+  try {
+    const input = z.object({
+      ownerPassword: z.string().min(1).max(128),
+      confirm: z.literal('WIPE_HENA_QENA'),
+    }).parse(req.body);
+    const owner = await prisma.adminAccount.findUnique({ where: { email: primaryOwnerEmail } });
+    if (!owner || owner.role !== 'OWNER' || !owner.isActive || !(await verifyPassword(input.ownerPassword, owner.passwordHash))) {
+      return res.status(401).json({ message: 'كلمة مرور الحساب الرئيسي غير صحيحة' });
+    }
+
+    // The owner hash is retained in memory, then the database is truncated in
+    // one transaction and both control-plane/app identities are recreated.
+    await prisma.$transaction(async (tx) => {
+      const tables = fullResetTables.map((table) => `"${table}"`).join(', ');
+      await tx.$executeRawUnsafe(`TRUNCATE TABLE ${tables} RESTART IDENTITY CASCADE`);
+      await tx.adminAccount.create({
+        data: {
+          name: primaryOwnerName,
+          email: primaryOwnerEmail,
+          passwordHash: owner.passwordHash,
+          role: 'OWNER',
+          isActive: true,
+        },
+      });
+      await tx.user.create({
+        data: {
+          name: primaryOwnerName,
+          email: primaryOwnerEmail,
+          phone: primaryOwnerPhone,
+          passwordHash: owner.passwordHash,
+          phoneVerifiedAt: new Date(),
+          emailVerifiedAt: new Date(),
+          authProvider: 'password',
+          role: 'ADMIN',
+        },
+      });
+    });
+    let uploadsCleared = true;
+    try {
+      await rm(uploadRoot, { recursive: true, force: true });
+      await mkdir(uploadRoot, { recursive: true });
+    } catch (error) {
+      uploadsCleared = false;
+      console.error('Full reset database completed but uploads cleanup failed', error);
+    }
+    console.warn(`Full Hena Qena reset completed by primary owner ${primaryOwnerEmail}`);
+    res.json({ reset: true, preserved: { email: primaryOwnerEmail, phone: primaryOwnerPhone }, uploadsCleared });
   } catch (error) { next(error); }
 });
 

@@ -294,3 +294,23 @@ export async function factoryReset(formData: FormData) {
   revalidatePath('/admin');
   revalidatePath('/admin/maintenance');
 }
+
+export async function fullFactoryReset(formData: FormData) {
+  if (!await hasAdminSession()) redirect('/admin/login');
+  if (String(formData.get('confirm') ?? '') !== 'WIPE_HENA_QENA') {
+    redirect('/admin/maintenance?error=full-confirm');
+  }
+  const ownerPassword = String(formData.get('ownerPassword') ?? '');
+  if (!ownerPassword) redirect('/admin/maintenance?error=full-password');
+  try {
+    await apiPost('/api/admin/maintenance/reset-all', {
+      ownerPassword,
+      confirm: 'WIPE_HENA_QENA',
+    });
+  } catch {
+    redirect('/admin/maintenance?error=full-reset');
+  }
+  revalidatePath('/admin');
+  revalidatePath('/admin/maintenance');
+  redirect('/admin/login?reset=1');
+}
