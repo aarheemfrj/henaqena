@@ -40,6 +40,7 @@ const groups = [
     items: [
       { href: '/admin/users', label: 'المستخدمون', icon: '◎' },
       { href: '/admin/team', label: 'فريق العمل', icon: '◉' },
+      { href: '/admin/security', label: 'الأمان والأدوار', icon: '⌑' },
     ],
   },
 ];
