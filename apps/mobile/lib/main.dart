@@ -5649,37 +5649,34 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
     ).showSnackBar(SnackBar(content: Text(unavailable)));
   }
 
+  Future<void> _openReview() async {
+    if (widget.providerId == null) return;
+    if (!AuthSession.isSignedIn) {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const AuthPage(returnOnSuccess: true),
+        ),
+      );
+      if (!AuthSession.isSignedIn || !mounted) return;
+    }
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ReviewPage(
+          providerId: widget.providerId!,
+          providerName: widget.title,
+        ),
+      ),
+    );
+    if (mounted) _reload();
+  }
+
   @override
   Widget build(BuildContext context) => Directionality(
     textDirection: TextDirection.rtl,
     child: Scaffold(
       appBar: HenaAppBar(title: const Text('تفاصيل المكان')),
-      floatingActionButton: widget.providerId == null
-          ? null
-          : FloatingActionButton.extended(
-              onPressed: () async {
-                if (!AuthSession.isSignedIn) {
-                  await Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const AuthPage()),
-                  );
-                  if (!AuthSession.isSignedIn || !context.mounted) return;
-                }
-                await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => ReviewPage(
-                      providerId: widget.providerId!,
-                      providerName: widget.title,
-                    ),
-                  ),
-                );
-                _reload();
-              },
-              backgroundColor: teal,
-              icon: const Icon(Icons.star_border),
-              label: const Text('أضف تقييمك'),
-            ),
       body: FutureBuilder<ProviderDetails?>(
         future: details,
         builder: (context, snapshot) {
@@ -5831,7 +5828,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                   ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: OutlinedButton.icon(
+                    child: FilledButton.icon(
                       onPressed: (data?.whatsapp ?? data?.phone) == null
                           ? null
                           : () => _external(
@@ -5849,35 +5846,44 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                       ),
                     ),
                   ),
-                  if (SocialPlatform.of(data?.socialPlatform)
-                      case final social?) ...[
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: social.color,
-                          side: BorderSide(
-                            color: social.color.withValues(alpha: .4),
-                          ),
-                        ),
-                        onPressed: () => _external(
-                          AppActions.openUrl(data?.socialUrl),
-                          'تعذر فتح الرابط',
-                        ),
-                        icon: FaIcon(social.icon, size: 16),
-                        label: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: Text(
-                            social.label,
-                            maxLines: 1,
-                            softWrap: false,
-                          ),
-                        ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: FilledButton.icon(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFFD92D63),
+                        foregroundColor: Colors.white,
+                      ),
+                      onPressed: _openReview,
+                      icon: const Icon(Icons.star_border),
+                      label: const FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text('تقييم', maxLines: 1, softWrap: false),
                       ),
                     ),
-                  ],
+                  ),
                 ],
               ),
+              if (SocialPlatform.of(data?.socialPlatform)
+                  case final social?) ...[
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: social.color,
+                      side: BorderSide(
+                        color: social.color.withValues(alpha: .4),
+                      ),
+                    ),
+                    onPressed: () => _external(
+                      AppActions.openUrl(data?.socialUrl),
+                      'تعذر فتح الرابط',
+                    ),
+                    icon: FaIcon(social.icon, size: 16),
+                    label: Text(social.label),
+                  ),
+                ),
+              ],
               const SizedBox(height: 8),
               Row(
                 children: [
