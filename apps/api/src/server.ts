@@ -80,6 +80,17 @@ const authLimiter = createRateLimiter(5, 15 * 60 * 1000); // 5 attempts per 15 m
 const verificationLimiter = createRateLimiter(10, 60 * 60 * 1000); // 10 attempts per hour
 
 app.get('/health', (_req, res) => res.json({ ok: true, service: 'hena-qena-api' }));
+app.get('/api/bootstrap', async (_req, res, next) => {
+  try {
+    const [areas, categories, settings] = await Promise.all([
+      prisma.area.findMany({ where: { isActive: true }, orderBy: { name: 'asc' }, select: { id: true, name: true, city: true } }),
+      prisma.category.findMany({ where: { isActive: true }, orderBy: { name: 'asc' }, select: { id: true, name: true, slug: true } }),
+      prisma.platformSettings.upsert({ where: { id: 'default' }, update: {}, create: { id: 'default' } }),
+    ]);
+    res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+    res.json({ generatedAt: new Date().toISOString(), areas, categories, settings: { adRotationSeconds: settings.adRotationSeconds, dataRefreshSeconds: settings.dataRefreshSeconds } });
+  } catch (error) { next(error); }
+});
 app.get('/ready', async (_req, res) => {
   try { await prisma.$queryRaw`SELECT 1`; res.json({ ok: true, database: 'ready' }); } catch { res.status(503).json({ ok: false, database: 'unavailable' }); }
 });
