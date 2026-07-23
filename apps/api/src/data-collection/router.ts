@@ -13,6 +13,32 @@ import { isSafeExternalUrl } from './social-enrichment';
 
 const RUNNABLE_SOURCES = new Set(['google-maps', 'osm']);
 
+const defaultDataSources = [
+  { id: 'manual-csv', name: 'Manual CSV Import', kind: 'CSV', isActive: true },
+  { id: 'google-maps', name: 'Google Maps', kind: 'MAPS', isActive: false },
+  { id: 'facebook', name: 'Facebook', kind: 'SOCIAL', isActive: false },
+  { id: 'instagram', name: 'Instagram', kind: 'SOCIAL', isActive: false },
+  { id: 'tiktok', name: 'TikTok', kind: 'SOCIAL', isActive: false },
+] as const;
+
+// Production uses `prisma db push`, which creates the table but does not run
+// INSERT statements from the migration. Keep the source catalog self-healing
+// so a fresh deployment never renders an empty source selector.
+const ensureDefaultDataSources = async (prisma: PrismaClient) => {
+  for (const source of defaultDataSources) {
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO "DataSource" ("id", "name", "kind", "isActive")
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT ("id") DO UPDATE
+       SET "name" = EXCLUDED."name", "kind" = EXCLUDED."kind", "isActive" = EXCLUDED."isActive", "updatedAt" = NOW()`,
+      source.id,
+      source.name,
+      source.kind,
+      source.isActive,
+    );
+  }
+};
+
 const csvUpload = multer({
   dest: os.tmpdir(),
   limits: { fileSize: 5 * 1024 * 1024 },
@@ -30,6 +56,7 @@ export const createDataCollectionRouter = (prisma: PrismaClient): Router => {
 
   router.get('/sources', async (_req, res, next) => {
     try {
+      await ensureDefaultDataSources(prisma);
       const sources = await prisma.$queryRawUnsafe<Array<{ id: string; name: string; kind: string; isActive: boolean }>>(
         `SELECT "id", "name", "kind", "isActive" FROM "DataSource" ORDER BY "name" ASC`,
       );
@@ -264,6 +291,7 @@ export const createDataCollectionRouter = (prisma: PrismaClient): Router => {
 
   router.post('/jobs', async (req, res, next) => {
     try {
+      await ensureDefaultDataSources(prisma);
       const input = z.object({
         sourceId: z.string().min(1, 'مصدر البيانات مطلوب'),
         category: z.string().min(1, 'الفئة مطلوبة'),
@@ -457,6 +485,7 @@ export const createDataCollectionRouter = (prisma: PrismaClient): Router => {
 
   router.post('/jobs/manual', async (req, res, next) => {
     try {
+      await ensureDefaultDataSources(prisma);
       const input = z.object({
         sourceId: z.string().default('manual-csv'),
         category: z.string().nullable().optional(),
