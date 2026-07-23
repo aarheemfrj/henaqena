@@ -1037,6 +1037,23 @@ app.get('/api/admin/archive', requireAdmin, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+app.get('/api/admin/catalog', requireAdmin, async (req, res, next) => {
+  try {
+    const entity = z.enum(['providers', 'listings', 'ads', 'services', 'offers', 'prices', 'now']).parse(String(req.query.entity ?? 'providers'));
+    const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+    const status = typeof req.query.status === 'string' ? req.query.status : undefined;
+    let items: unknown[];
+    if (entity === 'providers') items = await prisma.provider.findMany({ where: { ...(status ? { status: status as ReviewStatus } : {}), ...(q ? { name: { contains: q, mode: 'insensitive' } } : {}) }, include: { area: true }, orderBy: { updatedAt: 'desc' }, take: 500 });
+    else if (entity === 'listings') items = await prisma.listing.findMany({ where: { ...(status ? { status: status as ListingStatus } : {}), ...(q ? { title: { contains: q, mode: 'insensitive' } } : {}) }, include: { area: true }, orderBy: { createdAt: 'desc' }, take: 500 });
+    else if (entity === 'ads') items = await prisma.ad.findMany({ where: { ...(status ? { status: status as ReviewStatus } : {}), ...(q ? { name: { contains: q, mode: 'insensitive' } } : {}) }, orderBy: { createdAt: 'desc' }, take: 500 });
+    else if (entity === 'services') items = await prisma.providerService.findMany({ where: { ...(status ? { status: status as ReviewStatus } : {}), ...(q ? { name: { contains: q, mode: 'insensitive' } } : {}) }, include: { provider: { select: { id: true, name: true } } }, orderBy: { updatedAt: 'desc' }, take: 500 });
+    else if (entity === 'offers') items = await prisma.providerOffer.findMany({ where: { ...(status ? { status: status as ReviewStatus } : {}), ...(q ? { title: { contains: q, mode: 'insensitive' } } : {}) }, include: { provider: { select: { id: true, name: true } } }, orderBy: { createdAt: 'desc' }, take: 500 });
+    else if (entity === 'prices') items = await prisma.priceGuide.findMany({ where: { ...(status ? { status: status as ReviewStatus } : {}), ...(q ? { name: { contains: q, mode: 'insensitive' } } : {}) }, include: { area: true }, orderBy: { updatedAt: 'desc' }, take: 500 });
+    else items = await prisma.nowUpdate.findMany({ where: { ...(status ? { status: status as ReviewStatus } : {}), ...(q ? { title: { contains: q, mode: 'insensitive' } } : {}) }, include: { area: true }, orderBy: { updatedAt: 'desc' }, take: 500 });
+    res.json({ entity, items });
+  } catch (error) { next(error); }
+});
+
 app.patch('/api/admin/lifecycle/:entity/:id', requireAdmin, async (req, res, next) => {
   try {
     const entity = lifecycleEntitySchema.parse(String(req.params.entity));

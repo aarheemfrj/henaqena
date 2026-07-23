@@ -30,6 +30,7 @@ const groups = [
       { href: '/admin/import', label: 'استيراد البيانات', icon: '⇩' },
       { href: '/admin/data-collection', label: 'تجميع البيانات', icon: '⌘' },
       { href: '/admin/archive', label: 'الأرشيف والاسترجاع', icon: '↺' },
+      { href: '/admin/catalog', label: 'سجل البيانات', icon: '▤' },
     ],
   },
   {
