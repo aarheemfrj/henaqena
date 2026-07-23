@@ -9484,22 +9484,42 @@ class _NotificationsPageState extends State<NotificationsPage> {
     await next;
   }
 
+  Future<void> _openNotification(Map<String, dynamic> item) async {
+    if (item['readAt'] == null) {
+      await api.markNotificationRead(item['id'] as String);
+      await _reload();
+    }
+    if (!mounted) return;
+    final targetType = item['targetType'] as String?;
+    final targetId = item['targetId'] as String?;
+    if (targetId == null || targetId.isEmpty) return;
+    if (targetType == 'provider') {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ProviderDetailPage(
+            providerId: targetId,
+            title: 'النشاط المرتبط',
+            icon: Icons.storefront_outlined,
+            subtitle: 'قنا',
+          ),
+        ),
+      );
+    } else if (targetType == 'listing') {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ListingDetailPage(listingId: targetId),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Directionality(
     textDirection: TextDirection.rtl,
     child: Scaffold(
-      appBar: HenaAppBar(
-        title: const Text('الإشعارات'),
-        actions: [
-          TextButton(
-            onPressed: () async {
-              await api.markAllNotificationsRead();
-              await _reload();
-            },
-            child: const Text('تحديد الكل'),
-          ),
-        ],
-      ),
+      appBar: HenaAppBar(title: const Text('الإشعارات')),
       body: FutureBuilder<List<Map<String, dynamic>>>(
         future: notifications,
         builder: (context, snapshot) {
@@ -9531,25 +9551,33 @@ class _NotificationsPageState extends State<NotificationsPage> {
             child: ListView(
               padding: const EdgeInsets.all(18),
               children: [
-                Text(
-                  'الإشعارات',
-                  style: TextStyle(
-                    color: deepTeal,
-                    fontWeight: FontWeight.w700,
-                  ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Text(
+                      'الإشعارات',
+                      style: TextStyle(
+                        color: deepTeal,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () async {
+                        await api.markAllNotificationsRead();
+                        await _reload();
+                      },
+                      child: const Text('قراءة الكل'),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 4),
                 ...items.asMap().entries.map((entry) {
                   final item = entry.value;
                   return MotionIn(
                     delay: entry.key * 50,
                     child: GestureDetector(
-                      onTap: () async {
-                        if (item['readAt'] == null) {
-                          await api.markNotificationRead(item['id'] as String);
-                          await _reload();
-                        }
-                      },
+                      onTap: () => _openNotification(item),
                       child: _NotificationCard(
                         icon: Icons.notifications_none,
                         title: item['title'] as String? ?? 'تحديث جديد',

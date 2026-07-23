@@ -1332,7 +1332,7 @@ app.patch('/api/admin/providers/:id', requireAdmin, async (req, res, next) => {
   try {
     const input = moderationWithNoteSchema.parse(req.body);
     const provider = await prisma.provider.update({ where: { id: String(req.params.id) }, data: { status: input.status, isVerified: input.status === ReviewStatus.APPROVED } });
-    if (provider.ownerId) await prisma.notification.create({ data: { userId: provider.ownerId, title: input.status === ReviewStatus.APPROVED ? 'تم اعتماد نشاطك' : 'تحتاج مراجعة بيانات نشاطك', body: input.status === ReviewStatus.APPROVED ? 'ظهر نشاطك الآن للمستخدمين مع شارة مضاف من المجتمع.' : `سبب المراجعة: ${input.note ?? 'يرجى تحديث البيانات والصور.'}` } });
+    if (provider.ownerId) await prisma.notification.create({ data: { userId: provider.ownerId, title: input.status === ReviewStatus.APPROVED ? 'تم اعتماد نشاطك' : 'تحتاج مراجعة بيانات نشاطك', body: input.status === ReviewStatus.APPROVED ? 'ظهر نشاطك الآن للمستخدمين مع شارة مضاف من المجتمع.' : `سبب المراجعة: ${input.note ?? 'يرجى تحديث البيانات والصور.'}`, targetType: 'provider', targetId: provider.id } });
     await audit(`provider.${input.status.toLowerCase()}`, 'provider', provider.id, { status: input.status, note: input.note });
     res.json(provider);
   } catch (error) { next(error); }
@@ -1383,7 +1383,7 @@ app.patch('/api/admin/reviews/:id', requireAdmin, async (req, res, next) => {
       }
       return updated;
     });
-    await prisma.notification.create({ data: { userId: review.authorId, title: status === ReviewStatus.APPROVED ? 'تم اعتماد تقييمك' : 'لم يتم اعتماد تقييمك', body: status === ReviewStatus.APPROVED ? 'شكراً لمساهمتك في تحسين هنا قنا.' : `سبب الرفض: ${note ?? 'يرجى مراجعة محتوى التقييم.'}` } });
+    await prisma.notification.create({ data: { userId: review.authorId, title: status === ReviewStatus.APPROVED ? 'تم اعتماد تقييمك' : 'لم يتم اعتماد تقييمك', body: status === ReviewStatus.APPROVED ? 'شكراً لمساهمتك في تحسين هنا قنا.' : `سبب الرفض: ${note ?? 'يرجى مراجعة محتوى التقييم.'}`, targetType: 'provider', targetId: review.providerId } });
     await audit(`review.${status.toLowerCase()}`, 'review', review.id, { status, note });
     res.json(review);
   } catch (error) { next(error); }
@@ -1396,7 +1396,7 @@ app.delete('/api/admin/reviews/:id', requireAdmin, async (req, res, next) => {
     if (!review) return res.status(404).json({ message: 'التقييم غير موجود' });
     await prisma.review.delete({ where: { id: review.id } });
     if (input.notify) {
-      await prisma.notification.create({ data: { userId: review.authorId, title: 'تم حذف تقييمك', body: input.reason ? `سبب الحذف: ${input.reason}` : 'تم حذف تقييمك بواسطة الإدارة لمخالفته سياسات المنصة.' } });
+      await prisma.notification.create({ data: { userId: review.authorId, title: 'تم حذف تقييمك', body: input.reason ? `سبب الحذف: ${input.reason}` : 'تم حذف تقييمك بواسطة الإدارة لمخالفته سياسات المنصة.', targetType: 'provider', targetId: review.providerId } });
     }
     await audit('review.deleted', 'review', review.id, { reason: input.reason, notified: input.notify });
     res.json({ deleted: true });
@@ -1406,10 +1406,10 @@ app.delete('/api/admin/reviews/:id', requireAdmin, async (req, res, next) => {
 app.patch('/api/admin/replies/:id', requireAdmin, async (req, res, next) => {
   try {
     const { status, note } = moderationWithNoteSchema.parse(req.body);
-    const reply = await prisma.reviewReply.update({ where: { id: String(req.params.id) }, data: { status, moderatedAt: new Date() }, include: { review: { select: { authorId: true } } } });
-    await prisma.notification.create({ data: { userId: reply.authorId, title: status === ReviewStatus.APPROVED ? 'تم اعتماد ردك' : 'لم يتم اعتماد ردك', body: status === ReviewStatus.APPROVED ? 'ردك ظاهر الآن ضمن التقييمات.' : `سبب الرفض: ${note ?? 'يرجى مراجعة محتوى الرد.'}` } });
+    const reply = await prisma.reviewReply.update({ where: { id: String(req.params.id) }, data: { status, moderatedAt: new Date() }, include: { review: { select: { authorId: true, providerId: true } } } });
+    await prisma.notification.create({ data: { userId: reply.authorId, title: status === ReviewStatus.APPROVED ? 'تم اعتماد ردك' : 'لم يتم اعتماد ردك', body: status === ReviewStatus.APPROVED ? 'ردك ظاهر الآن ضمن التقييمات.' : `سبب الرفض: ${note ?? 'يرجى مراجعة محتوى الرد.'}`, targetType: 'provider', targetId: reply.review.providerId } });
     if (status === ReviewStatus.APPROVED && reply.review.authorId !== reply.authorId) {
-      await prisma.notification.create({ data: { userId: reply.review.authorId, title: 'رد جديد على تقييمك', body: 'حد رد على تقييمك في هنا قنا، افتح التقييمات لو حابب ترد.' } });
+      await prisma.notification.create({ data: { userId: reply.review.authorId, title: 'رد جديد على تقييمك', body: 'حد رد على تقييمك في هنا قنا، افتح التقييمات لو حابب ترد.', targetType: 'provider', targetId: reply.review.providerId } });
     }
     await audit(`reply.${status.toLowerCase()}`, 'reviewReply', reply.id, { status, note });
     res.json(reply);
@@ -1421,7 +1421,7 @@ app.patch('/api/admin/listings/:id', requireAdmin, async (req, res, next) => {
     const status = z.enum([ListingStatus.ACTIVE, ListingStatus.REJECTED, ListingStatus.ARCHIVED]).parse(req.body.status);
     const note = typeof req.body.note === 'string' ? req.body.note : undefined;
     const listing = await prisma.listing.update({ where: { id: String(req.params.id) }, data: { status } });
-    await prisma.notification.create({ data: { userId: listing.ownerId, title: status === ListingStatus.ACTIVE ? 'تم اعتماد إعلانك' : 'تحديث على إعلانك', body: status === ListingStatus.ACTIVE ? 'إعلانك أصبح ظاهراً للمستخدمين.' : `سبب القرار: ${note ?? 'يرجى مراجعة بيانات الإعلان.'}` } });
+    await prisma.notification.create({ data: { userId: listing.ownerId, title: status === ListingStatus.ACTIVE ? 'تم اعتماد إعلانك' : 'تحديث على إعلانك', body: status === ListingStatus.ACTIVE ? 'إعلانك أصبح ظاهراً للمستخدمين.' : `سبب القرار: ${note ?? 'يرجى مراجعة بيانات الإعلان.'}`, targetType: 'listing', targetId: listing.id } });
     await audit(`listing.${status.toLowerCase()}`, 'listing', listing.id, { status, note });
     res.json(listing);
   } catch (error) { next(error); }
@@ -1555,7 +1555,7 @@ const runListingLifecycle = async () => {
   for (const listing of expiring) {
     await prisma.$transaction([
       prisma.listing.update({ where: { id: listing.id }, data: { status: ListingStatus.EXPIRED } }),
-      prisma.notification.create({ data: { userId: listing.ownerId, title: 'انتهت مدة إعلانك', body: `إعلان «${listing.title}» انتهت مدته. افتح «إعلاناتي» خلال 3 أيام لإعادة نشره.` } }),
+      prisma.notification.create({ data: { userId: listing.ownerId, title: 'انتهت مدة إعلانك', body: `إعلان «${listing.title}» انتهت مدته. افتح «إعلاناتي» خلال 3 أيام لإعادة نشره.`, targetType: 'listing', targetId: listing.id } }),
     ]);
   }
   const cleanupBefore = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
