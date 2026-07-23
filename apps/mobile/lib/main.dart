@@ -3385,7 +3385,7 @@ class _PromoCarouselState extends State<PromoCarousel> {
                     child: Row(
                       children: [
                         const Icon(
-                          Icons.campaign_outlined,
+                          Icons.link_rounded,
                           color: Colors.white,
                           size: 25,
                         ),
@@ -3438,11 +3438,6 @@ class _PromoCarouselState extends State<PromoCarousel> {
                         Text(
                           '${promo['_count']?['reactions'] ?? 0}',
                           style: const TextStyle(color: Colors.white),
-                        ),
-                        const Icon(
-                          Icons.open_in_new,
-                          color: Colors.white,
-                          size: 18,
                         ),
                       ],
                     ),
