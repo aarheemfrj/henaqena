@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { createHash, randomBytes, randomInt, scrypt as scryptCallback } from 'node:crypto';
-import { mkdir, unlink, writeFile, readdir, stat, readFile, rm } from 'node:fs/promises';
+import { mkdir, unlink, writeFile, readdir, stat, statfs, readFile, rm } from 'node:fs/promises';
 import { execFile as execFileCallback } from 'node:child_process';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -132,6 +132,16 @@ app.get('/api/bootstrap', async (_req, res, next) => {
 });
 app.get('/ready', async (_req, res) => {
   try { await prisma.$queryRaw`SELECT 1`; res.json({ ok: true, database: 'ready' }); } catch { res.status(503).json({ ok: false, database: 'unavailable' }); }
+});
+app.get('/api/admin/health/details', requireAdmin, async (_req, res, next) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    const filesystem = await statfs(uploadRoot);
+    const totalBytes = Number(filesystem.blocks) * Number(filesystem.bsize);
+    const freeBytes = Number(filesystem.bavail) * Number(filesystem.bsize);
+    const freePercent = totalBytes > 0 ? Number(((freeBytes / totalBytes) * 100).toFixed(1)) : 0;
+    res.json({ ok: freePercent >= 5, uptimeSeconds: Math.floor(process.uptime()), database: 'ready', storage: { path: uploadRoot, freeBytes, totalBytes, freePercent, warning: freePercent < 15 } });
+  } catch (error) { next(error); }
 });
 
 app.get('/api/me', async (req, res, next) => {

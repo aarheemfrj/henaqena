@@ -83,6 +83,14 @@ require_command npm
 require_command curl
 require_command openssl
 require_command pm2
+require_command df
+
+# Never start a deployment when the server is close to exhausting its disk;
+# full disks can stop PostgreSQL and leave a half-built Next.js release.
+disk_available_percent="$(df -P "$APP_DIR" 2>/dev/null | awk 'NR==2 {gsub(/%/, "", $5); print 100-$5}')"
+if [[ -n "$disk_available_percent" ]] && (( disk_available_percent < 10 )); then
+  die "Less than 10% disk space is available (${disk_available_percent}%). Clean storage before deploying."
+fi
 
 [[ -d "$APP_DIR/.git" ]] || die "Git checkout not found at $APP_DIR"
 [[ -f "$API_DIR/package-lock.json" ]] || die "API package-lock.json is missing"
