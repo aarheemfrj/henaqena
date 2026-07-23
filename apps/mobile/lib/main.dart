@@ -2410,6 +2410,10 @@ class _HomePageState extends State<HomePage> {
                                     imageUrl: items[index].displayImageUrl,
                                     title: items[index].name,
                                     subtitle: items[index].subtitle,
+                                    categoryName: items[index].categoryName,
+                                    rating: items[index].rating,
+                                    reviewCount: items[index].reviewCount,
+                                    isVerified: items[index].isVerified,
                                     onTap: () => Navigator.push(
                                       context,
                                       MaterialPageRoute(
@@ -2452,6 +2456,10 @@ class _HomePageState extends State<HomePage> {
                                     imageUrl: items[index].displayImageUrl,
                                     title: items[index].name,
                                     subtitle: items[index].subtitle,
+                                    categoryName: items[index].categoryName,
+                                    rating: items[index].rating,
+                                    reviewCount: items[index].reviewCount,
+                                    isVerified: items[index].isVerified,
                                     onTap: () => Navigator.push(
                                       context,
                                       MaterialPageRoute(
@@ -3514,6 +3522,10 @@ class MiniItem extends StatefulWidget {
     required this.subtitle,
     this.onTap,
     this.imageUrl,
+    this.categoryName,
+    this.rating,
+    this.reviewCount = 0,
+    this.isVerified = false,
   });
   final IconData icon;
   final String title;
@@ -3522,6 +3534,10 @@ class MiniItem extends StatefulWidget {
   // Optional display image (logo, falling back to the item's first photo).
   // When set, it's shown instead of the generic category [icon].
   final String? imageUrl;
+  final String? categoryName;
+  final double? rating;
+  final int reviewCount;
+  final bool isVerified;
   @override
   State<MiniItem> createState() => _MiniItemState();
 }
@@ -3553,22 +3569,99 @@ class _MiniItemState extends State<MiniItem> {
           side: const BorderSide(color: Color(0xFFE0E8E6)),
         ),
         child: ListTile(
-          leading: CircleAvatar(
-            backgroundColor: const Color(0xFFD8EFEC),
-            backgroundImage: widget.imageUrl == null
-                ? null
-                : CachedNetworkImageProvider(widget.imageUrl!),
-            child: widget.imageUrl == null
-                ? Icon(widget.icon, color: deepTeal)
-                : null,
+          leading: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              CircleAvatar(
+                backgroundColor: const Color(0xFFD8EFEC),
+                backgroundImage: widget.imageUrl == null
+                    ? null
+                    : CachedNetworkImageProvider(widget.imageUrl!),
+                child: widget.imageUrl == null
+                    ? Icon(widget.icon, color: deepTeal)
+                    : null,
+              ),
+              if ((widget.rating ?? 0) > 0)
+                Positioned(
+                  top: -5,
+                  left: -8,
+                  child: Container(
+                    constraints: const BoxConstraints(minWidth: 30),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 5,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFD92D63),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.white, width: 1.5),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Colors.black12,
+                          blurRadius: 3,
+                          offset: Offset(0, 1),
+                        ),
+                      ],
+                    ),
+                    child: Text(
+                      '★ ${(widget.rating ?? 0).toStringAsFixed(1)}',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 9,
+                        height: 1,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
-          title: Text(
-            widget.title,
-            style: const TextStyle(fontWeight: FontWeight.w700),
+          title: Row(
+            children: [
+              Flexible(
+                child: Text(
+                  widget.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+              if (widget.isVerified) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.all(2),
+                  decoration: BoxDecoration(
+                    color: teal,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.check, size: 11, color: Colors.white),
+                ),
+              ],
+            ],
           ),
-          subtitle: Text(
-            widget.subtitle,
-            style: const TextStyle(color: muted, fontSize: 12),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                widget.subtitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: muted, fontSize: 12),
+              ),
+              if (widget.categoryName?.isNotEmpty == true)
+                Text(
+                  '${widget.categoryName}${widget.reviewCount > 0 ? ' · ${widget.reviewCount} تقييم' : ''}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: deepTeal,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+            ],
           ),
         ),
       ),
@@ -3900,6 +3993,10 @@ class _DirectoryPageState extends State<DirectoryPage> {
                       imageUrl: provider.displayImageUrl,
                       title: provider.name,
                       subtitle: provider.subtitle,
+                      categoryName: provider.categoryName,
+                      rating: provider.rating,
+                      reviewCount: provider.reviewCount,
+                      isVerified: provider.isVerified,
                       onTap: () => _openDetails(context, provider, icon),
                     ),
                   );

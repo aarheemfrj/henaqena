@@ -76,6 +76,9 @@ class ProviderSummary {
     this.address,
     this.latitude,
     this.longitude,
+    this.rating = 0,
+    this.reviewCount = 0,
+    this.isVerified = false,
   });
   final String id;
   final String name;
@@ -87,6 +90,9 @@ class ProviderSummary {
   final String? address;
   final double? latitude;
   final double? longitude;
+  final double rating;
+  final int reviewCount;
+  final bool isVerified;
   // Display image: the owner's uploaded logo, falling back to the first
   // photo -- callers fall back further to a category icon when this is null.
   String? get displayImageUrl => logoUrl ?? imageUrl;
@@ -111,7 +117,10 @@ class ProviderSummary {
           : null,
     ),
     subtitle:
-        '${json['area']?['name'] ?? 'قنا'}${json['isVerified'] == true ? ' · موثق' : ''}${(json['rating'] as num? ?? 0) > 0 ? ' · ${json['rating']} ★' : ''}',
+        '${json['area']?['name'] ?? 'قنا'}${json['isVerified'] == true ? ' · موثق' : ''}',
+    rating: (json['rating'] as num? ?? 0).toDouble(),
+    reviewCount: (json['reviewCount'] as num? ?? 0).toInt(),
+    isVerified: json['isVerified'] == true,
   );
 }
 
