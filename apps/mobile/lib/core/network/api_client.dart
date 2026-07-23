@@ -268,6 +268,10 @@ class AreaOption {
 
 String? _absoluteUrl(String baseUrl, String? value) {
   if (value == null || value.isEmpty) return null;
+  // Old seed rows may still point at a deleted placeholder asset. Treat it as
+  // missing so the UI uses its designed category fallback instead of logging
+  // a noisy 404 and reserving a broken image slot.
+  if (value.contains('test-placeholder.jpg')) return null;
   final parsed = Uri.tryParse(value);
   if (parsed?.hasScheme == true) return value;
   return '${baseUrl.replaceFirst(RegExp(r'/$'), '')}/${value.replaceFirst(RegExp(r'^/'), '')}';
