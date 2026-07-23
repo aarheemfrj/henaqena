@@ -3376,7 +3376,7 @@ class _PromoCarouselState extends State<PromoCarousel> {
                               image: CachedNetworkImageProvider(imageUrl),
                               fit: BoxFit.cover,
                               colorFilter: ColorFilter.mode(
-                                deepTeal.withValues(alpha: .12),
+                                deepTeal.withValues(alpha: .33),
                                 BlendMode.srcOver,
                               ),
                             ),
