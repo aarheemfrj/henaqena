@@ -29,6 +29,7 @@ const groups = [
       { href: '/admin/now', label: 'دلوقتي', icon: 'ϟ' },
       { href: '/admin/import', label: 'استيراد البيانات', icon: '⇩' },
       { href: '/admin/data-collection', label: 'تجميع البيانات', icon: '⌘' },
+      { href: '/admin/archive', label: 'الأرشيف والاسترجاع', icon: '↺' },
     ],
   },
   {

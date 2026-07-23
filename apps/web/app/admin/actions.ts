@@ -125,6 +125,21 @@ export async function moderateReport(formData: FormData) {
   if (!await hasAdminSession()) redirect('/admin/login'); const id = String(formData.get('id') ?? ''); const status = String(formData.get('status') ?? ''); if (!id || !['APPROVED', 'REJECTED'].includes(status)) return; await apiPatch(`/api/admin/provider-reports/${id}`, { status }); revalidatePath('/admin/reports');
 }
 
+export async function updateLifecycle(formData: FormData) {
+  if (!await hasAdminSession()) redirect('/admin/login');
+  const entity = String(formData.get('entity') ?? '');
+  const id = String(formData.get('id') ?? '');
+  const action = String(formData.get('action') ?? '');
+  const reason = String(formData.get('reason') ?? '').trim();
+  if (!entity || !id || !['ARCHIVE', 'RESTORE', 'DELETE', 'UNDELETE', 'PURGE'].includes(action)) return;
+  await apiPatch(`/api/admin/lifecycle/${entity}/${id}`, { action, reason: reason || undefined });
+  revalidatePath('/admin/archive');
+  revalidatePath('/admin');
+  revalidatePath('/providers');
+  revalidatePath('/listings');
+  revalidatePath('/');
+}
+
 export async function importProviders(formData: FormData) {
   if (!await hasAdminSession()) redirect('/admin/login');
   const file = formData.get('file'); if (!(file instanceof File)) return;
