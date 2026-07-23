@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -10,6 +11,7 @@ import 'package:latlong2/latlong.dart' as ll;
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'core/auth/auth_session.dart';
 import 'core/auth/social_auth_service.dart';
@@ -4366,10 +4368,14 @@ class ProviderMapPage extends StatefulWidget {
     super.key,
     required this.providersFuture,
     this.initialCenter,
+    this.routeDestination,
+    this.routeTitle,
   });
 
   final Future<List<ProviderSummary>> providersFuture;
   final LatLng? initialCenter;
+  final LatLng? routeDestination;
+  final String? routeTitle;
 
   @override
   State<ProviderMapPage> createState() => _ProviderMapPageState();
@@ -4379,6 +4385,8 @@ class _ProviderMapPageState extends State<ProviderMapPage> {
   static const _qena = LatLng(26.1551, 32.7160);
   LatLng center = _qena;
   bool locating = true;
+  List<ll.LatLng> routePoints = const [];
+  bool routeLoading = false;
 
   @override
   void initState() {
@@ -4401,10 +4409,57 @@ class _ProviderMapPageState extends State<ProviderMapPage> {
       if (!mounted) return;
       final target = LatLng(position.latitude, position.longitude);
       setState(() => center = target);
+      if (widget.routeDestination != null) {
+        await _loadRoute(
+          ll.LatLng(target.latitude, target.longitude),
+          ll.LatLng(
+            widget.routeDestination!.latitude,
+            widget.routeDestination!.longitude,
+          ),
+        );
+      }
     } catch (_) {
       // Qena remains the safe fallback when location is unavailable.
     } finally {
       if (mounted) setState(() => locating = false);
+    }
+  }
+
+  Future<void> _loadRoute(ll.LatLng origin, ll.LatLng destination) async {
+    if (mounted) setState(() => routeLoading = true);
+    try {
+      final uri = Uri.parse(
+        'https://router.project-osrm.org/route/v1/driving/'
+        '${origin.longitude},${origin.latitude};'
+        '${destination.longitude},${destination.latitude}'
+        '?overview=full&geometries=geojson',
+      );
+      final response = await http.get(uri).timeout(const Duration(seconds: 12));
+      if (response.statusCode != 200) throw Exception('route_error');
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      final routes = body['routes'] as List<dynamic>? ?? const [];
+      final coordinates = routes.isEmpty
+          ? const <dynamic>[]
+          : ((routes.first as Map<String, dynamic>)['geometry']
+                        as Map<String, dynamic>)['coordinates']
+                    as List<dynamic>? ??
+                const [];
+      final points = coordinates
+          .whereType<List<dynamic>>()
+          .where((pair) => pair.length >= 2)
+          .map(
+            (pair) => ll.LatLng(
+              (pair[1] as num).toDouble(),
+              (pair[0] as num).toDouble(),
+            ),
+          )
+          .toList();
+      if (mounted) setState(() => routePoints = points);
+    } catch (_) {
+      if (mounted)
+        showTopToast(context, message: 'تعذر تحميل مسار الطريق', isError: true);
+    } finally {
+      if (mounted) setState(() => routeLoading = false);
     }
   }
 
@@ -4426,7 +4481,13 @@ class _ProviderMapPageState extends State<ProviderMapPage> {
   Widget build(BuildContext context) => Directionality(
     textDirection: TextDirection.rtl,
     child: Scaffold(
-      appBar: HenaAppBar(title: const Text('خريطة الخدمات')),
+      appBar: HenaAppBar(
+        title: Text(
+          widget.routeTitle == null
+              ? 'خريطة الخدمات'
+              : 'المسار إلى ${widget.routeTitle}',
+        ),
+      ),
       body: FutureBuilder<List<ProviderSummary>>(
         future: widget.providersFuture,
         builder: (context, snapshot) {
@@ -4498,12 +4559,14 @@ class _ProviderMapPageState extends State<ProviderMapPage> {
           );
           return Column(
             children: [
+              if (routeLoading) LinearProgressIndicator(color: teal),
               SizedBox(
                 height: 360,
                 child: InternalQenaMap(
                   providers: mapped,
                   onProviderTap: _openProvider,
                   initialCenter: ll.LatLng(center.latitude, center.longitude),
+                  routePoints: routePoints,
                 ),
               ),
               Expanded(child: list),
@@ -4521,11 +4584,13 @@ class InternalQenaMap extends StatefulWidget {
     required this.providers,
     required this.onProviderTap,
     this.initialCenter,
+    this.routePoints = const [],
   });
 
   final List<ProviderSummary> providers;
   final ValueChanged<ProviderSummary> onProviderTap;
   final ll.LatLng? initialCenter;
+  final List<ll.LatLng> routePoints;
 
   @override
   State<InternalQenaMap> createState() => _InternalQenaMapState();
@@ -4713,6 +4778,18 @@ class _InternalQenaMapState extends State<InternalQenaMap> {
                 userAgentPackageName: 'com.maalsoft.henaqena',
                 maxNativeZoom: 19,
               ),
+              if (widget.routePoints.length > 1)
+                fmap.PolylineLayer(
+                  polylines: [
+                    fmap.Polyline(
+                      points: widget.routePoints,
+                      strokeWidth: 6,
+                      color: teal,
+                      borderStrokeWidth: 2,
+                      borderColor: Colors.white,
+                    ),
+                  ],
+                ),
               fmap.MarkerLayer(markers: markers),
               fmap.RichAttributionWidget(
                 showFlutterMapAttribution: false,
@@ -5028,6 +5105,39 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                 ),
               ),
               const SizedBox(height: 8),
+              ListTile(
+                leading: Icon(Icons.route_outlined, color: teal),
+                title: const Text('مسار داخل هنا قنا'),
+                subtitle: const Text('اعرض الطريق داخل الخريطة الأساسية'),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  final summary = ProviderSummary(
+                    id: data.id,
+                    name: data.name,
+                    subtitle: data.areaName,
+                    imageUrl: data.images.isEmpty ? null : data.images.first,
+                    logoUrl: data.logoUrl,
+                    categoryName: data.categorySlug,
+                    address: data.address,
+                    latitude: data.latitude,
+                    longitude: data.longitude,
+                  );
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ProviderMapPage(
+                        providersFuture: Future.value([summary]),
+                        initialCenter: LatLng(data.latitude!, data.longitude!),
+                        routeDestination: LatLng(
+                          data.latitude!,
+                          data.longitude!,
+                        ),
+                        routeTitle: data.name,
+                      ),
+                    ),
+                  );
+                },
+              ),
               ListTile(
                 leading: Icon(Icons.map_outlined, color: teal),
                 title: const Text('عرض داخل هنا قنا'),
