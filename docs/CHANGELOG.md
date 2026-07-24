@@ -62,3 +62,10 @@ All notable engineering changes are documented here. Product features outside th
 - Added regression coverage for blocked-user actions and review pagination uniqueness.
 - Re-ran API, Web/Admin and Flutter release gates without changing product scope.
 - Recorded the post-Sprint-2 journey/state audit and explicit device/staging verification gaps.
+
+## Unreleased — Module 1 مين شاطر
+
+- Added an additive request/recommendation/report data model and PostgreSQL migration.
+- Added public, authenticated and admin moderation endpoints with safe projections and ownership checks.
+- Added the first mobile feed, detail, create-question and recommendation flows.
+- Added isolated regression coverage; 87 API integration tests pass against Docker PostgreSQL.

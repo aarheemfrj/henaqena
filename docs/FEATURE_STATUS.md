@@ -55,3 +55,5 @@ Legend: **Implemented** = present in current code; **Partial** = some paths/UI o
 ## Audit rule
 
 When a feature changes, update this table and the [Documentation Gaps](./DOCUMENTATION_GAPS.md) entry if runtime evidence is still missing. Do not mark an external integration Implemented solely because a client package is installed.
+
+| مين شاطر community recommendations | Partial | API, moderation, isolated regression coverage and initial Flutter feed/request/recommendation flow are implemented; admin contribution history, full notifications deep-linking, best selection and images remain deferred/unverified |

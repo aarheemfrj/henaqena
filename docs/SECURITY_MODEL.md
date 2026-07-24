@@ -71,3 +71,7 @@ Access/refresh-token rotation is intentionally not implemented in this sprint. A
 ## Security review checklist
 
 Before release: use HTTPS, rotate secrets, restrict CORS, run integration tests on isolated PostgreSQL, verify admin role boundaries, test image replacement/deletion, inspect audit logs, restore a backup, and complete physical Google/Apple checks.
+
+## مين شاطر controls
+
+Public responses use safe user/provider projections and omit email, account phone, internal IDs, moderation fields and audit metadata. Mutations require an authenticated, non-blocked session; ownership is checked for edits, deletes and close. Provider recommendations require an approved active provider. Helpful and reports are scoped to visible targets, duplicate-safe and rate-limited by the existing request controls. Admin status changes are role checked and audited.

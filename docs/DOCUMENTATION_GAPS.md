@@ -48,3 +48,4 @@
 - Object-storage provider and retention policy for media.
 - Final OTP, Google, Apple, maps and push-notification providers.
 - Whether API-key admin mode remains enabled after all web clients use admin sessions.
+- Module 1 still needs notification deep-link verification, contribution-history mobile UI, physical-device verification and a final release-gate run before tagging.

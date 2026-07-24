@@ -212,6 +212,14 @@ GET/POST /api/admin/constants/:type
 PUT/DELETE /api/admin/constants/:type/:id
 ```
 
+## Module 1 — مين شاطر
+
+Public read routes: `GET /api/min-shater`, `GET /api/min-shater/similar`, `GET /api/min-shater/:id`, and `GET /api/min-shater/:id/recommendations`. These return approved, non-archived public projections with bounded pagination.
+
+Authenticated routes: `POST/PATCH/DELETE /api/min-shater`, `POST /api/min-shater/:id/close`, `POST/PATCH/DELETE /api/min-shater/:id/recommendations`, `GET /api/me/min-shater/requests`, `GET /api/me/min-shater/recommendations`, `POST/DELETE /api/min-shater/recommendations/:id/helpful`, and the two report routes under `/api/min-shater/:id/report` and `/api/min-shater/recommendations/:id/report`.
+
+Admin routes: `GET /api/admin/min-shater/{requests,recommendations,reports,analytics}` and status patches under `/api/admin/min-shater/{requests,recommendations,reports}/:id/status`. Status changes require an allowed existing admin role and are audited.
+
 The mounted data-collection router is included explicitly below because it is registered through `app.use` rather than as top-level handlers:
 
 ```text

@@ -12,7 +12,8 @@
 
 ## السجل
 
-- 2026-07-24 — Codex — Module 1 «مين شاطر» pre-implementation audit: مراجعة البنية الحالية وإعادة استخدام أنماط المصادقة والحظر والملكية والمراجعة والإشعارات والتطبيق والمنصة، وتوثيق مخاطر الخصوصية والتكرار وخطة التنفيذ — مكتملة؛ commit: قيد التنفيذ
+- 2026-07-24 — Codex — Module 1 «مين شاطر» pre-implementation audit: مراجعة البنية الحالية وإعادة استخدام أنماط المصادقة والحظر والملكية والمراجعة والإشعارات والتطبيق والمنصة، وتوثيق مخاطر الخصوصية والتكرار وخطة التنفيذ — مكتملة؛ commit: `5f70b88`
+- 2026-07-24 — Codex — Module 1 «مين شاطر»: additive data model, public/user/admin API, initial Flutter flows and isolated regression coverage — قيد التنفيذ؛ commits: `03df68c`, `95922d6`, `622a26e`, `cfbd511`, `8beae58`
 
 - 2026-07-24 — Codex — Close Sprint 2C/2D release gates and Sprint 2F stabilization freeze: إعادة تشغيل توليد Prisma واختبارات PostgreSQL المعزولة (86 اختبارًا) وبناء API وWeb/Admin وتحليل واختبارات Flutter، إضافة اختبارات الحساب المحظور وتفرد pagination للتقييمات، تدقيق رحلة Directory → Search → Map → Provider → Reviews → Favorites ومزامنة الحالة والروابط والأسرار — مكتملة محليًا؛ المؤجل: أجهزة فعلية وVPS staging واختبار المتصفح التفاعلي — commit: `1e4cb7a`
 

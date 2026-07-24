@@ -127,3 +127,7 @@ Treat `User`, `AdminAccount`, `Session`, `VerificationCode`, `AuditLog`, support
 - No category parent/child relation or audited merge table.
 - Local media URLs are stored in relational rows; object storage is not active.
 - Any future destructive migration must first run duplicate/reference checks and restore testing.
+
+## مين شاطر
+
+The additive migration `20260724194542_min_shater` adds `MinShaterRequest`, `MinShaterRecommendation`, `MinShaterHelpful`, and `MinShaterReport`. Requests and recommendations use existing `ReviewStatus` moderation values, soft-delete/archive timestamps, active taxonomy references, and indexes for moderation, ownership, pagination and lookup. Helpful has a composite uniqueness key; reports support one pending report per user/target at the service layer.

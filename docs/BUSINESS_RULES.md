@@ -58,3 +58,7 @@ Each rule below names the enforced outcome. UI wording is not a substitute for t
 
 - Older README text calls the API “core server” and lists only selected routes; the Express route inventory in [API Reference](./API_REFERENCE.md) is authoritative.
 - Product plans mention Google/Apple, push, dynamic category hierarchy and external price/news sources; only the current API-backed portions are implemented.
+
+## مين شاطر
+
+Questions and recommendations are submitted as `PENDING` and become public only after approval. Closed questions remain readable but reject new recommendations; rejected, archived and deleted content is private to its author/admin. A recommendation may link to an approved active provider or remain manual, but never creates a provider automatically. Helpful is idempotent and reports never auto-delete content. Anonymous posting and images are deferred; the best-recommendation owner selection is deferred for a later iteration.

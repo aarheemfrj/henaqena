@@ -53,3 +53,7 @@ Only after the foundation is stable: richer prices/history, Qena Now source work
 - No schema migration without duplicate/reference audit and separate restore test.
 - External integrations require credentials, quotas, privacy review and physical-device verification.
 - Keep the [Feature Status](./FEATURE_STATUS.md) matrix honest; planned work is not shipped work.
+
+## Module 1 — مين شاطر
+
+Audit and additive data/API foundation are complete. The current release is Partial: moderation APIs, admin queue and the initial mobile flows are available. Next work is to complete contribution history, notifications deep links, richer filters and the deferred best-recommendation decision before a release tag.

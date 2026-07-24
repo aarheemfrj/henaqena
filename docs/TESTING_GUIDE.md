@@ -48,3 +48,7 @@ The script starts `docker-compose.test.yml`, waits for PostgreSQL, runs `prisma 
 ## CI expectations
 
 CI must fail on migration, integration, build, lint, analyze or test errors. Warnings may remain non-fatal only where the existing Flutter configuration explicitly permits them. Never weaken a failing check to hide a regression.
+
+## مين شاطر coverage
+
+The isolated PostgreSQL integration suite covers guest/authenticated/blocked access, pending-to-approved visibility, owner IDOR checks, approved-provider and manual recommendations, duplicate prevention, closed-request rejection, helpful idempotency, reports and admin moderation. Run `npm run test:db` from `apps/api`; the suite creates and migrates a disposable Docker database.
