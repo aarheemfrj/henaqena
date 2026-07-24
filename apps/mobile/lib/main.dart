@@ -3762,6 +3762,709 @@ class _MiniItemState extends State<MiniItem> {
   );
 }
 
+class MinShaterFeedPage extends StatefulWidget {
+  const MinShaterFeedPage({super.key});
+  @override
+  State<MinShaterFeedPage> createState() => _MinShaterFeedPageState();
+}
+
+class _MinShaterFeedPageState extends State<MinShaterFeedPage> {
+  final api = ApiClient();
+  final search = TextEditingController();
+  late Future<Map<String, dynamic>> future = api.fetchMinShater();
+  int page = 1;
+  bool loadingMore = false;
+  Future<void> reload() async {
+    setState(() => future = api.fetchMinShater(query: search.text));
+    await future;
+  }
+
+  @override
+  void dispose() {
+    search.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Directionality(
+    textDirection: TextDirection.rtl,
+    child: Scaffold(
+      appBar: HenaAppBar(
+        title: const Text('مين شاطر؟'),
+        actions: [
+          IconButton(onPressed: reload, icon: const Icon(Icons.refresh)),
+        ],
+      ),
+      body: RefreshIndicator(
+        color: teal,
+        onRefresh: reload,
+        child: FutureBuilder<Map<String, dynamic>>(
+          future: future,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting)
+              return ListView(
+                children: [
+                  const SizedBox(height: 180),
+                  Center(child: CircularProgressIndicator()),
+                ],
+              );
+            if (snapshot.hasError)
+              return ListView(
+                children: [
+                  const SizedBox(height: 100),
+                  _StateMessage(
+                    icon: Icons.cloud_off_outlined,
+                    title: 'تعذر تحميل الأسئلة',
+                    subtitle: 'حاول مرة أخرى.',
+                    actionLabel: 'إعادة المحاولة',
+                    onAction: reload,
+                  ),
+                ],
+              );
+            final data = (snapshot.data?['data'] as List<dynamic>? ?? [])
+                .cast<Map>();
+            return ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                TextField(
+                  controller: search,
+                  onSubmitted: (_) => reload(),
+                  decoration: InputDecoration(
+                    prefixIcon: const Icon(Icons.search),
+                    hintText: 'بتدور على مين؟',
+                    suffixIcon: search.text.isEmpty
+                        ? null
+                        : IconButton(
+                            onPressed: () {
+                              search.clear();
+                              reload();
+                            },
+                            icon: const Icon(Icons.close),
+                          ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                FilledButton.icon(
+                  onPressed: () async {
+                    if (!AuthSession.isSignedIn) {
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const AuthPage()),
+                      );
+                      if (!AuthSession.isSignedIn) return;
+                    }
+                    if (context.mounted)
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const MinShaterCreateRequestPage(),
+                        ),
+                      );
+                    if (context.mounted) reload();
+                  },
+                  icon: const Icon(Icons.add),
+                  label: const Text('اسأل مين شاطر'),
+                ),
+                const SizedBox(height: 14),
+                if (data.isEmpty)
+                  const _StateMessage(
+                    icon: Icons.question_answer_outlined,
+                    title: 'لسه مفيش أسئلة',
+                    subtitle: 'ابدأ بسؤال يساعد أهل قنا.',
+                  ),
+                ...data.map(
+                  (item) => MinShaterRequestCard(
+                    item: Map<String, dynamic>.from(item as Map),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    ),
+  );
+}
+
+class MinShaterRequestCard extends StatelessWidget {
+  const MinShaterRequestCard({super.key, required this.item});
+  final Map<String, dynamic> item;
+
+  @override
+  Widget build(BuildContext context) {
+    final category = (item['category'] as Map?)?['name'] ?? 'عام';
+    final area = (item['area'] as Map?)?['name'] ?? 'كل قنا';
+    return Card(
+      child: ListTile(
+        contentPadding: const EdgeInsets.all(14),
+        title: Text(
+          item['title'] as String? ?? '',
+          style: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+        subtitle: Text(
+          '$category · $area\n${item['recommendationCount'] ?? 0} ترشيح',
+        ),
+        isThreeLine: true,
+        trailing: const Icon(Icons.chevron_left),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => MinShaterDetailPage(id: item['id'] as String),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class MinShaterDetailPage extends StatefulWidget {
+  const MinShaterDetailPage({super.key, required this.id});
+  final String id;
+  @override
+  State<MinShaterDetailPage> createState() => _MinShaterDetailPageState();
+}
+
+class _MinShaterDetailPageState extends State<MinShaterDetailPage> {
+  final api = ApiClient();
+  late Future<Map<String, dynamic>> details = api.fetchMinShaterRequest(
+    widget.id,
+  );
+  late Future<Map<String, dynamic>> recommendations = api
+      .fetchMinShaterRecommendations(widget.id);
+  Future<void> reload() async {
+    setState(() {
+      details = api.fetchMinShaterRequest(widget.id);
+      recommendations = api.fetchMinShaterRecommendations(widget.id);
+    });
+    await Future.wait([details, recommendations]);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Scaffold(
+        appBar: HenaAppBar(
+          title: const Text('تفاصيل السؤال'),
+          actions: [
+            IconButton(onPressed: reload, icon: const Icon(Icons.refresh)),
+          ],
+        ),
+        body: RefreshIndicator(
+          color: teal,
+          onRefresh: reload,
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              FutureBuilder<Map<String, dynamic>>(
+                future: details,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting)
+                    return const Center(child: CircularProgressIndicator());
+                  if (snapshot.hasError)
+                    return _StateMessage(
+                      icon: Icons.error_outline,
+                      title: 'السؤال غير متاح',
+                      subtitle: 'حاول مرة أخرى.',
+                      actionLabel: 'إعادة المحاولة',
+                      onAction: () {
+                        reload();
+                      },
+                    );
+                  final item = snapshot.data!;
+                  final category = (item['category'] as Map?)?['name'] ?? 'عام';
+                  final area = (item['area'] as Map?)?['name'] ?? 'كل قنا';
+                  return Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            item['title'] as String? ?? '',
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          if ((item['description'] as String?)?.isNotEmpty ==
+                              true) ...[
+                            const SizedBox(height: 8),
+                            Text(item['description'] as String),
+                          ],
+                          const SizedBox(height: 8),
+                          Text('$category · $area'),
+                          const SizedBox(height: 12),
+                          if ((item['viewer'] as Map?)?['canRecommend'] == true)
+                            FilledButton.icon(
+                              onPressed: () async {
+                                if (!AuthSession.isSignedIn) {
+                                  await Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => const AuthPage(),
+                                    ),
+                                  );
+                                  if (!AuthSession.isSignedIn) return;
+                                }
+                                if (context.mounted)
+                                  await Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          MinShaterAddRecommendationPage(
+                                            requestId: widget.id,
+                                          ),
+                                    ),
+                                  );
+                                if (context.mounted) reload();
+                              },
+                              icon: const Icon(Icons.thumb_up_alt_outlined),
+                              label: const Text('رشّح حد'),
+                            ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'الترشيحات',
+                style: TextStyle(
+                  color: deepTeal,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 18,
+                ),
+              ),
+              FutureBuilder<Map<String, dynamic>>(
+                future: recommendations,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting)
+                    return const Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Center(child: CircularProgressIndicator()),
+                    );
+                  if (snapshot.hasError)
+                    return _StateMessage(
+                      icon: Icons.error_outline,
+                      title: 'تعذر تحميل الترشيحات',
+                      subtitle: 'حاول مرة أخرى.',
+                      actionLabel: 'إعادة المحاولة',
+                      onAction: () {
+                        reload();
+                      },
+                    );
+                  final rows = (snapshot.data?['data'] as List<dynamic>? ?? [])
+                      .cast<Map>();
+                  if (rows.isEmpty)
+                    return const _StateMessage(
+                      icon: Icons.people_outline,
+                      title: 'مفيش ترشيحات لسه',
+                      subtitle: 'كن أول من يرشح.',
+                    );
+                  return Column(
+                    children: rows
+                        .map(
+                          (row) => MinShaterRecommendationCard(
+                            item: Map<String, dynamic>.from(row),
+                            onChanged: reload,
+                          ),
+                        )
+                        .toList(),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class MinShaterRecommendationCard extends StatefulWidget {
+  const MinShaterRecommendationCard({
+    super.key,
+    required this.item,
+    required this.onChanged,
+  });
+  final Map<String, dynamic> item;
+  final Future<void> Function() onChanged;
+  @override
+  State<MinShaterRecommendationCard> createState() =>
+      _MinShaterRecommendationCardState();
+}
+
+class _MinShaterRecommendationCardState
+    extends State<MinShaterRecommendationCard> {
+  late bool helpful = widget.item['viewerHasMarkedHelpful'] == true;
+  late int count = (widget.item['helpfulCount'] as num? ?? 0).toInt();
+  bool saving = false;
+
+  Future<void> toggle() async {
+    if (!AuthSession.isSignedIn) {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const AuthPage()),
+      );
+      return;
+    }
+    final previous = helpful;
+    setState(() {
+      helpful = !helpful;
+      count += helpful ? 1 : -1;
+      saving = true;
+    });
+    try {
+      final result = await ApiClient().toggleMinShaterHelpful(
+        widget.item['id'] as String,
+        helpful,
+      );
+      if (mounted)
+        setState(() {
+          helpful = result['active'] == true;
+          count = (result['count'] as num? ?? count).toInt();
+          saving = false;
+        });
+    } catch (_) {
+      if (mounted)
+        setState(() {
+          helpful = previous;
+          count += helpful ? -1 : 1;
+          saving = false;
+        });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = widget.item['provider'] as Map?;
+    final name =
+        provider?['name'] ?? widget.item['recommendedName'] ?? 'ترشيح يدوي';
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              name as String,
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+            ),
+            if ((widget.item['description'] as String?)?.isNotEmpty == true)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(widget.item['description'] as String),
+              ),
+            Row(
+              children: [
+                IconButton(
+                  onPressed: saving ? null : toggle,
+                  icon: Icon(
+                    helpful ? Icons.thumb_up : Icons.thumb_up_outlined,
+                    color: helpful ? teal : muted,
+                  ),
+                ),
+                Text('$count مفيد'),
+                const Spacer(),
+                if (provider != null)
+                  TextButton(
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ProviderDetailPage(
+                          providerId: provider['id'] as String,
+                          title: provider['name'] as String,
+                          icon: Icons.storefront_outlined,
+                          subtitle:
+                              ((provider['area'] as Map?)?['name']
+                                  as String?) ??
+                              'قنا',
+                        ),
+                      ),
+                    ),
+                    child: const Text('افتح النشاط'),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class MinShaterCreateRequestPage extends StatefulWidget {
+  const MinShaterCreateRequestPage({super.key});
+  @override
+  State<MinShaterCreateRequestPage> createState() =>
+      _MinShaterCreateRequestPageState();
+}
+
+class _MinShaterCreateRequestPageState
+    extends State<MinShaterCreateRequestPage> {
+  final title = TextEditingController();
+  final description = TextEditingController();
+  List<CategoryOption> categories = [];
+  List<AreaOption> areas = [];
+  String? categoryId;
+  String? areaId;
+  bool saving = false;
+  @override
+  void initState() {
+    super.initState();
+    Future.wait([ApiClient().fetchCategories(), ApiClient().fetchAreas()]).then(
+      (v) {
+        if (mounted)
+          setState(() {
+            categories = v[0] as List<CategoryOption>;
+            areas = v[1] as List<AreaOption>;
+          });
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    title.dispose();
+    description.dispose();
+    super.dispose();
+  }
+
+  Future<void> submit() async {
+    if (title.text.trim().length < 2 || categoryId == null) {
+      showTopToast(
+        context,
+        message: 'اكتب عنوان السؤال واختار المجال',
+        isError: true,
+      );
+      return;
+    }
+    setState(() => saving = true);
+    try {
+      await ApiClient().createMinShaterRequest(
+        title: title.text,
+        description: description.text,
+        categoryId: categoryId!,
+        areaId: areaId,
+      );
+      if (mounted) {
+        showTopToast(context, message: 'سؤالك اتبعت للمراجعة');
+        Navigator.pop(context);
+      }
+    } catch (_) {
+      if (mounted)
+        showTopToast(context, message: 'تعذر إرسال السؤال', isError: true);
+    } finally {
+      if (mounted) setState(() => saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Directionality(
+    textDirection: TextDirection.rtl,
+    child: Scaffold(
+      appBar: HenaAppBar(title: const Text('اسأل مين شاطر')),
+      body: ListView(
+        padding: const EdgeInsets.all(18),
+        children: [
+          TextField(
+            controller: title,
+            decoration: const InputDecoration(labelText: 'بتدور على مين؟'),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: description,
+            maxLines: 4,
+            decoration: const InputDecoration(labelText: 'اكتب تفاصيل أكتر'),
+          ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(
+            value: categoryId,
+            decoration: const InputDecoration(labelText: 'اختار المجال'),
+            items: categories
+                .map((c) => DropdownMenuItem(value: c.id, child: Text(c.name)))
+                .toList(),
+            onChanged: (v) => setState(() => categoryId = v),
+          ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(
+            value: areaId,
+            decoration: const InputDecoration(labelText: 'المنطقة (اختياري)'),
+            items: [
+              const DropdownMenuItem(value: null, child: Text('كل قنا')),
+              ...areas.map(
+                (a) => DropdownMenuItem(value: a.id, child: Text(a.name)),
+              ),
+            ],
+            onChanged: (v) => setState(() => areaId = v),
+          ),
+          const SizedBox(height: 18),
+          FilledButton(
+            onPressed: saving ? null : submit,
+            child: Text(saving ? 'جارٍ الإرسال…' : 'نشر السؤال'),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class MinShaterAddRecommendationPage extends StatefulWidget {
+  const MinShaterAddRecommendationPage({super.key, required this.requestId});
+  final String requestId;
+  @override
+  State<MinShaterAddRecommendationPage> createState() =>
+      _MinShaterAddRecommendationPageState();
+}
+
+class _MinShaterAddRecommendationPageState
+    extends State<MinShaterAddRecommendationPage> {
+  final name = TextEditingController();
+  final phone = TextEditingController();
+  final description = TextEditingController();
+  final providerQuery = TextEditingController();
+  List<ProviderSummary> providers = [];
+  ProviderSummary? selectedProvider;
+  bool manual = false;
+  bool searching = false;
+  bool saving = false;
+
+  Future<void> searchProviders(String value) async {
+    if (value.trim().length < 2) {
+      setState(() => providers = []);
+      return;
+    }
+    setState(() => searching = true);
+    try {
+      final rows = await ApiClient().fetchProviders(
+        searchQuery: value.trim(),
+        pageSize: 8,
+        verifiedOnly: true,
+        skipCache: true,
+      );
+      if (mounted) setState(() => providers = rows);
+    } catch (_) {
+      if (mounted) setState(() => providers = []);
+    } finally {
+      if (mounted) setState(() => searching = false);
+    }
+  }
+
+  Future<void> submit() async {
+    if (manual && name.text.trim().length < 2) {
+      showTopToast(context, message: 'اكتب اسم الترشيح', isError: true);
+      return;
+    }
+    if (!manual && selectedProvider == null) {
+      showTopToast(
+        context,
+        message: 'اختار نشاطًا من هنا قنا أو فعّل الترشيح اليدوي',
+        isError: true,
+      );
+      return;
+    }
+    setState(() => saving = true);
+    try {
+      await ApiClient().addMinShaterRecommendation(widget.requestId, {
+        if (!manual) 'providerId': selectedProvider!.id,
+        if (manual) 'recommendedName': name.text.trim(),
+        if (phone.text.trim().isNotEmpty) 'phone': phone.text.trim(),
+        if (description.text.trim().isNotEmpty)
+          'description': description.text.trim(),
+      });
+      if (mounted) {
+        showTopToast(context, message: 'ترشيحك اتبعت للمراجعة');
+        Navigator.pop(context);
+      }
+    } catch (_) {
+      if (mounted)
+        showTopToast(context, message: 'تعذر إرسال الترشيح', isError: true);
+    } finally {
+      if (mounted) setState(() => saving = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    name.dispose();
+    phone.dispose();
+    description.dispose();
+    providerQuery.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Directionality(
+    textDirection: TextDirection.rtl,
+    child: Scaffold(
+      appBar: HenaAppBar(title: const Text('أضف ترشيحًا')),
+      body: ListView(
+        padding: const EdgeInsets.all(18),
+        children: [
+          SwitchListTile(
+            value: manual,
+            onChanged: (v) => setState(() {
+              manual = v;
+              selectedProvider = null;
+            }),
+            title: const Text('شخص أو نشاط مش موجود'),
+          ),
+          if (!manual) ...[
+            TextField(
+              controller: providerQuery,
+              onChanged: searchProviders,
+              decoration: const InputDecoration(
+                labelText: 'ابحث في أنشطة هنا قنا',
+                prefixIcon: Icon(Icons.search),
+              ),
+            ),
+            if (searching) const LinearProgressIndicator(),
+            ...providers.map(
+              (provider) => RadioListTile<ProviderSummary>(
+                value: provider,
+                groupValue: selectedProvider,
+                onChanged: (value) => setState(() => selectedProvider = value),
+                title: Text(provider.name),
+                subtitle: Text(provider.subtitle),
+              ),
+            ),
+          ] else
+            TextField(
+              controller: name,
+              decoration: const InputDecoration(labelText: 'اسم الترشيح'),
+            ),
+          TextField(
+            controller: phone,
+            keyboardType: TextInputType.phone,
+            decoration: const InputDecoration(
+              labelText: 'رقم التواصل (اختياري)',
+            ),
+          ),
+          const Padding(
+            padding: EdgeInsets.only(top: 6),
+            child: Text(
+              'اتأكد إن عندك إذن قبل نشر رقم شخص.',
+              style: TextStyle(fontSize: 12, color: muted),
+            ),
+          ),
+          TextField(
+            controller: description,
+            maxLines: 4,
+            decoration: const InputDecoration(labelText: 'ليه بترشحه؟'),
+          ),
+          const SizedBox(height: 18),
+          FilledButton(
+            onPressed: saving ? null : submit,
+            child: Text(saving ? 'جارٍ الإرسال…' : 'إرسال الترشيح'),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
 class DirectoryPage extends StatefulWidget {
   const DirectoryPage({
     super.key,
@@ -4203,6 +4906,15 @@ class _DirectoryPageState extends State<DirectoryPage> {
         const SizedBox(height: 10),
         Row(
           children: [
+            OutlinedButton.icon(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const MinShaterFeedPage()),
+              ),
+              icon: const Icon(Icons.stars_outlined),
+              label: const Text('مين شاطر؟'),
+            ),
+            const SizedBox(width: 8),
             OutlinedButton.icon(
               onPressed: () => _showFilters(context),
               icon: const Icon(Icons.tune),
@@ -6322,488 +7034,499 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
               } catch (_) {}
             },
             child: ListView(
-            padding: const EdgeInsets.fromLTRB(18, 8, 18, 90),
-            children: [
-              if (snapshot.connectionState == ConnectionState.waiting)
-                LinearProgressIndicator(color: teal),
-              MediaGallery(
-                imageCount: imageUrls.isEmpty ? 1 : imageUrls.length,
-                imageUrls: imageUrls,
-              ),
-              const SizedBox(height: 14),
-              Card(
-                elevation: 0,
-                color: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                  side: const BorderSide(color: Color(0xFFE0E8E6)),
+              padding: const EdgeInsets.fromLTRB(18, 8, 18, 90),
+              children: [
+                if (snapshot.connectionState == ConnectionState.waiting)
+                  LinearProgressIndicator(color: teal),
+                MediaGallery(
+                  imageCount: imageUrls.isEmpty ? 1 : imageUrls.length,
+                  imageUrls: imageUrls,
                 ),
-                child: Padding(
-                  padding: const EdgeInsets.all(18),
-                  child: Row(
-                    children: [
-                      Hero(
-                        tag: 'provider-icon-${widget.title}',
-                        child: CircleAvatar(
-                          radius: 30,
-                          backgroundColor: const Color(0xFFD8EFEC),
-                          backgroundImage: data?.displayImageUrl == null
-                              ? null
-                              : CachedNetworkImageProvider(
-                                  data!.displayImageUrl!,
-                                ),
-                          child: data?.displayImageUrl == null
-                              ? Icon(widget.icon, color: deepTeal, size: 30)
-                              : null,
+                const SizedBox(height: 14),
+                Card(
+                  elevation: 0,
+                  color: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                    side: const BorderSide(color: Color(0xFFE0E8E6)),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(18),
+                    child: Row(
+                      children: [
+                        Hero(
+                          tag: 'provider-icon-${widget.title}',
+                          child: CircleAvatar(
+                            radius: 30,
+                            backgroundColor: const Color(0xFFD8EFEC),
+                            backgroundImage: data?.displayImageUrl == null
+                                ? null
+                                : CachedNetworkImageProvider(
+                                    data!.displayImageUrl!,
+                                  ),
+                            child: data?.displayImageUrl == null
+                                ? Icon(widget.icon, color: deepTeal, size: 30)
+                                : null,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Flexible(
-                                  child: Text(
-                                    data?.name ?? widget.title,
-                                    style: TextStyle(
-                                      color: deepTeal,
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ),
-                                if (data?.isVerified == true) ...[
-                                  const SizedBox(width: 8),
-                                  Container(
-                                    padding: const EdgeInsets.all(3),
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color: teal,
-                                    ),
-                                    child: const Icon(
-                                      Icons.check,
-                                      size: 14,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                ],
-                              ],
-                            ),
-                            if (data != null && data.reviewCount > 0) ...[
-                              const SizedBox(height: 5),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
                               Row(
                                 children: [
-                                  Icon(Icons.star, color: gold, size: 16),
-                                  const SizedBox(width: 3),
-                                  Text(
-                                    '${data.rating.toStringAsFixed(1)} · ${data.reviewCount} تقييم',
-                                    style: const TextStyle(
-                                      color: muted,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
+                                  Flexible(
+                                    child: Text(
+                                      data?.name ?? widget.title,
+                                      style: TextStyle(
+                                        color: deepTeal,
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.w700,
+                                      ),
                                     ),
                                   ),
-                                  if (data.openNow != null) ...[
-                                    const SizedBox(width: 10),
-                                    Text(
-                                      data.openNow! ? 'مفتوح الآن' : 'مغلق الآن',
-                                      style: TextStyle(
-                                        color: data.openNow! ? teal : muted,
-                                        fontSize: 12,
+                                  if (data?.isVerified == true) ...[
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.all(3),
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        color: teal,
+                                      ),
+                                      child: const Icon(
+                                        Icons.check,
+                                        size: 14,
+                                        color: Colors.white,
                                       ),
                                     ),
                                   ],
                                 ],
                               ),
-                            ],
-                            const SizedBox(height: 7),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    widget.subtitle
-                                        .replaceAll(
-                                          RegExp(r' · \d(?:\.\d)? ★'),
-                                          '',
-                                        )
-                                        .replaceAll('موثق · ', '')
-                                        .replaceAll(' · موثق', ''),
-                                    style: const TextStyle(color: muted),
-                                  ),
+                              if (data != null && data.reviewCount > 0) ...[
+                                const SizedBox(height: 5),
+                                Row(
+                                  children: [
+                                    Icon(Icons.star, color: gold, size: 16),
+                                    const SizedBox(width: 3),
+                                    Text(
+                                      '${data.rating.toStringAsFixed(1)} · ${data.reviewCount} تقييم',
+                                      style: const TextStyle(
+                                        color: muted,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    if (data.openNow != null) ...[
+                                      const SizedBox(width: 10),
+                                      Text(
+                                        data.openNow!
+                                            ? 'مفتوح الآن'
+                                            : 'مغلق الآن',
+                                        style: TextStyle(
+                                          color: data.openNow! ? teal : muted,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
                                 ),
-                                if (data != null && data.isVerified != true)
-                                  const Text(
-                                    'مضاف من المجتمع',
-                                    style: TextStyle(
-                                      color: muted,
-                                      fontSize: 12,
+                              ],
+                              const SizedBox(height: 7),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      widget.subtitle
+                                          .replaceAll(
+                                            RegExp(r' · \d(?:\.\d)? ★'),
+                                            '',
+                                          )
+                                          .replaceAll('موثق · ', '')
+                                          .replaceAll(' · موثق', ''),
+                                      style: const TextStyle(color: muted),
                                     ),
                                   ),
-                              ],
+                                  if (data != null && data.isVerified != true)
+                                    const Text(
+                                      'مضاف من المجتمع',
+                                      style: TextStyle(
+                                        color: muted,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                if (data != null && AuthSession.adminToken != null) ...[
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: () => _editProvider(data),
+                    icon: const Icon(Icons.admin_panel_settings_outlined),
+                    label: const Text('تعديل النشاط بصلاحية الإدارة'),
+                  ),
+                ],
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: data?.phone == null
+                            ? null
+                            : () => _external(
+                                AppActions.call(data!.phone),
+                                'تعذر فتح الاتصال على هذا الجهاز',
+                              ),
+                        icon: const Icon(Icons.phone_outlined),
+                        label: const FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text('اتصال', maxLines: 1, softWrap: false),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: (data?.whatsapp ?? data?.phone) == null
+                            ? null
+                            : () => _external(
+                                AppActions.whatsapp(
+                                  data?.whatsapp ?? data?.phone,
+                                  message:
+                                      'مرحبًا، وصلت لنشاط ${data?.name ?? widget.title} من تطبيق هنا قنا.',
+                                ),
+                                'واتساب غير متاح على هذا الجهاز',
+                              ),
+                        icon: const FaIcon(FontAwesomeIcons.whatsapp, size: 16),
+                        label: const FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text('واتساب', maxLines: 1, softWrap: false),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: FilledButton.icon(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFFD92D63),
+                          foregroundColor: Colors.white,
+                        ),
+                        onPressed: _openReview,
+                        icon: const Icon(Icons.star_border),
+                        label: const FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text('تقييم', maxLines: 1, softWrap: false),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                if (SocialPlatform.of(data?.socialPlatform)
+                    case final social?) ...[
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: social.color,
+                        side: BorderSide(
+                          color: social.color.withValues(alpha: .4),
+                        ),
+                      ),
+                      onPressed: () => _external(
+                        AppActions.openUrl(data?.socialUrl),
+                        'تعذر فتح الرابط',
+                      ),
+                      icon: FaIcon(social.icon, size: 16),
+                      label: Text(social.label),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onLongPress: widget.providerId == null
+                            ? null
+                            : _addToList,
+                        child: TextButton.icon(
+                          style: TextButton.styleFrom(
+                            foregroundColor: favorite == true ? teal : muted,
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                          ),
+                          onPressed: widget.providerId == null || savingFavorite
+                              ? null
+                              : _toggleFavorite,
+                          icon: Icon(
+                            savingFavorite
+                                ? Icons.hourglass_top_rounded
+                                : favorite == true
+                                ? Icons.bookmark_added_rounded
+                                : Icons.bookmark_add_outlined,
+                          ),
+                          label: Text(favorite == true ? 'محفوظ' : 'حفظ'),
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: TextButton.icon(
+                        onPressed: () => AppActions.share(
+                          context,
+                          subject: data?.name ?? widget.title,
+                          text:
+                              '${data?.name ?? widget.title}\n${data?.description ?? ''}\n${data?.address ?? data?.areaName ?? 'قنا'}\nمن تطبيق هنا قنا',
+                        ),
+                        icon: const Icon(Icons.share_outlined),
+                        label: const Text('مشاركة'),
+                      ),
+                    ),
+                    Expanded(
+                      child: TextButton.icon(
+                        onPressed:
+                            data?.address == null && data?.latitude == null
+                            ? null
+                            : data?.latitude != null
+                            ? () => _openMapOptions(data!)
+                            : null,
+                        icon: const Icon(Icons.map_outlined),
+                        label: const Text('الخريطة'),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                if (data?.latitude != null && data?.longitude != null)
+                  FutureBuilder<Position?>(
+                    future: () async {
+                      try {
+                        var permission = await Geolocator.checkPermission();
+                        if (permission == LocationPermission.denied) {
+                          permission = await Geolocator.requestPermission();
+                        }
+                        if (permission == LocationPermission.denied ||
+                            permission == LocationPermission.deniedForever) {
+                          return null;
+                        }
+                        return await Geolocator.getCurrentPosition().timeout(
+                          const Duration(seconds: 5),
+                        );
+                      } catch (_) {
+                        return null;
+                      }
+                    }(),
+                    builder: (context, positionSnapshot) {
+                      final position = positionSnapshot.data;
+                      if (position == null) return const SizedBox.shrink();
+                      final km =
+                          Geolocator.distanceBetween(
+                            position.latitude,
+                            position.longitude,
+                            data!.latitude!,
+                            data.longitude!,
+                          ) /
+                          1000;
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Row(
+                          children: [
+                            Icon(Icons.near_me_outlined, size: 16, color: teal),
+                            const SizedBox(width: 6),
+                            Text(
+                              'على بعد ${_formatDistanceKm(km)} · ${_estimateTravelTime(km)}',
+                              style: const TextStyle(
+                                color: muted,
+                                fontSize: 12,
+                              ),
                             ),
                           ],
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              if (data != null && AuthSession.adminToken != null) ...[
-                const SizedBox(height: 8),
-                OutlinedButton.icon(
-                  onPressed: () => _editProvider(data),
-                  icon: const Icon(Icons.admin_panel_settings_outlined),
-                  label: const Text('تعديل النشاط بصلاحية الإدارة'),
-                ),
-              ],
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: data?.phone == null
-                          ? null
-                          : () => _external(
-                              AppActions.call(data!.phone),
-                              'تعذر فتح الاتصال على هذا الجهاز',
-                            ),
-                      icon: const Icon(Icons.phone_outlined),
-                      label: const FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Text('اتصال', maxLines: 1, softWrap: false),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: (data?.whatsapp ?? data?.phone) == null
-                          ? null
-                          : () => _external(
-                              AppActions.whatsapp(
-                                data?.whatsapp ?? data?.phone,
-                                message:
-                                    'مرحبًا، وصلت لنشاط ${data?.name ?? widget.title} من تطبيق هنا قنا.',
-                              ),
-                              'واتساب غير متاح على هذا الجهاز',
-                            ),
-                      icon: const FaIcon(FontAwesomeIcons.whatsapp, size: 16),
-                      label: const FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Text('واتساب', maxLines: 1, softWrap: false),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: FilledButton.icon(
-                      style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFFD92D63),
-                        foregroundColor: Colors.white,
-                      ),
-                      onPressed: _openReview,
-                      icon: const Icon(Icons.star_border),
-                      label: const FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Text('تقييم', maxLines: 1, softWrap: false),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              if (SocialPlatform.of(data?.socialPlatform)
-                  case final social?) ...[
-                const SizedBox(height: 8),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: social.color,
-                      side: BorderSide(
-                        color: social.color.withValues(alpha: .4),
-                      ),
-                    ),
-                    onPressed: () => _external(
-                      AppActions.openUrl(data?.socialUrl),
-                      'تعذر فتح الرابط',
-                    ),
-                    icon: FaIcon(social.icon, size: 16),
-                    label: Text(social.label),
-                  ),
-                ),
-              ],
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: GestureDetector(
-                      onLongPress: widget.providerId == null
-                          ? null
-                          : _addToList,
-                      child: TextButton.icon(
-                        style: TextButton.styleFrom(
-                          foregroundColor: favorite == true ? teal : muted,
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
-                        ),
-                        onPressed: widget.providerId == null || savingFavorite
-                            ? null
-                            : _toggleFavorite,
-                        icon: Icon(
-                          savingFavorite
-                              ? Icons.hourglass_top_rounded
-                              : favorite == true
-                              ? Icons.bookmark_added_rounded
-                              : Icons.bookmark_add_outlined,
-                        ),
-                        label: Text(favorite == true ? 'محفوظ' : 'حفظ'),
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: TextButton.icon(
-                      onPressed: () => AppActions.share(
-                        context,
-                        subject: data?.name ?? widget.title,
-                        text:
-                            '${data?.name ?? widget.title}\n${data?.description ?? ''}\n${data?.address ?? data?.areaName ?? 'قنا'}\nمن تطبيق هنا قنا',
-                      ),
-                      icon: const Icon(Icons.share_outlined),
-                      label: const Text('مشاركة'),
-                    ),
-                  ),
-                  Expanded(
-                    child: TextButton.icon(
-                      onPressed: data?.address == null && data?.latitude == null
-                          ? null
-                          : data?.latitude != null
-                          ? () => _openMapOptions(data!)
-                          : null,
-                      icon: const Icon(Icons.map_outlined),
-                      label: const Text('الخريطة'),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              if (data?.latitude != null && data?.longitude != null)
-                FutureBuilder<Position?>(
-                  future: () async {
-                    try {
-                      var permission = await Geolocator.checkPermission();
-                      if (permission == LocationPermission.denied) {
-                        permission = await Geolocator.requestPermission();
-                      }
-                      if (permission == LocationPermission.denied ||
-                          permission == LocationPermission.deniedForever) {
-                        return null;
-                      }
-                      return await Geolocator.getCurrentPosition().timeout(
-                        const Duration(seconds: 5),
                       );
-                    } catch (_) {
-                      return null;
-                    }
-                  }(),
-                  builder: (context, positionSnapshot) {
-                    final position = positionSnapshot.data;
-                    if (position == null) return const SizedBox.shrink();
-                    final km =
-                        Geolocator.distanceBetween(
-                          position.latitude,
-                          position.longitude,
-                          data!.latitude!,
-                          data.longitude!,
-                        ) /
-                        1000;
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: Row(
-                        children: [
-                          Icon(Icons.near_me_outlined, size: 16, color: teal),
-                          const SizedBox(width: 6),
-                          Text(
-                            'على بعد ${_formatDistanceKm(km)} · ${_estimateTravelTime(km)}',
-                            style: const TextStyle(color: muted, fontSize: 12),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-              if (data != null &&
-                  _providerAttributeLabels(data).isNotEmpty) ...[
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: _providerAttributeLabels(data)
-                        .map(
-                          (label) => Padding(
-                            padding: const EdgeInsets.only(left: 8),
-                            child: Chip(
-                              avatar: Icon(label.$2, size: 16, color: teal),
-                              label: Text(
-                                label.$1,
-                                style: const TextStyle(fontSize: 12),
-                              ),
-                              backgroundColor: const Color(0xFFEFF8F6),
-                              side: BorderSide.none,
-                              visualDensity: VisualDensity.compact,
-                            ),
-                          ),
-                        )
-                        .toList(),
+                    },
                   ),
-                ),
-                const SizedBox(height: 18),
-              ],
-              const SectionTitle(title: 'الوصف'),
-              const SizedBox(height: 8),
-              Text(
-                data?.description ??
-                    'خدمة موثقة ومعلوماتها محدثة من فريق هنا قنا.',
-                style: const TextStyle(color: muted, height: 1.5),
-              ),
-              if (data?.offers.isNotEmpty == true) ...[
-                const SizedBox(height: 18),
-                const SectionTitle(title: 'العروض'),
-                const SizedBox(height: 8),
-                ...data!.offers.map(
-                  (offer) => MiniItem(
-                    icon: Icons.local_offer_outlined,
-                    title: offer['title'] as String? ?? 'عرض',
-                    subtitle:
-                        offer['description'] as String? ?? 'عرض متاح حاليًا',
-                  ),
-                ),
-              ],
-              if (data?.services.isNotEmpty == true) ...[
-                const SizedBox(height: 18),
-                const SectionTitle(title: 'الخدمات والأسعار'),
-                const SizedBox(height: 8),
-                ...data!.services.map(
-                  (service) => MiniItem(
-                    icon: Icons.design_services_outlined,
-                    title: service['name'] as String? ?? 'خدمة',
-                    subtitle: service['price'] == null
-                        ? service['priceNote'] as String? ?? 'اسأل عن السعر'
-                        : '${service['price']} جنيه${service['priceNote'] == null ? '' : ' · ${service['priceNote']}'}',
-                  ),
-                ),
-              ],
-              const SizedBox(height: 18),
-              const SectionTitle(title: 'التقييمات الموجودة'),
-              const SizedBox(height: 8),
-              if (snapshot.hasError)
-                const Text(
-                  'تعذر تحميل التقييمات حالياً.',
-                  style: TextStyle(color: muted),
-                ),
-              ...reviews.asMap().entries.map((entry) {
-                final review = entry.value;
-                final author =
-                    (review['author'] as Map<String, dynamic>?)?['name']
-                        as String? ??
-                    'مستخدم هنا قنا';
-                final text = review['comment'] as String? ?? 'تقييم بدون تعليق';
-                final initials = author.isEmpty
-                    ? 'هـ'
-                    : author.characters.first;
-                final score =
-                    ((review['quality'] as int? ?? 0) +
-                        (review['commitment'] as int? ?? 0) +
-                        (review['value'] as int? ?? 0)) /
-                    3;
-                final reviewId = review['id'] as String;
-                final replies = (review['replies'] as List<dynamic>? ?? []).map(
-                  (replyValue) {
-                    final reply = replyValue as Map<String, dynamic>;
-                    final replyAuthor =
-                        (reply['author'] as Map<String, dynamic>?)?['name']
-                            as String? ??
-                        'مستخدم هنا قنا';
-                    return CommentReply(
-                      userId:
-                          (reply['author'] as Map<String, dynamic>?)?['id']
-                              as String?,
-                      name: replyAuthor,
-                      initial: replyAuthor.isEmpty
-                          ? 'هـ'
-                          : replyAuthor.characters.first,
-                      text: reply['text'] as String? ?? '',
-                      timeLabel: _relativeTime(reply['createdAt']),
-                      onReply: data?.viewerIsOwner == true ? () => _reply(reviewId) : null,
-                    );
-                  },
-                ).toList();
-                return MotionIn(
-                  delay: entry.key * 60,
-                  child: CommentBubble(
-                    userId:
-                        (review['author'] as Map<String, dynamic>?)?['id']
-                            as String?,
-                    name: author,
-                    initial: initials,
-                    text: text,
-                    rating: score,
-                    timeLabel: _relativeTime(review['createdAt']),
-                    helpfulActive: review['viewerHelpful'] as bool? ?? false,
-                    helpfulCount:
-                        review['_count']?['helpfulVotes'] as int? ?? 0,
-                    onHelpful: () => _helpful(reviewId),
-                    onReply: data?.viewerIsOwner == true ? () => _reply(reviewId) : null,
-                    replies: replies,
-                  ),
-                );
-              }),
-              if (reviews.isEmpty)
-                const Text(
-                  'لسه مفيش تقييمات. كن أول واحد يقيّم المكان.',
-                  style: TextStyle(color: muted),
-                ),
-              if (data?.categorySlug != null) ...[
-                const SizedBox(height: 18),
-                const SectionTitle(title: 'أماكن مشابهة'),
-                const SizedBox(height: 8),
-                FutureBuilder<List<ProviderSummary>>(
-                  future: ApiClient().fetchProviders(
-                    category: data!.categorySlug,
-                    pageSize: 6,
-                  ),
-                  builder: (context, similarSnapshot) {
-                    final similar = (similarSnapshot.data ?? const [])
-                        .where((item) => item.id != data.id)
-                        .take(5)
-                        .toList();
-                    if (similar.isEmpty) return const SizedBox.shrink();
-                    return Column(
-                      children: similar
+                if (data != null &&
+                    _providerAttributeLabels(data).isNotEmpty) ...[
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: _providerAttributeLabels(data)
                           .map(
-                            (item) => MiniItem(
-                              icon: categoryIcon(item.categoryName),
-                              imageUrl: item.displayImageUrl,
-                              title: item.name,
-                              subtitle: item.subtitle,
-                              onTap: () => Navigator.pushReplacement(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => ProviderDetailPage(
-                                    providerId: item.id,
-                                    title: item.name,
-                                    icon: Icons.storefront_outlined,
-                                    subtitle: item.subtitle,
-                                  ),
+                            (label) => Padding(
+                              padding: const EdgeInsets.only(left: 8),
+                              child: Chip(
+                                avatar: Icon(label.$2, size: 16, color: teal),
+                                label: Text(
+                                  label.$1,
+                                  style: const TextStyle(fontSize: 12),
                                 ),
+                                backgroundColor: const Color(0xFFEFF8F6),
+                                side: BorderSide.none,
+                                visualDensity: VisualDensity.compact,
                               ),
                             ),
                           )
                           .toList(),
-                    );
-                  },
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                ],
+                const SectionTitle(title: 'الوصف'),
+                const SizedBox(height: 8),
+                Text(
+                  data?.description ??
+                      'خدمة موثقة ومعلوماتها محدثة من فريق هنا قنا.',
+                  style: const TextStyle(color: muted, height: 1.5),
                 ),
+                if (data?.offers.isNotEmpty == true) ...[
+                  const SizedBox(height: 18),
+                  const SectionTitle(title: 'العروض'),
+                  const SizedBox(height: 8),
+                  ...data!.offers.map(
+                    (offer) => MiniItem(
+                      icon: Icons.local_offer_outlined,
+                      title: offer['title'] as String? ?? 'عرض',
+                      subtitle:
+                          offer['description'] as String? ?? 'عرض متاح حاليًا',
+                    ),
+                  ),
+                ],
+                if (data?.services.isNotEmpty == true) ...[
+                  const SizedBox(height: 18),
+                  const SectionTitle(title: 'الخدمات والأسعار'),
+                  const SizedBox(height: 8),
+                  ...data!.services.map(
+                    (service) => MiniItem(
+                      icon: Icons.design_services_outlined,
+                      title: service['name'] as String? ?? 'خدمة',
+                      subtitle: service['price'] == null
+                          ? service['priceNote'] as String? ?? 'اسأل عن السعر'
+                          : '${service['price']} جنيه${service['priceNote'] == null ? '' : ' · ${service['priceNote']}'}',
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 18),
+                const SectionTitle(title: 'التقييمات الموجودة'),
+                const SizedBox(height: 8),
+                if (snapshot.hasError)
+                  const Text(
+                    'تعذر تحميل التقييمات حالياً.',
+                    style: TextStyle(color: muted),
+                  ),
+                ...reviews.asMap().entries.map((entry) {
+                  final review = entry.value;
+                  final author =
+                      (review['author'] as Map<String, dynamic>?)?['name']
+                          as String? ??
+                      'مستخدم هنا قنا';
+                  final text =
+                      review['comment'] as String? ?? 'تقييم بدون تعليق';
+                  final initials = author.isEmpty
+                      ? 'هـ'
+                      : author.characters.first;
+                  final score =
+                      ((review['quality'] as int? ?? 0) +
+                          (review['commitment'] as int? ?? 0) +
+                          (review['value'] as int? ?? 0)) /
+                      3;
+                  final reviewId = review['id'] as String;
+                  final replies = (review['replies'] as List<dynamic>? ?? [])
+                      .map((replyValue) {
+                        final reply = replyValue as Map<String, dynamic>;
+                        final replyAuthor =
+                            (reply['author'] as Map<String, dynamic>?)?['name']
+                                as String? ??
+                            'مستخدم هنا قنا';
+                        return CommentReply(
+                          userId:
+                              (reply['author'] as Map<String, dynamic>?)?['id']
+                                  as String?,
+                          name: replyAuthor,
+                          initial: replyAuthor.isEmpty
+                              ? 'هـ'
+                              : replyAuthor.characters.first,
+                          text: reply['text'] as String? ?? '',
+                          timeLabel: _relativeTime(reply['createdAt']),
+                          onReply: data?.viewerIsOwner == true
+                              ? () => _reply(reviewId)
+                              : null,
+                        );
+                      })
+                      .toList();
+                  return MotionIn(
+                    delay: entry.key * 60,
+                    child: CommentBubble(
+                      userId:
+                          (review['author'] as Map<String, dynamic>?)?['id']
+                              as String?,
+                      name: author,
+                      initial: initials,
+                      text: text,
+                      rating: score,
+                      timeLabel: _relativeTime(review['createdAt']),
+                      helpfulActive: review['viewerHelpful'] as bool? ?? false,
+                      helpfulCount:
+                          review['_count']?['helpfulVotes'] as int? ?? 0,
+                      onHelpful: () => _helpful(reviewId),
+                      onReply: data?.viewerIsOwner == true
+                          ? () => _reply(reviewId)
+                          : null,
+                      replies: replies,
+                    ),
+                  );
+                }),
+                if (reviews.isEmpty)
+                  const Text(
+                    'لسه مفيش تقييمات. كن أول واحد يقيّم المكان.',
+                    style: TextStyle(color: muted),
+                  ),
+                if (data?.categorySlug != null) ...[
+                  const SizedBox(height: 18),
+                  const SectionTitle(title: 'أماكن مشابهة'),
+                  const SizedBox(height: 8),
+                  FutureBuilder<List<ProviderSummary>>(
+                    future: ApiClient().fetchProviders(
+                      category: data!.categorySlug,
+                      pageSize: 6,
+                    ),
+                    builder: (context, similarSnapshot) {
+                      final similar = (similarSnapshot.data ?? const [])
+                          .where((item) => item.id != data.id)
+                          .take(5)
+                          .toList();
+                      if (similar.isEmpty) return const SizedBox.shrink();
+                      return Column(
+                        children: similar
+                            .map(
+                              (item) => MiniItem(
+                                icon: categoryIcon(item.categoryName),
+                                imageUrl: item.displayImageUrl,
+                                title: item.name,
+                                subtitle: item.subtitle,
+                                onTap: () => Navigator.pushReplacement(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => ProviderDetailPage(
+                                      providerId: item.id,
+                                      title: item.name,
+                                      icon: Icons.storefront_outlined,
+                                      subtitle: item.subtitle,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            )
+                            .toList(),
+                      );
+                    },
+                  ),
+                ],
               ],
-            ],
             ),
           );
         },
@@ -6941,15 +7664,16 @@ class CommentBubble extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 12),
-                      if (onReply != null) TextButton(
-                        onPressed: onReply,
-                        style: TextButton.styleFrom(
-                          padding: EdgeInsets.zero,
-                          minimumSize: Size.zero,
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      if (onReply != null)
+                        TextButton(
+                          onPressed: onReply,
+                          style: TextButton.styleFrom(
+                            padding: EdgeInsets.zero,
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          child: const Text('رد'),
                         ),
-                        child: const Text('رد'),
-                      ),
                     ],
                   ),
                 ],
@@ -7041,15 +7765,16 @@ class CommentReply extends StatelessWidget {
               ),
               Row(
                 children: [
-              if (onReply != null) TextButton(
-                onPressed: onReply,
-                    style: TextButton.styleFrom(
-                      padding: EdgeInsets.zero,
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  if (onReply != null)
+                    TextButton(
+                      onPressed: onReply,
+                      style: TextButton.styleFrom(
+                        padding: EdgeInsets.zero,
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: const Text('رد', style: AppTextStyles.labelSmall),
                     ),
-                    child: const Text('رد', style: AppTextStyles.labelSmall),
-                  ),
                 ],
               ),
             ],

@@ -1783,6 +1783,138 @@ class ApiClient {
     return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
   }
 
+  Future<Map<String, dynamic>> fetchMinShater({
+    String? query,
+    String? categoryId,
+    String? areaId,
+    int page = 1,
+    int pageSize = 20,
+    bool forceRefresh = false,
+  }) async {
+    final params = <String, String>{
+      'page': '$page',
+      'pageSize': '$pageSize',
+      if (query != null && query.trim().isNotEmpty) 'q': query.trim(),
+      if (categoryId != null) 'categoryId': categoryId,
+      if (areaId != null) 'areaId': areaId,
+    };
+    final response = await http
+        .get(
+          Uri.parse('$baseUrl/api/min-shater').replace(queryParameters: params),
+          headers: _jsonHeaders,
+        )
+        .timeout(const Duration(seconds: 8));
+    if (response.statusCode != 200) throw Exception('min_shater_feed_error');
+    return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+  }
+
+  Future<Map<String, dynamic>> fetchMinShaterRequest(String id) async {
+    final response = await http
+        .get(Uri.parse('$baseUrl/api/min-shater/$id'), headers: _jsonHeaders)
+        .timeout(const Duration(seconds: 8));
+    if (response.statusCode != 200) throw Exception('min_shater_request_error');
+    return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+  }
+
+  Future<Map<String, dynamic>> fetchMinShaterRecommendations(
+    String id, {
+    int page = 1,
+  }) async {
+    final response = await http
+        .get(
+          Uri.parse(
+            '$baseUrl/api/min-shater/$id/recommendations?page=$page&pageSize=20',
+          ),
+          headers: _jsonHeaders,
+        )
+        .timeout(const Duration(seconds: 8));
+    if (response.statusCode != 200)
+      throw Exception('min_shater_recommendations_error');
+    return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+  }
+
+  Future<Map<String, dynamic>> createMinShaterRequest({
+    required String title,
+    String? description,
+    required String categoryId,
+    String? areaId,
+  }) async {
+    final response = await http
+        .post(
+          Uri.parse('$baseUrl/api/min-shater'),
+          headers: _jsonHeaders,
+          body: jsonEncode({
+            'title': title.trim(),
+            'description': description?.trim(),
+            'categoryId': categoryId,
+            'areaId': areaId,
+          }),
+        )
+        .timeout(const Duration(seconds: 8));
+    if (response.statusCode == 401) throw Exception('unauthorized');
+    if (response.statusCode != 201) throw Exception('min_shater_create_error');
+    return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+  }
+
+  Future<Map<String, dynamic>> addMinShaterRecommendation(
+    String requestId,
+    Map<String, dynamic> data,
+  ) async {
+    final response = await http
+        .post(
+          Uri.parse('$baseUrl/api/min-shater/$requestId/recommendations'),
+          headers: _jsonHeaders,
+          body: jsonEncode(data),
+        )
+        .timeout(const Duration(seconds: 8));
+    if (response.statusCode == 401) throw Exception('unauthorized');
+    if (response.statusCode != 201)
+      throw Exception('min_shater_recommendation_error');
+    return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+  }
+
+  Future<Map<String, dynamic>> toggleMinShaterHelpful(
+    String id,
+    bool active,
+  ) async {
+    final response = active
+        ? await http.post(
+            Uri.parse('$baseUrl/api/min-shater/recommendations/$id/helpful'),
+            headers: _jsonHeaders,
+          )
+        : await http.delete(
+            Uri.parse('$baseUrl/api/min-shater/recommendations/$id/helpful'),
+            headers: _jsonHeaders,
+          );
+    if (response.statusCode == 401) throw Exception('unauthorized');
+    if (response.statusCode != 200) throw Exception('min_shater_helpful_error');
+    return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+  }
+
+  Future<Map<String, dynamic>> fetchMyMinShaterRequests() async {
+    final response = await http
+        .get(
+          Uri.parse('$baseUrl/api/me/min-shater/requests'),
+          headers: _jsonHeaders,
+        )
+        .timeout(const Duration(seconds: 8));
+    if (response.statusCode == 401) throw Exception('unauthorized');
+    if (response.statusCode != 200) throw Exception('min_shater_my_error');
+    return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+  }
+
+  Future<Map<String, dynamic>> fetchMyMinShaterRecommendations() async {
+    final response = await http
+        .get(
+          Uri.parse('$baseUrl/api/me/min-shater/recommendations'),
+          headers: _jsonHeaders,
+        )
+        .timeout(const Duration(seconds: 8));
+    if (response.statusCode == 401) throw Exception('unauthorized');
+    if (response.statusCode != 200) throw Exception('min_shater_my_error');
+    return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+  }
+
   Future<void> updatePreferences({
     required bool profilePrivate,
     required String notificationScope,
