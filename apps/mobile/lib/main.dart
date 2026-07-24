@@ -2987,6 +2987,7 @@ class MergedHeroBanner extends StatefulWidget {
 
 class _MergedHeroBannerState extends State<MergedHeroBanner>
     with SingleTickerProviderStateMixin {
+  final searchController = TextEditingController();
   late final AnimationController controller = AnimationController(
     vsync: this,
     duration: const Duration(seconds: 5),
@@ -2994,6 +2995,7 @@ class _MergedHeroBannerState extends State<MergedHeroBanner>
 
   @override
   void dispose() {
+    searchController.dispose();
     controller.dispose();
     super.dispose();
   }
@@ -3087,26 +3089,37 @@ class _MergedHeroBannerState extends State<MergedHeroBanner>
                   ),
                 ),
                 const SizedBox(height: 14),
-                TextField(
-                  textInputAction: TextInputAction.search,
-                  onSubmitted: (value) {
-                    if (value.trim().isNotEmpty) {
-                      widget.onOpenDirectory(value.trim());
-                    }
-                  },
-                  style: const TextStyle(fontSize: 16),
-                  decoration: InputDecoration(
-                    prefixIcon: Icon(
-                      Icons.search,
-                      color: palette.primary,
-                      size: 24,
+                ValueListenableBuilder<TextEditingValue>(
+                  valueListenable: searchController,
+                  builder: (context, value, _) => TextField(
+                    controller: searchController,
+                    textInputAction: TextInputAction.search,
+                    onSubmitted: (query) {
+                      if (query.trim().isNotEmpty) {
+                        widget.onOpenDirectory(query.trim());
+                      }
+                    },
+                    style: const TextStyle(fontSize: 16),
+                    decoration: InputDecoration(
+                      prefixIcon: Icon(
+                        Icons.search,
+                        color: palette.primary,
+                        size: 24,
+                      ),
+                      suffixIcon: value.text.trim().isEmpty
+                          ? null
+                          : IconButton(
+                              icon: Icon(Icons.close, color: palette.primary),
+                              tooltip: 'مسح البحث',
+                              onPressed: searchController.clear,
+                            ),
+                      hintText: 'بتدور على خدمة أو مكان؟',
+                      contentPadding: const EdgeInsets.symmetric(
+                        vertical: 18,
+                        horizontal: 16,
+                      ),
+                      fillColor: Colors.white,
                     ),
-                    hintText: 'بتدور على خدمة أو مكان؟',
-                    contentPadding: const EdgeInsets.symmetric(
-                      vertical: 18,
-                      horizontal: 16,
-                    ),
-                    fillColor: Colors.white,
                   ),
                 ),
                 const SizedBox(height: 16),
