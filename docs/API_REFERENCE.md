@@ -152,6 +152,8 @@ POST /api/prices/:id/confirm
 GET/POST/PATCH /api/admin/prices[/:id]
 PATCH /api/admin/prices/:id/archive
 PATCH /api/admin/prices/:id
+
+`GET /api/admin/prices?outliersOnly=true` adds an administration-only advisory filter. Outlier signals are never included in public price responses and do not auto-reject data.
 GET/POST /api/now
 POST /api/now/:id/helpful
 POST /api/support-tickets

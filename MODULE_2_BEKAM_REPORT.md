@@ -16,17 +16,19 @@ The existing prices foundation was audited and hardened through additive migrati
 - Added `validUntil`, `confidenceScore`, `sourceType`, and `lastReviewedAt`; expired prices are hidden publicly.
 - Added audited admin archive/restore and editable price metadata.
 - Mobile cards now show confidence percentage and freshness wording.
+- Added an administration-only outlier signal for approved prices: comparable rows are grouped by category and area, and a row is flagged when its midpoint differs from the group median by at least 2.5x. The signal is never returned by the public prices endpoint.
+- Added an administration filter for reviewing flagged prices without changing or auto-rejecting them.
 
 ## Verified
 
 - API TypeScript build passed.
-- Isolated Docker PostgreSQL migration and integration suite passed: 89/89 tests.
+- Isolated Docker PostgreSQL migration and integration suite passed: 90/90 tests.
 - Migration `20260724220619_price_confirmations` applied successfully to the isolated database.
 - Migration `20260724224317_price_freshness_confidence` applied successfully to the isolated database.
 
 ## Still missing
 
-Outlier detection, richer admin table controls, and device/staging verification remain for the next slice.
+Device/staging verification and a richer editable admin table remain for the next slice. Outlier detection is advisory only and does not auto-reject or change a price.
 
 Mobile freshness display commit: `8a21873`.
 

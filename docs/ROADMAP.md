@@ -60,4 +60,4 @@ Audit and additive data/API foundation are complete. The current release is Part
 
 ## Module 2 — بكام؟
 
-The initial stabilization slice is complete and recorded in `MODULE_2_BEKAM_REPORT.md`. The next gate is an additive confirmation/history design with isolated migration tests; no release tag is authorized yet.
+The current stabilization slices (confirmations, freshness/confidence, archive/restore and advisory outlier review) are complete and recorded in `MODULE_2_BEKAM_REPORT.md`. The next gate is staging/device verification and richer administrative editing; no release tag is authorized yet.

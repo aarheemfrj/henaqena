@@ -57,4 +57,4 @@ Legend: **Implemented** = present in current code; **Partial** = some paths/UI o
 When a feature changes, update this table and the [Documentation Gaps](./DOCUMENTATION_GAPS.md) entry if runtime evidence is still missing. Do not mark an external integration Implemented solely because a client package is installed.
 
 | مين شاطر community recommendations | Partial | API, moderation, isolated regression coverage and initial Flutter feed/request/recommendation flow are implemented; admin contribution history, full notifications deep-linking, best selection and images remain deferred/unverified |
-| بكام؟ prices | Partial | Existing price foundation hardened for active areas, positive values, duplicate submissions and deterministic public freshness; confirmation/history/confidence remain planned |
+| بكام؟ prices | Partial | Price submissions, confirmations, freshness/expiry, confidence/source metadata, audited archive/restore and advisory admin outlier review are implemented; staging verification and richer editing remain |
