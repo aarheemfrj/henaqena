@@ -35,51 +35,55 @@ enum AdminRole {
 }
 
 model User {
-  id                   String             @id @default(cuid())
-  name                 String
-  phone                String?            @unique
-  email                String?            @unique
-  avatarUrl            String?
-  isProfilePrivate     Boolean            @default(false)
-  points               Int                @default(0)
-  level                UserLevel          @default(QENAWY)
-  createdAt            DateTime           @default(now())
-  updatedAt            DateTime           @updatedAt
-  passwordHash         String?
-  phoneVerifiedAt      DateTime?
-  emailVerifiedAt      DateTime?
-  authProvider         String?
-  authSubject          String?
-  preferredAreaIds     String[]           @default([])
-  interests            String[]           @default([])
-  ageRange             String?
-  gender               String?
-  notificationScope    String             @default("all")
-  notificationsEnabled Boolean            @default(true)
-  notificationDigest   Boolean            @default(false)
-  role                 String             @default("USER")
-  isBlocked            Boolean            @default(false)
-  blockedAt            DateTime?
-  blockedReason        String?
-  providers            Provider[]
-  listings             Listing[]
-  reviews              Review[]
-  replies              ReviewReply[]
-  notifications        Notification[]
-  sessions             Session[]
-  verificationCodes    VerificationCode[]
-  auditLogs            AuditLog[]
-  providerReports      ProviderReport[]   @relation("reportedBy")
-  providerFavorites    ProviderFavorite[]
-  listingFavorites     ListingFavorite[]
-  listingInterests     ListingInterest[]
-  helpfulReviews       ReviewHelpful[]
-  listingReports       ListingReport[]
-  nowHelpfulVotes      NowHelpful[]
-  supportTickets       SupportTicket[]
-  adReactions          AdReaction[]
-  favoriteLists        FavoriteList[]
-  savedSearches        SavedSearch[]
+  id                       String                    @id @default(cuid())
+  name                     String
+  phone                    String?                   @unique
+  email                    String?                   @unique
+  avatarUrl                String?
+  isProfilePrivate         Boolean                   @default(false)
+  points                   Int                       @default(0)
+  level                    UserLevel                 @default(QENAWY)
+  createdAt                DateTime                  @default(now())
+  updatedAt                DateTime                  @updatedAt
+  passwordHash             String?
+  phoneVerifiedAt          DateTime?
+  emailVerifiedAt          DateTime?
+  authProvider             String?
+  authSubject              String?
+  preferredAreaIds         String[]                  @default([])
+  interests                String[]                  @default([])
+  ageRange                 String?
+  gender                   String?
+  notificationScope        String                    @default("all")
+  notificationsEnabled     Boolean                   @default(true)
+  notificationDigest       Boolean                   @default(false)
+  role                     String                    @default("USER")
+  isBlocked                Boolean                   @default(false)
+  blockedAt                DateTime?
+  blockedReason            String?
+  providers                Provider[]
+  listings                 Listing[]
+  reviews                  Review[]
+  replies                  ReviewReply[]
+  notifications            Notification[]
+  sessions                 Session[]
+  verificationCodes        VerificationCode[]
+  auditLogs                AuditLog[]
+  providerReports          ProviderReport[]          @relation("reportedBy")
+  providerFavorites        ProviderFavorite[]
+  listingFavorites         ListingFavorite[]
+  listingInterests         ListingInterest[]
+  helpfulReviews           ReviewHelpful[]
+  listingReports           ListingReport[]
+  nowHelpfulVotes          NowHelpful[]
+  supportTickets           SupportTicket[]
+  adReactions              AdReaction[]
+  favoriteLists            FavoriteList[]
+  savedSearches            SavedSearch[]
+  minShaterRequests        MinShaterRequest[]
+  minShaterRecommendations MinShaterRecommendation[]
+  minShaterHelpful         MinShaterHelpful[]
+  minShaterReports         MinShaterReport[]
 
   @@unique([authProvider, authSubject])
 }
@@ -148,69 +152,71 @@ model AuditLog {
 }
 
 model Area {
-  id          String       @id @default(cuid())
-  name        String
-  city        String       @default("قنا")
-  isActive    Boolean      @default(true)
-  providers   Provider[]
-  listings    Listing[]
-  ads         Ad[]
-  priceGuides PriceGuide[]
-  nowUpdates  NowUpdate[]
-  createdAt   DateTime     @default(now())
+  id                String             @id @default(cuid())
+  name              String
+  city              String             @default("قنا")
+  isActive          Boolean            @default(true)
+  providers         Provider[]
+  listings          Listing[]
+  ads               Ad[]
+  priceGuides       PriceGuide[]
+  nowUpdates        NowUpdate[]
+  minShaterRequests MinShaterRequest[]
+  createdAt         DateTime           @default(now())
 }
 
 model Provider {
-  id             String             @id @default(cuid())
-  externalId     String?            @unique
-  name           String
-  description    String?
-  logoUrl        String?
-  phone          String?
-  whatsapp       String?
-  email          String?
-  website        String?
-  facebookUrl    String?
-  instagramUrl   String?
-  tiktokUrl      String?
-  socialPlatform String?
-  socialUrl      String?
-  address        String?
-  latitude       Float?
-  longitude      Float?
-  serviceMode    String             @default("LOCAL")
-  phoneType      String             @default("BUSINESS")
-  openingTime    String?
-  closingTime    String?
-  openingHours   Json?
-  communityAdded Boolean            @default(true)
-  submissionKind String             @default("COMMUNITY")
-  isVerified     Boolean            @default(false)
-  status         ReviewStatus       @default(PENDING)
-  kidFriendly    Boolean            @default(false)
-  accessible     Boolean            @default(false)
-  hasParking     Boolean            @default(false)
-  acceptsCards   Boolean            @default(false)
-  homeService    Boolean            @default(false)
-  needsBooking   Boolean            @default(false)
-  open24h        Boolean            @default(false)
-  hasDelivery    Boolean            @default(false)
-  ownerId        String?
-  areaId         String
-  owner          User?              @relation(fields: [ownerId], references: [id])
-  area           Area               @relation(fields: [areaId], references: [id])
-  images         ProviderImage[]
-  reviews        Review[]
-  categories     ProviderCategory[]
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
-  reports        ProviderReport[]   @relation("providerReports")
-  services       ProviderService[]
-  offers         ProviderOffer[]
-  favorites      ProviderFavorite[]
-  archivedAt     DateTime?
-  deletedAt      DateTime?
-  archiveReason  String?
+  id                       String                    @id @default(cuid())
+  externalId               String?                   @unique
+  name                     String
+  description              String?
+  logoUrl                  String?
+  phone                    String?
+  whatsapp                 String?
+  email                    String?
+  website                  String?
+  facebookUrl              String?
+  instagramUrl             String?
+  tiktokUrl                String?
+  socialPlatform           String?
+  socialUrl                String?
+  address                  String?
+  latitude                 Float?
+  longitude                Float?
+  serviceMode              String                    @default("LOCAL")
+  phoneType                String                    @default("BUSINESS")
+  openingTime              String?
+  closingTime              String?
+  openingHours             Json?
+  communityAdded           Boolean                   @default(true)
+  submissionKind           String                    @default("COMMUNITY")
+  isVerified               Boolean                   @default(false)
+  status                   ReviewStatus              @default(PENDING)
+  kidFriendly              Boolean                   @default(false)
+  accessible               Boolean                   @default(false)
+  hasParking               Boolean                   @default(false)
+  acceptsCards             Boolean                   @default(false)
+  homeService              Boolean                   @default(false)
+  needsBooking             Boolean                   @default(false)
+  open24h                  Boolean                   @default(false)
+  hasDelivery              Boolean                   @default(false)
+  ownerId                  String?
+  areaId                   String
+  owner                    User?                     @relation(fields: [ownerId], references: [id])
+  area                     Area                      @relation(fields: [areaId], references: [id])
+  images                   ProviderImage[]
+  reviews                  Review[]
+  categories               ProviderCategory[]
+  createdAt                DateTime                  @default(now())
+  updatedAt                DateTime                  @updatedAt
+  reports                  ProviderReport[]          @relation("providerReports")
+  services                 ProviderService[]
+  offers                   ProviderOffer[]
+  favorites                ProviderFavorite[]
+  minShaterRecommendations MinShaterRecommendation[]
+  archivedAt               DateTime?
+  deletedAt                DateTime?
+  archiveReason            String?
 }
 
 model ProviderReport {
@@ -279,47 +285,48 @@ model SavedSearch {
 }
 
 model ProviderService {
-  id          String       @id @default(cuid())
-  providerId  String
-  name        String
-  description String?
-  logoUrl     String?
-  price       Decimal?     @db.Decimal(12, 2)
-  priceNote   String?
-  status      ReviewStatus @default(PENDING)
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  provider    Provider     @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  archivedAt  DateTime?
-  deletedAt   DateTime?
+  id            String       @id @default(cuid())
+  providerId    String
+  name          String
+  description   String?
+  logoUrl       String?
+  price         Decimal?     @db.Decimal(12, 2)
+  priceNote     String?
+  status        ReviewStatus @default(PENDING)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  provider      Provider     @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  archivedAt    DateTime?
+  deletedAt     DateTime?
   archiveReason String?
 
   @@index([providerId, status])
 }
 
 model ProviderOffer {
-  id          String       @id @default(cuid())
-  providerId  String
-  title       String
-  description String?
-  startsAt    DateTime
-  endsAt      DateTime
-  status      ReviewStatus @default(PENDING)
-  createdAt   DateTime     @default(now())
-  provider    Provider     @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  archivedAt  DateTime?
-  deletedAt   DateTime?
+  id            String       @id @default(cuid())
+  providerId    String
+  title         String
+  description   String?
+  startsAt      DateTime
+  endsAt        DateTime
+  status        ReviewStatus @default(PENDING)
+  createdAt     DateTime     @default(now())
+  provider      Provider     @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  archivedAt    DateTime?
+  deletedAt     DateTime?
   archiveReason String?
 
   @@index([providerId, status, endsAt])
 }
 
 model Category {
-  id        String             @id @default(cuid())
-  name      String
-  slug      String             @unique
-  isActive  Boolean            @default(true)
-  providers ProviderCategory[]
+  id                String             @id @default(cuid())
+  name              String
+  slug              String             @unique
+  isActive          Boolean            @default(true)
+  providers         ProviderCategory[]
+  minShaterRequests MinShaterRequest[]
 }
 
 model ProviderCategory {
@@ -332,25 +339,25 @@ model ProviderCategory {
 }
 
 model Listing {
-  id          String            @id @default(cuid())
-  title       String
-  description String?
-  logoUrl     String?
-  category    String            @default("للبيع")
-  price       Decimal           @db.Decimal(12, 2)
-  status      ListingStatus     @default(PENDING)
-  ownerId     String
-  areaId      String
-  owner       User              @relation(fields: [ownerId], references: [id])
-  area        Area              @relation(fields: [areaId], references: [id])
-  images      ListingImage[]
-  favorites   ListingFavorite[]
-  interests   ListingInterest[]
-  reports     ListingReport[]
-  createdAt   DateTime          @default(now())
-  expiresAt   DateTime?
-  archivedAt  DateTime?
-  deletedAt   DateTime?
+  id            String            @id @default(cuid())
+  title         String
+  description   String?
+  logoUrl       String?
+  category      String            @default("للبيع")
+  price         Decimal           @db.Decimal(12, 2)
+  status        ListingStatus     @default(PENDING)
+  ownerId       String
+  areaId        String
+  owner         User              @relation(fields: [ownerId], references: [id])
+  area          Area              @relation(fields: [areaId], references: [id])
+  images        ListingImage[]
+  favorites     ListingFavorite[]
+  interests     ListingInterest[]
+  reports       ListingReport[]
+  createdAt     DateTime          @default(now())
+  expiresAt     DateTime?
+  archivedAt    DateTime?
+  deletedAt     DateTime?
   archiveReason String?
 }
 
@@ -430,38 +437,124 @@ model ReviewHelpful {
 }
 
 model ReviewReply {
-  id          String       @id @default(cuid())
-  reviewId    String
-  authorId    String
-  text        String
-  status      ReviewStatus @default(PENDING)
-  moderatedAt DateTime?
-  review      Review       @relation(fields: [reviewId], references: [id], onDelete: Cascade)
-  author      User         @relation(fields: [authorId], references: [id])
-  createdAt   DateTime     @default(now())
-  archivedAt  DateTime?
-  deletedAt   DateTime?
+  id            String       @id @default(cuid())
+  reviewId      String
+  authorId      String
+  text          String
+  status        ReviewStatus @default(PENDING)
+  moderatedAt   DateTime?
+  review        Review       @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  author        User         @relation(fields: [authorId], references: [id])
+  createdAt     DateTime     @default(now())
+  archivedAt    DateTime?
+  deletedAt     DateTime?
   archiveReason String?
 
   @@index([status, moderatedAt])
 }
 
+model MinShaterRequest {
+  id               String                    @id @default(cuid())
+  userId           String
+  title            String
+  description      String?
+  categoryId       String
+  areaId           String?
+  status           String                    @default("OPEN")
+  moderationStatus ReviewStatus              @default(PENDING)
+  rejectionReason  String?
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @updatedAt
+  closedAt         DateTime?
+  archivedAt       DateTime?
+  deletedAt        DateTime?
+  user             User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category         Category                  @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  area             Area?                     @relation(fields: [areaId], references: [id], onDelete: Restrict)
+  recommendations  MinShaterRecommendation[]
+  reports          MinShaterReport[]
+
+  @@index([moderationStatus, status, createdAt])
+  @@index([categoryId, createdAt])
+  @@index([areaId, createdAt])
+  @@index([userId, createdAt])
+  @@index([archivedAt, deletedAt])
+}
+
+model MinShaterRecommendation {
+  id               String             @id @default(cuid())
+  requestId        String
+  userId           String
+  providerId       String?
+  recommendedName  String?
+  phone            String?
+  description      String?
+  moderationStatus ReviewStatus       @default(PENDING)
+  rejectionReason  String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  archivedAt       DateTime?
+  deletedAt        DateTime?
+  request          MinShaterRequest   @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  user             User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider         Provider?          @relation(fields: [providerId], references: [id], onDelete: SetNull)
+  helpfulVotes     MinShaterHelpful[]
+  reports          MinShaterReport[]
+
+  @@index([requestId, moderationStatus, createdAt])
+  @@index([providerId, moderationStatus])
+  @@index([userId, createdAt])
+  @@index([archivedAt, deletedAt])
+}
+
+model MinShaterHelpful {
+  recommendationId String
+  userId           String
+  createdAt        DateTime                @default(now())
+  recommendation   MinShaterRecommendation @relation(fields: [recommendationId], references: [id], onDelete: Cascade)
+  user             User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([recommendationId, userId])
+  @@index([recommendationId])
+}
+
+model MinShaterReport {
+  id                String                   @id @default(cuid())
+  reporterUserId    String
+  requestId         String?
+  recommendationId  String?
+  reason            String
+  description       String?
+  status            String                   @default("PENDING")
+  reviewedByAdminId String?
+  reviewedAt        DateTime?
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+  reporter          User                     @relation(fields: [reporterUserId], references: [id], onDelete: Cascade)
+  request           MinShaterRequest?        @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  recommendation    MinShaterRecommendation? @relation(fields: [recommendationId], references: [id], onDelete: Cascade)
+
+  @@index([requestId, status, createdAt])
+  @@index([recommendationId, status, createdAt])
+  @@index([reporterUserId, createdAt])
+}
+
 model Ad {
-  id          String       @id @default(cuid())
-  name        String
-  imageUrl    String
-  description String?
-  targetUrl   String?
-  status      ReviewStatus @default(PENDING)
-  weight      Int          @default(100)
-  areaId      String?
-  startsAt    DateTime
-  endsAt      DateTime
-  area        Area?        @relation(fields: [areaId], references: [id])
-  reactions   AdReaction[]
-  createdAt   DateTime     @default(now())
-  archivedAt  DateTime?
-  deletedAt   DateTime?
+  id            String       @id @default(cuid())
+  name          String
+  imageUrl      String
+  description   String?
+  targetUrl     String?
+  status        ReviewStatus @default(PENDING)
+  weight        Int          @default(100)
+  areaId        String?
+  startsAt      DateTime
+  endsAt        DateTime
+  area          Area?        @relation(fields: [areaId], references: [id])
+  reactions     AdReaction[]
+  createdAt     DateTime     @default(now())
+  archivedAt    DateTime?
+  deletedAt     DateTime?
   archiveReason String?
 }
 
@@ -477,40 +570,40 @@ model AdReaction {
 }
 
 model PriceGuide {
-  id         String       @id @default(cuid())
-  name       String
-  category   String?
-  minPrice   Decimal      @db.Decimal(12, 2)
-  maxPrice   Decimal      @db.Decimal(12, 2)
-  unit       String?
-  sourceNote String?
-  status     ReviewStatus @default(PENDING)
-  areaId     String?
-  area       Area?        @relation(fields: [areaId], references: [id])
-  createdAt  DateTime     @default(now())
-  updatedAt  DateTime     @updatedAt
-  archivedAt DateTime?
-  deletedAt  DateTime?
+  id            String       @id @default(cuid())
+  name          String
+  category      String?
+  minPrice      Decimal      @db.Decimal(12, 2)
+  maxPrice      Decimal      @db.Decimal(12, 2)
+  unit          String?
+  sourceNote    String?
+  status        ReviewStatus @default(PENDING)
+  areaId        String?
+  area          Area?        @relation(fields: [areaId], references: [id])
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  archivedAt    DateTime?
+  deletedAt     DateTime?
   archiveReason String?
 
   @@index([status, updatedAt])
 }
 
 model NowUpdate {
-  id           String       @id @default(cuid())
-  title        String
-  body         String?
-  category     String       @default("عام")
-  status       ReviewStatus @default(PENDING)
-  areaId       String?
-  startsAt     DateTime     @default(now())
-  endsAt       DateTime?
-  area         Area?        @relation(fields: [areaId], references: [id])
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
-  helpfulVotes NowHelpful[]
-  archivedAt DateTime?
-  deletedAt DateTime?
+  id            String       @id @default(cuid())
+  title         String
+  body          String?
+  category      String       @default("عام")
+  status        ReviewStatus @default(PENDING)
+  areaId        String?
+  startsAt      DateTime     @default(now())
+  endsAt        DateTime?
+  area          Area?        @relation(fields: [areaId], references: [id])
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  helpfulVotes  NowHelpful[]
+  archivedAt    DateTime?
+  deletedAt     DateTime?
   archiveReason String?
 
   @@index([status, startsAt, endsAt])
@@ -582,7 +675,7 @@ model DataSource {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  jobs      CollectionJob[]
+  jobs       CollectionJob[]
   businesses CollectedBusiness[]
 }
 
@@ -611,40 +704,40 @@ model CollectionJob {
 }
 
 model CollectedBusiness {
-  id              String                 @id
-  jobId           String?
-  sourceId        String?
-  externalId      String?
-  name            String
-  normalizedName  String
-  category        String?
-  subcategory     String?
-  city            String                 @default("قنا")
-  area            String?
-  village         String?
-  address         String?
-  latitude        Float?
-  longitude       Float?
-  phone           String?
-  normalizedPhone String?
-  whatsapp        String?
-  email           String?
-  website         String?
-  facebook        String?
-  instagram       String?
-  tiktok          String?
-  googleMapsUrl   String?
-  rating          Float?
-  reviewCount     Int?
-  openingHours    Json?
-  rawData         Json?
-  fingerprint     String                 @unique
-  qualityScore    Int                    @default(0)
-  status          CollectedRecordStatus  @default(NEW)
-  reviewNote      String?
-  reviewedAt      DateTime?
-  reviewedBy      String?
-  providerId      String?
+  id                     String                 @id
+  jobId                  String?
+  sourceId               String?
+  externalId             String?
+  name                   String
+  normalizedName         String
+  category               String?
+  subcategory            String?
+  city                   String                 @default("قنا")
+  area                   String?
+  village                String?
+  address                String?
+  latitude               Float?
+  longitude              Float?
+  phone                  String?
+  normalizedPhone        String?
+  whatsapp               String?
+  email                  String?
+  website                String?
+  facebook               String?
+  instagram              String?
+  tiktok                 String?
+  googleMapsUrl          String?
+  rating                 Float?
+  reviewCount            Int?
+  openingHours           Json?
+  rawData                Json?
+  fingerprint            String                 @unique
+  qualityScore           Int                    @default(0)
+  status                 CollectedRecordStatus  @default(NEW)
+  reviewNote             String?
+  reviewedAt             DateTime?
+  reviewedBy             String?
+  providerId             String?
   googlePlaceId          String?                @unique
   osmId                  String?                @unique
   socialEnrichment       Json?
@@ -652,8 +745,8 @@ model CollectedBusiness {
   socialEnrichmentStatus SocialEnrichmentStatus @default(PENDING)
   socialEnrichmentError  String?
   socialEnrichedAt       DateTime?
-  createdAt       DateTime               @default(now())
-  updatedAt       DateTime               @updatedAt
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
 
   job    CollectionJob? @relation(fields: [jobId], references: [id], onDelete: SetNull)
   source DataSource?    @relation(fields: [sourceId], references: [id], onDelete: SetNull)
@@ -685,15 +778,15 @@ model DuplicateCandidate {
 }
 
 model Notification {
-  id        String    @id @default(cuid())
-  userId    String
-  title     String
-  body      String
+  id         String    @id @default(cuid())
+  userId     String
+  title      String
+  body       String
   targetType String?
   targetId   String?
-  readAt    DateTime?
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt DateTime  @default(now())
+  readAt     DateTime?
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime  @default(now())
 }
 
 model PlatformSettings {
