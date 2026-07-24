@@ -7,9 +7,11 @@
 
 ## Completed baseline
 
-- **Sprint 1 — Production Stabilization:** auth blocking, upload validation/cleanup, IDOR protections, taxonomy safety and audit metadata.
-- **Sprint 1.1 — Production Verification:** isolated PostgreSQL integration tests, staging migration, backup/restore and CI coverage.
-- **Sprint 1.5 — Engineering Documentation:** this documentation set (docs-only).
+The following baseline sprints are **closed بالكامل** and included in tag `v0.1-baseline`:
+
+- **Sprint 1 — Production Stabilization — Closed:** auth blocking, upload validation/cleanup, IDOR protections, taxonomy safety and audit metadata.
+- **Sprint 1.1 — Production Verification & Integration Testing — Closed:** isolated PostgreSQL integration tests, staging migration, backup/restore and CI coverage.
+- **Sprint 1.5 — Engineering Documentation — Closed:** source-backed architecture, database, API, security, deployment, testing and feature-status documentation.
 
 ## Sprint 2 — Directory and trust depth
 

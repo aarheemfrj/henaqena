@@ -5,6 +5,16 @@
 **Status:** Audit snapshot; not a product promise
 **Owner:** Product/Engineering
 
+## Baseline sprint status
+
+| Sprint | Status | Baseline evidence |
+|---|---|---|
+| Sprint 1 — Production Stabilization | Implemented | Commit `4cb2c4b`; stabilization report and regression fixes |
+| Sprint 1.1 — Production Verification & Integration Testing | Implemented | Commit `56f8803`; 75/75 isolated PostgreSQL integration tests, staging migration and restore verification |
+| Sprint 1.5 — Engineering Documentation | Implemented | Commits `c7e1d5c` and `47dc98e`; documentation set, route audit and final validation |
+
+These statuses describe completed engineering sprints, not new product features.
+
 Legend: **Implemented** = present in current code; **Partial** = some paths/UI or external setup missing; **Planned** = not implemented; **Unverified** = code exists but runtime evidence is missing.
 
 | Module | Status | Evidence / notes |
