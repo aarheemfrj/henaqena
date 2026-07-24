@@ -59,7 +59,7 @@ Feed and recommendation endpoints use bounded pagination, explicit selects, stab
 - Admin moderation UI/actions: `622a26e`
 - Mobile feed and request/recommendation flows: `cfbd511`
 - Regression coverage: `8beae58`
-- Documentation updates: pending final documentation commit
+- Documentation and final report: `1a124e1`
 
 ## Verification status
 
@@ -71,4 +71,4 @@ Contribution history is API-only; the account UI is not yet wired. Best recommen
 
 ## Final GO / NO-GO
 
-**NO-GO for `v0.7-min-shater` tag yet.** The core moderated workflow is ready for continued verification, but the release gate requires final API/Web/Flutter matrix, device/staging checks, notification deep-link verification and completion of the remaining documented UI/deferred decisions. Do not create the tag until those gates pass.
+**NO-GO for `v0.7-min-shater` tag yet.** The core moderated workflow is ready for continued verification, but the release gate requires final device/staging checks, notification deep-link verification and completion of the remaining documented UI/deferred decisions. Do not create the tag until those gates pass.
