@@ -151,8 +151,8 @@ The pre-existing untracked deployment/backup artifacts were intentionally not to
 
 ## Version and release gate
 
-- Implementation commits: `8de9bdd`, `225395e`, plus the final validation/documentation commit recorded below.
-- Tag `v0.3-search`: pending final validation commit creation.
+- Implementation commits: `8de9bdd`, `225395e`, `b5afab2`.
+- Tag `v0.3-search`: created after final validation on the final Sprint 2B commit.
 - No force push or changes to `v0.1-baseline` / `v0.2-directory`.
 
 ## Go / No-Go for Sprint 2C
