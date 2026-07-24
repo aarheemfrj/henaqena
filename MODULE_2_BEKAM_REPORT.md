@@ -2,7 +2,7 @@
 
 ## Status
 
-The existing prices foundation was audited and hardened without a new migration. This is an incremental slice, not a completed Module 2 release.
+The existing prices foundation was audited and hardened through additive migrations. This is an incremental slice, not a completed Module 2 release.
 
 ## Implemented
 
@@ -20,7 +20,7 @@ The existing prices foundation was audited and hardened without a new migration.
 ## Verified
 
 - API TypeScript build passed.
-- Isolated Docker PostgreSQL migration and integration suite passed: 88/88 tests.
+- Isolated Docker PostgreSQL migration and integration suite passed: 89/89 tests.
 - Migration `20260724220619_price_confirmations` applied successfully to the isolated database.
 - Migration `20260724224317_price_freshness_confidence` applied successfully to the isolated database.
 
