@@ -3842,7 +3842,9 @@ class _DirectoryPageState extends State<DirectoryPage> {
       final query = value.trim();
       final nextFuture = _fetchProviders(searchQuery: query);
       if (mounted && generation == _searchGeneration) {
-        setState(() => providersFuture = nextFuture);
+        setState(() {
+          providersFuture = nextFuture;
+        });
       }
       if (query.length < 2) return;
       try {
