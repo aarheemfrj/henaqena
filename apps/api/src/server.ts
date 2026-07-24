@@ -844,15 +844,19 @@ app.get('/api/providers/:id', async (req, res, next) => {
   try {
     const session = await sessionFromRequest(req);
     const provider = await prisma.provider.findFirst({
-      where: { id: req.params.id, archivedAt: null, deletedAt: null, OR: [{ status: ReviewStatus.APPROVED }, ...(session ? [{ ownerId: session.userId }] : [])] },
-      include: {
-        area: true,
-        images: { orderBy: { sortOrder: 'asc' } },
-        categories: { include: { category: true } },
-        services: { where: { status: ReviewStatus.APPROVED, archivedAt: null, deletedAt: null }, orderBy: { createdAt: 'desc' } },
-        offers: { where: { status: ReviewStatus.APPROVED, archivedAt: null, deletedAt: null, startsAt: { lte: new Date() }, endsAt: { gte: new Date() } }, orderBy: { endsAt: 'asc' } },
-        reviews: { where: { status: ReviewStatus.APPROVED }, include: { author: { select: publicAuthorSelect }, replies: { where: { status: ReviewStatus.APPROVED }, include: { author: { select: publicAuthorSelect } } }, _count: { select: { helpfulVotes: true } } }, orderBy: { createdAt: 'desc' } },
-        _count: { select: { favorites: true } },
+      where: { id: req.params.id, archivedAt: null, deletedAt: null, area: { isActive: true }, OR: [{ status: ReviewStatus.APPROVED }, ...(session ? [{ ownerId: session.userId }] : [])] },
+      select: {
+        id: true, name: true, description: true, logoUrl: true, phone: true, whatsapp: true, email: true, website: true,
+        facebookUrl: true, instagramUrl: true, tiktokUrl: true, socialPlatform: true, socialUrl: true, address: true,
+        latitude: true, longitude: true, openingTime: true, closingTime: true, openingHours: true, open24h: true,
+        kidFriendly: true, accessible: true, hasParking: true, acceptsCards: true, homeService: true, needsBooking: true, hasDelivery: true,
+        isVerified: true, area: { select: { id: true, name: true, city: true } },
+        images: { orderBy: { sortOrder: 'asc' }, select: { id: true, url: true, sortOrder: true, kind: true } },
+        categories: { where: { category: { isActive: true } }, orderBy: { category: { name: 'asc' } }, select: { category: { select: { id: true, name: true, slug: true } } } },
+        services: { where: { status: ReviewStatus.APPROVED, archivedAt: null, deletedAt: null }, orderBy: [{ name: 'asc' }, { id: 'asc' }], select: { id: true, name: true, description: true, logoUrl: true, price: true, priceNote: true } },
+        offers: { where: { status: ReviewStatus.APPROVED, archivedAt: null, deletedAt: null, startsAt: { lte: new Date() }, endsAt: { gte: new Date() } }, orderBy: [{ endsAt: 'asc' }, { id: 'asc' }], select: { id: true, title: true, description: true, startsAt: true, endsAt: true } },
+        reviews: { where: { status: ReviewStatus.APPROVED }, take: 20, include: { author: { select: publicAuthorSelect }, replies: { where: { status: ReviewStatus.APPROVED }, orderBy: { createdAt: 'asc' }, include: { author: { select: publicAuthorSelect } } }, _count: { select: { helpfulVotes: true } } }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] },
+        _count: { select: { favorites: true, reviews: { where: { status: ReviewStatus.APPROVED } } } },
       },
     });
     if (!provider) return res.status(404).json({ message: 'Provider not found' });
@@ -861,10 +865,30 @@ app.get('/api/providers/:id', async (req, res, next) => {
     const favorite = session ? await prisma.providerFavorite.findFirst({ where: { userId: session.userId, providerId: provider.id } }) : null;
     const helpful = session ? await prisma.reviewHelpful.findMany({ where: { userId: session.userId, reviewId: { in: provider.reviews.map((review) => review.id) } }, select: { reviewId: true } }) : [];
     const helpfulIds = new Set(helpful.map((item) => item.reviewId));
-    res.json({ ...provider, reviews: provider.reviews.map((review) => ({ ...review, viewerHelpful: helpfulIds.has(review.id) })), viewer: { favorite: Boolean(favorite) } });
+    const rating = provider.reviews.length === 0 ? 0 : provider.reviews.reduce((sum, review) => sum + (review.quality + review.commitment + review.value) / 3, 0) / provider.reviews.length;
+    res.json({ ...provider, rating: Number(rating.toFixed(1)), reviewCount: provider._count.reviews, openNow: providerOpenNow(provider), reviews: provider.reviews.map((review) => ({ ...review, viewerHelpful: helpfulIds.has(review.id) })), viewer: { favorite: Boolean(favorite) } });
   } catch (error) {
     next(error);
   }
+});
+
+app.get('/api/providers/:id/reviews', async (req, res, next) => {
+  try {
+    const page = parseDirectoryInteger(req.query.page, 1, 1, 100000);
+    const pageSize = parseDirectoryInteger(req.query.pageSize, 10, 1, 30);
+    const providerId = String(req.params.id);
+    const provider = await prisma.provider.findFirst({ where: { id: providerId, status: ReviewStatus.APPROVED, archivedAt: null, deletedAt: null, area: { isActive: true } }, select: { id: true } });
+    if (!provider) return res.status(404).json({ message: 'Provider not found' });
+    const where = { providerId, status: ReviewStatus.APPROVED } as const;
+    const [total, reviews] = await Promise.all([
+      prisma.review.count({ where }),
+      prisma.review.findMany({ where, skip: (page - 1) * pageSize, take: pageSize, include: { author: { select: publicAuthorSelect }, replies: { where: { status: ReviewStatus.APPROVED }, orderBy: { createdAt: 'asc' }, include: { author: { select: publicAuthorSelect } } }, _count: { select: { helpfulVotes: true } } }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] }),
+    ]);
+    const session = await sessionFromRequest(req);
+    const helpful = session ? await prisma.reviewHelpful.findMany({ where: { userId: session.userId, reviewId: { in: reviews.map((review) => review.id) } }, select: { reviewId: true } }) : [];
+    const ids = new Set(helpful.map((item) => item.reviewId));
+    res.json({ data: reviews.map((review) => ({ ...review, viewerHelpful: ids.has(review.id) })), total, page, pageSize, hasMore: page * pageSize < total });
+  } catch (error) { next(error); }
 });
 
 app.post('/api/providers/:id/favorite', async (req, res, next) => {
@@ -1317,6 +1341,9 @@ app.post('/api/reviews', async (req, res, next) => {
     const session = await sessionFromRequest(req);
     if (!session) return res.status(401).json({ message: 'غير مسجل الدخول' });
     const input = reviewSchema.parse(req.body);
+    const provider = await prisma.provider.findFirst({ where: { id: input.providerId, status: ReviewStatus.APPROVED, archivedAt: null, deletedAt: null, area: { isActive: true } }, select: { id: true, ownerId: true } });
+    if (!provider) return res.status(404).json({ message: 'النشاط غير متاح للتقييم' });
+    if (provider.ownerId === session.userId) return res.status(403).json({ message: 'لا يمكن لمالك النشاط تقييم نشاطه' });
     const existing = await prisma.review.findFirst({ where: { providerId: input.providerId, authorId: session.userId } });
     if (existing) return res.status(409).json({ message: 'سبق لك تقييم هذا المكان' });
     const review = await prisma.$transaction(async (tx) => {
@@ -1339,8 +1366,9 @@ app.post('/api/reviews/:id/replies', async (req, res, next) => {
     const session = await sessionFromRequest(req);
     if (!session) return res.status(401).json({ message: 'غير مسجل الدخول' });
     const input = z.object({ text: z.string().trim().min(1).max(1000) }).parse(req.body);
-    const review = await prisma.review.findUnique({ where: { id: String(req.params.id) } });
+    const review = await prisma.review.findUnique({ where: { id: String(req.params.id) }, include: { provider: { select: { ownerId: true } } } });
     if (!review || review.status !== ReviewStatus.APPROVED) return res.status(404).json({ message: 'التقييم غير متاح' });
+    if (review.provider.ownerId !== session.userId) return res.status(403).json({ message: 'الرد متاح لمالك النشاط فقط' });
     const reply = await prisma.reviewReply.create({ data: { reviewId: review.id, authorId: session.userId, text: input.text, status: ReviewStatus.PENDING }, include: { author: { select: publicAuthorSelect } } });
     res.status(201).json({ ...reply, message: 'تم إرسال الرد للمراجعة وسيظهر بعد اعتماده' });
   } catch (error) { next(error); }
@@ -1351,11 +1379,25 @@ app.post('/api/reviews/:id/helpful', async (req, res, next) => {
     const session = await sessionFromRequest(req);
     if (!session) return res.status(401).json({ message: 'سجّل الدخول أولاً' });
     const reviewId = String(req.params.id);
+    const review = await prisma.review.findFirst({ where: { id: reviewId, status: ReviewStatus.APPROVED }, select: { id: true } });
+    if (!review) return res.status(404).json({ message: 'التقييم غير متاح' });
     const existing = await prisma.reviewHelpful.findUnique({ where: { userId_reviewId: { userId: session.userId, reviewId } } });
     if (existing) await prisma.reviewHelpful.delete({ where: { userId_reviewId: { userId: session.userId, reviewId } } });
     else await prisma.reviewHelpful.create({ data: { userId: session.userId, reviewId } });
     const count = await prisma.reviewHelpful.count({ where: { reviewId } });
     res.json({ active: !existing, count });
+  } catch (error) { next(error); }
+});
+
+app.delete('/api/me/reviews/:id', async (req, res, next) => {
+  try {
+    const session = await sessionFromRequest(req);
+    if (!session) return res.status(401).json({ message: 'غير مسجل الدخول' });
+    const review = await prisma.review.findFirst({ where: { id: String(req.params.id), authorId: session.userId } });
+    if (!review) return res.status(404).json({ message: 'التقييم غير موجود' });
+    await prisma.review.delete({ where: { id: review.id } });
+    await audit('review.archived', 'review', review.id, { userId: session.userId });
+    res.json({ deleted: true });
   } catch (error) { next(error); }
 });
 

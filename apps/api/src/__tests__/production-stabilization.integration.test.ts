@@ -285,4 +285,36 @@ describe('Sprint 1 production stabilization integration', () => {
     expect(distance).toBeGreaterThan(111);
     expect(distance).toBeLessThan(112);
   });
+
+  it('keeps provider details public-safe and enforces review ownership and visibility', async () => {
+    const owner = await makeUser('Detail owner');
+    const reviewer = await makeUser('Reviewer');
+    const other = await makeUser('Other reviewer');
+    const ownerToken = await makeToken(owner.id);
+    const reviewerToken = await makeToken(reviewer.id);
+    const otherToken = await makeToken(other.id);
+    const { provider } = await makeProvider(owner.id, ReviewStatus.APPROVED);
+    const detail = await request(app).get(`/api/providers/${provider.id}`);
+    expect(detail.status).toBe(200);
+    expect(detail.body.ownerId).toBeUndefined();
+    expect(detail.body.status).toBeUndefined();
+    expect(detail.body.archivedAt).toBeUndefined();
+    const ownerReview = await request(app).post('/api/reviews').set('Authorization', `Bearer ${ownerToken}`).send({ providerId: provider.id, quality: 5, commitment: 5, value: 5 });
+    expect(ownerReview.status).toBe(403);
+    const review = await request(app).post('/api/reviews').set('Authorization', `Bearer ${reviewerToken}`).send({ providerId: provider.id, quality: 5, commitment: 4, value: 5, comment: 'ممتاز' });
+    expect(review.status).toBe(201);
+    const replyByOther = await request(app).post(`/api/reviews/${review.body.id}/replies`).set('Authorization', `Bearer ${otherToken}`).send({ text: 'رد' });
+    expect(replyByOther.status).toBe(403);
+    const replyByOwner = await request(app).post(`/api/reviews/${review.body.id}/replies`).set('Authorization', `Bearer ${ownerToken}`).send({ text: 'شكرًا' });
+    expect(replyByOwner.status).toBe(201);
+    const firstPage = await request(app).get(`/api/providers/${provider.id}/reviews?page=1&pageSize=1`);
+    expect(firstPage.status).toBe(200);
+    expect(firstPage.body.data).toHaveLength(1);
+    expect(firstPage.body.hasMore).toBe(false);
+    const helpful = await request(app).post(`/api/reviews/${review.body.id}/helpful`).set('Authorization', `Bearer ${otherToken}`);
+    expect(helpful.status).toBe(200);
+    const removed = await request(app).delete(`/api/me/reviews/${review.body.id}`).set('Authorization', `Bearer ${reviewerToken}`);
+    expect(removed.status).toBe(200);
+    expect((await request(app).get(`/api/providers/${provider.id}/reviews`)).body.total).toBe(0);
+  });
 });
