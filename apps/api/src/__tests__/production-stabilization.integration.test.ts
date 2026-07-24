@@ -414,4 +414,23 @@ describe('Sprint 1 production stabilization integration', () => {
     const audit = await prisma.auditLog.findFirst({ where: { action: 'price.restored', entityId: expired.id }, orderBy: { createdAt: 'desc' } });
     expect(audit).not.toBeNull();
   });
+
+  it('flags price outliers for administration without exposing the signal publicly', async () => {
+    const admin = await prisma.adminAccount.create({ data: { name: 'Outlier reviewer', email: `outlier-${randomBytes(3).toString('hex')}@example.com`, passwordHash: 'unused', role: 'OWNER' } });
+    const adminToken = await makeAdminToken(admin.id);
+    const { area } = await makeAreaCategory();
+    const common = { category: 'خضار', areaId: area.id, status: ReviewStatus.APPROVED };
+    await prisma.priceGuide.createMany({ data: [
+      { ...common, name: 'طماطم 1', minPrice: 10, maxPrice: 12 },
+      { ...common, name: 'طماطم 2', minPrice: 11, maxPrice: 13 },
+      { ...common, name: 'طماطم 3', minPrice: 100, maxPrice: 120 },
+    ] });
+    const adminResponse = await request(app).get('/api/admin/prices?outliersOnly=true').set('Authorization', `Bearer ${adminToken}`);
+    expect(adminResponse.status).toBe(200);
+    expect(adminResponse.body).toHaveLength(1);
+    expect(adminResponse.body[0].outlier).toBe(true);
+    expect(adminResponse.body[0].outlierReason).toBeTruthy();
+    const publicResponse = await request(app).get('/api/prices');
+    expect(publicResponse.body.find((row: { id: string }) => row.id === adminResponse.body[0].id)?.outlier).toBeUndefined();
+  });
 });

@@ -1549,8 +1549,35 @@ app.post('/api/prices', async (req, res, next) => {
 
 const priceCreateSchema = z.object({ name: z.string().trim().min(2).max(120), category: z.string().trim().max(80).optional(), minPrice: z.number().positive().max(999999999), maxPrice: z.number().positive().max(999999999), unit: z.string().trim().max(40).optional(), sourceNote: z.string().trim().max(300).optional(), areaId: z.string().min(1).nullable().optional(), validUntil: z.coerce.date().nullable().optional(), confidenceScore: z.number().int().min(0).max(100).optional(), sourceType: z.enum(['COMMUNITY', 'ADMIN', 'OFFICIAL', 'PROVIDER']).optional() }).refine((value) => value.maxPrice >= value.minPrice, { message: 'الحد الأقصى يجب أن يكون أكبر من أو يساوي الحد الأدنى' });
 const priceArea = async (areaId?: string | null) => areaId ? prisma.area.findFirst({ where: { id: areaId, isActive: true }, select: { id: true } }) : null;
-app.get('/api/admin/prices', requireAdmin, async (_req, res, next) => {
-  try { res.json(await prisma.priceGuide.findMany({ include: { area: true }, orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }] })); } catch (error) { next(error); }
+type PriceOutlierRow = { id: string; category: string | null; areaId: string | null; minPrice: unknown; maxPrice: unknown; status: ReviewStatus; archivedAt: Date | null; deletedAt: Date | null };
+const priceOutlierSignals = (prices: PriceOutlierRow[]) => {
+  const groups = new Map<string, PriceOutlierRow[]>();
+  for (const price of prices) {
+    if (price.status !== ReviewStatus.APPROVED || price.archivedAt || price.deletedAt) continue;
+    const key = `${price.category ?? ''}|${price.areaId ?? ''}`;
+    groups.set(key, [...(groups.get(key) ?? []), price]);
+  }
+  const signals = new Map<string, { outlier: boolean; outlierRatio: number | null; outlierReason: string | null }>();
+  for (const rows of groups.values()) {
+    if (rows.length < 3) continue;
+    const midpoints = rows.map((row) => (Number(row.minPrice) + Number(row.maxPrice)) / 2).sort((a, b) => a - b);
+    const median = midpoints[Math.floor(midpoints.length / 2)];
+    if (!median) continue;
+    for (const row of rows) {
+      const midpoint = (Number(row.minPrice) + Number(row.maxPrice)) / 2;
+      const ratio = midpoint >= median ? midpoint / median : median / midpoint;
+      if (ratio >= 2.5) signals.set(row.id, { outlier: true, outlierRatio: Number(ratio.toFixed(2)), outlierReason: 'النطاق يختلف كثيرًا عن الأسعار المعتمدة المشابهة' });
+    }
+  }
+  return signals;
+};
+app.get('/api/admin/prices', requireAdmin, async (req, res, next) => {
+  try {
+    const prices = await prisma.priceGuide.findMany({ include: { area: true }, orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }] });
+    const signals = priceOutlierSignals(prices);
+    const outliersOnly = req.query.outliersOnly === 'true';
+    res.json(prices.map((price) => ({ ...price, outlier: signals.get(price.id)?.outlier ?? false, outlierRatio: signals.get(price.id)?.outlierRatio ?? null, outlierReason: signals.get(price.id)?.outlierReason ?? null })).filter((price) => !outliersOnly || price.outlier));
+  } catch (error) { next(error); }
 });
 app.post('/api/admin/prices', requireAdmin, async (req, res, next) => {
   try { const input = priceCreateSchema.parse(req.body); if (input.areaId && !(await priceArea(input.areaId))) return res.status(400).json({ message: 'المنطقة غير متاحة' }); const price = await prisma.priceGuide.create({ data: { ...input, areaId: input.areaId ?? null, minPrice: input.minPrice, maxPrice: input.maxPrice, confidenceScore: input.confidenceScore ?? 80, sourceType: input.sourceType ?? 'ADMIN', lastReviewedAt: new Date(), status: ReviewStatus.APPROVED } }); await audit('price.created', 'priceGuide', price.id, { source: 'admin' }); res.status(201).json(price); } catch (error) { next(error); }
