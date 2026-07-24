@@ -18,6 +18,7 @@ jest.mock('jose', () => ({
 import { app, prisma, haversineDistanceKm, normalizeSearchText, providerOpenNow, runListingLifecycle } from '../server';
 
 const tables = [
+  'MinShaterReport', 'MinShaterHelpful', 'MinShaterRecommendation', 'MinShaterRequest',
   'AdminSession', 'Session', 'VerificationCode', 'AuditLog', 'ProviderReport', 'ProviderImage',
   'ProviderFavorite', 'FavoriteList', 'SavedSearch', 'ProviderService', 'ProviderOffer',
   'ProviderCategory', 'ListingFavorite', 'ListingInterest', 'ListingReport', 'ListingImage',
@@ -345,5 +346,41 @@ describe('Sprint 1 production stabilization integration', () => {
     expect((await request(app).delete(`/api/me/reviews/${reviewTwo.body.id}`).set('Authorization', `Bearer ${reviewerTwoToken}`)).status).toBe(200);
     expect((await request(app).delete(`/api/me/reviews/${reviewThree.body.id}`).set('Authorization', `Bearer ${reviewerThreeToken}`)).status).toBe(200);
     expect((await request(app).get(`/api/providers/${provider.id}/reviews`)).body.total).toBe(0);
+  });
+
+  it('supports the Min Shater pending, moderation, ownership, helpful and report lifecycle', async () => {
+    const owner = await makeUser('Min Shater owner');
+    const other = await makeUser('Min Shater other');
+    const ownerToken = await makeToken(owner.id);
+    const otherToken = await makeToken(other.id);
+    const { provider, area, category } = await makeProvider(owner.id, ReviewStatus.APPROVED);
+
+    expect((await request(app).post('/api/min-shater').send({ title: 'محتاج فني تكييف', categoryId: category.id })).status).toBe(401);
+    const created = await request(app).post('/api/min-shater').set('Authorization', `Bearer ${ownerToken}`).send({ title: 'محتاج فني تكييف', description: 'ترشيح موثوق', categoryId: category.id, areaId: area.id });
+    expect(created.status).toBe(201);
+    const requestId = created.body.id;
+    expect((await request(app).get('/api/min-shater')).body.data.some((row: { id: string }) => row.id === requestId)).toBe(false);
+    expect((await request(app).get(`/api/min-shater/${requestId}`).set('Authorization', `Bearer ${ownerToken}`)).status).toBe(200);
+    expect((await request(app).get(`/api/min-shater/${requestId}`).set('Authorization', `Bearer ${otherToken}`)).status).toBe(404);
+
+    const admin = await prisma.adminAccount.create({ data: { name: 'Min Shater moderator', email: `min-${randomBytes(3).toString('hex')}@example.com`, passwordHash: 'unused', role: 'MODERATOR' } });
+    const adminToken = await makeAdminToken(admin.id);
+    expect((await request(app).patch(`/api/admin/min-shater/requests/${requestId}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'APPROVED' })).status).toBe(200);
+    expect((await request(app).get(`/api/min-shater/${requestId}`)).status).toBe(200);
+
+    const recommendation = await request(app).post(`/api/min-shater/${requestId}/recommendations`).set('Authorization', `Bearer ${otherToken}`).send({ providerId: provider.id, description: 'شاطر جدًا' });
+    expect(recommendation.status).toBe(201);
+    const recommendationId = recommendation.body.id;
+    expect((await request(app).post(`/api/min-shater/${requestId}/recommendations`).set('Authorization', `Bearer ${otherToken}`).send({ providerId: provider.id })).status).toBe(409);
+    expect((await request(app).patch(`/api/admin/min-shater/recommendations/${recommendationId}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'APPROVED' })).status).toBe(200);
+    expect((await request(app).post(`/api/min-shater/recommendations/${recommendationId}/helpful`).set('Authorization', `Bearer ${ownerToken}`)).status).toBe(200);
+    expect((await request(app).post(`/api/min-shater/recommendations/${recommendationId}/helpful`).set('Authorization', `Bearer ${ownerToken}`)).status).toBe(200);
+    expect((await request(app).post(`/api/min-shater/${requestId}/report`).set('Authorization', `Bearer ${ownerToken}`).send({ reason: 'SPAM' })).status).toBe(201);
+    expect((await request(app).post(`/api/min-shater/${requestId}/report`).set('Authorization', `Bearer ${ownerToken}`).send({ reason: 'SPAM' })).status).toBe(409);
+    expect((await request(app).post(`/api/min-shater/${requestId}/close`).set('Authorization', `Bearer ${ownerToken}`)).status).toBe(200);
+    expect((await request(app).post(`/api/min-shater/${requestId}/recommendations`).set('Authorization', `Bearer ${otherToken}`).send({ recommendedName: 'شخص جديد' })).status).toBe(400);
+
+    await prisma.user.update({ where: { id: other.id }, data: { isBlocked: true } });
+    expect((await request(app).post(`/api/min-shater/${requestId}/report`).set('Authorization', `Bearer ${otherToken}`).send({ reason: 'OTHER' })).status).toBe(401);
   });
 });
