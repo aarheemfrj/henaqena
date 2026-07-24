@@ -115,6 +115,27 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('directory search exposes clear control and keeps a stable empty state', (
+    WidgetTester tester,
+  ) async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppThemeController.theme(AppThemeController.current),
+        home: const DirectoryPage(),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+    final field = find.byType(TextField);
+    await tester.enterText(field, 'مطعم');
+    await tester.pump(const Duration(milliseconds: 450));
+    expect(find.byTooltip('مسح البحث'), findsOneWidget);
+    await tester.tap(find.byTooltip('مسح البحث'));
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.byTooltip('مسح البحث'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'theme chooser exposes all saved palettes and persists a choice',
     (WidgetTester tester) async {

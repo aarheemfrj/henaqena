@@ -3779,6 +3779,9 @@ class _DirectoryPageState extends State<DirectoryPage> {
   final api = ApiClient();
   final searchController = TextEditingController();
   Timer? searchDebounce;
+  int _searchGeneration = 0;
+  List<SearchSuggestion> suggestions = const [];
+  List<String> recentSearches = const [];
   DirectoryFilters filters = const DirectoryFilters();
   List<CategoryOption> categoryItems = const [];
   List<AreaOption> areaItems = const [];
@@ -3810,6 +3813,7 @@ class _DirectoryPageState extends State<DirectoryPage> {
     super.initState();
     searchController.text = widget.initialQuery ?? '';
     providersFuture = _fetchProviders();
+    _loadRecentSearches();
     Future.wait([api.fetchCategories(), api.fetchAreas()])
         .then((values) {
           if (!mounted) return;
@@ -3830,13 +3834,55 @@ class _DirectoryPageState extends State<DirectoryPage> {
 
   void _search(String value) {
     searchDebounce?.cancel();
-    searchDebounce = Timer(const Duration(milliseconds: 350), () {
-      if (mounted) {
-        setState(() {
-          providersFuture = _fetchProviders(searchQuery: value);
-        });
+    final generation = ++_searchGeneration;
+    if (value.trim().length < 2) {
+      if (mounted) setState(() => suggestions = const []);
+    }
+    searchDebounce = Timer(const Duration(milliseconds: 350), () async {
+      final query = value.trim();
+      final nextFuture = _fetchProviders(searchQuery: query);
+      if (mounted && generation == _searchGeneration) {
+        setState(() => providersFuture = nextFuture);
+      }
+      if (query.length < 2) return;
+      try {
+        final nextSuggestions = await api.fetchSearchSuggestions(query);
+        if (mounted && generation == _searchGeneration) {
+          setState(() => suggestions = nextSuggestions);
+        }
+      } catch (_) {
+        if (mounted && generation == _searchGeneration) {
+          setState(() => suggestions = const []);
+        }
       }
     });
+  }
+
+  Future<void> _loadRecentSearches() async {
+    final prefs = await SharedPreferences.getInstance();
+    final values = prefs.getStringList('recent_searches') ?? const [];
+    if (mounted) setState(() => recentSearches = values.take(10).toList());
+  }
+
+  Future<void> _recordRecentSearch(String value) async {
+    final query = value.trim();
+    if (query.isEmpty) return;
+    final next = [
+      query,
+      ...recentSearches.where((item) => item != query),
+    ].take(10).toList();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('recent_searches', next);
+    if (mounted) setState(() => recentSearches = next);
+  }
+
+  void _applySearch(String value) {
+    searchController.value = TextEditingValue(
+      text: value,
+      selection: TextSelection.collapsed(offset: value.length),
+    );
+    _recordRecentSearch(value);
+    _search(value);
   }
 
   Future<List<ProviderSummary>> _applyDistanceFilter(
@@ -4090,6 +4136,7 @@ class _DirectoryPageState extends State<DirectoryPage> {
           builder: (context, value, _) => TextField(
             controller: searchController,
             onChanged: _search,
+            onSubmitted: _recordRecentSearch,
             decoration: InputDecoration(
               prefixIcon: Icon(Icons.search, color: teal),
               hintText: 'اكتب اسم الخدمة أو المكان',
@@ -4106,6 +4153,50 @@ class _DirectoryPageState extends State<DirectoryPage> {
             ),
           ),
         ),
+        if (suggestions.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: suggestions
+                  .map(
+                    (item) => ActionChip(
+                      avatar: Icon(
+                        item.type == 'category'
+                            ? Icons.category_outlined
+                            : item.type == 'area'
+                            ? Icons.place_outlined
+                            : item.type == 'service'
+                            ? Icons.handyman_outlined
+                            : Icons.search,
+                        size: 16,
+                      ),
+                      label: Text(item.value),
+                      onPressed: () => _applySearch(item.value),
+                    ),
+                  )
+                  .toList(),
+            ),
+          )
+        else if (searchController.text.trim().isEmpty &&
+            recentSearches.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: recentSearches
+                  .map(
+                    (item) => ActionChip(
+                      avatar: const Icon(Icons.history, size: 16),
+                      label: Text(item),
+                      onPressed: () => _applySearch(item),
+                    ),
+                  )
+                  .toList(),
+            ),
+          ),
         const SizedBox(height: 10),
         Row(
           children: [

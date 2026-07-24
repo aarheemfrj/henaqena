@@ -52,3 +52,15 @@ This audit is the boundary for Sprint 2B implementation.
 **Validation:** isolated PostgreSQL test workflow passed: 8 suites, 82 tests. API build passed.
 
 **Commit boundary:** to be recorded after staging this completed stage.
+
+### Stage 2 — Flutter search UX (completed)
+
+- Added typed search suggestions backed by the bounded API endpoint, with 350ms debounce and generation guards so an older response cannot replace a newer query.
+- Added local recent-search history (maximum 10, de-duplicated, newest first) using the existing `shared_preferences` dependency; empty queries are never saved.
+- Added suggestion chips for providers/services/categories/areas and a clear, quiet empty/error path that keeps the existing directory result states.
+- Preserved existing saved-search behavior separately from recent history and kept query/filter state when navigating to provider details.
+- Added a widget regression test for the clear-search interaction and stable empty state.
+
+**Validation:** Flutter analyze completed with existing non-fatal infos/warnings and no errors; Flutter tests passed 9/9.
+
+**Commit boundary:** to be recorded after staging this completed stage.

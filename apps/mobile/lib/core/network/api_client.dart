@@ -139,6 +139,17 @@ class ProviderPage {
   final bool hasMore;
 }
 
+class SearchSuggestion {
+  const SearchSuggestion({required this.value, required this.type});
+  final String value;
+  final String type;
+  factory SearchSuggestion.fromJson(Map<String, dynamic> json) =>
+      SearchSuggestion(
+        value: json['value'] as String? ?? '',
+        type: json['type'] as String? ?? 'provider',
+      );
+}
+
 String? _firstCategoryName(dynamic categoriesJson) {
   final list = categoriesJson as List<dynamic>?;
   if (list == null || list.isEmpty) return null;
@@ -1189,6 +1200,25 @@ class ApiClient {
       pageSize: (payload['pageSize'] as num? ?? pageSize).toInt(),
       hasMore: payload['hasMore'] == true,
     );
+  }
+
+  Future<List<SearchSuggestion>> fetchSearchSuggestions(
+    String query, {
+    int limit = 8,
+  }) async {
+    final value = query.trim();
+    if (value.length < 2) return const [];
+    final uri = Uri.parse(
+      '$baseUrl/api/search/suggestions',
+    ).replace(queryParameters: {'q': value, 'limit': '$limit'});
+    final response = await http.get(uri).timeout(const Duration(seconds: 4));
+    if (response.statusCode != 200) throw Exception('search_suggestions_error');
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    return (body['data'] as List<dynamic>? ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .map(SearchSuggestion.fromJson)
+        .where((item) => item.value.isNotEmpty)
+        .toList();
   }
 
   Future<ProviderDetails> fetchProvider(String id) async {
