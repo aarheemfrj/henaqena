@@ -143,6 +143,7 @@ flutter test      # اختبارات الوحدة
 
 ## 📊 الوثائق الإضافية
 
+- [Documentation Index](./docs/DOCUMENTATION_INDEX.md) — الهندسة والتشغيل ومرجع الـAPI
 - [HENA_QENA_PROJECT_MEMORY.md](./HENA_QENA_PROJECT_MEMORY.md) — معايير المنتج والمعمارية
 - [QA_CHECKLIST.md](./QA_CHECKLIST.md) — قائمة التحقق قبل الإطلاق
 - [apps/api/prisma/schema.prisma](./apps/api/prisma/schema.prisma) — نموذج قاعدة البيانات
