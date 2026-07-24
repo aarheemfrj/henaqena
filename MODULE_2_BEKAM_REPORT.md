@@ -15,6 +15,7 @@ The existing prices foundation was audited and hardened without a new migration.
 - Added mobile price cards with authenticated “أيوه / اتغير” confirmation actions and updated freshness counters.
 - Added `validUntil`, `confidenceScore`, `sourceType`, and `lastReviewedAt`; expired prices are hidden publicly.
 - Added audited admin archive/restore and editable price metadata.
+- Mobile cards now show confidence percentage and freshness wording.
 
 ## Verified
 
@@ -26,6 +27,8 @@ The existing prices foundation was audited and hardened without a new migration.
 ## Still missing
 
 Outlier detection, richer admin table controls, and device/staging verification remain for the next slice.
+
+Mobile freshness display commit: `8a21873`.
 
 Mobile confirmation commit: `90ca7f5`.
 
