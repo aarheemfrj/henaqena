@@ -14,6 +14,9 @@
 
 ## Missing runtime evidence
 
+- Sprint 2A physical-device directory verification and VPS browser checks remain unverified in this local run.
+- Distance ordering currently uses a coordinate-distance approximation in application code; a spatial database query can be considered in Sprint 2C.
+
 - GitHub Actions has been configured but its remote run was not observed in this session.
 - Google Sign-In has configured client IDs in project history, but physical iOS/Android sign-in with live tokens is unverified.
 - Apple Sign-In callback, service ID and device flow are unverified.

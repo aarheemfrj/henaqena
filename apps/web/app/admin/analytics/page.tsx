@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation';
 
 export const dynamic = 'force-dynamic';
 type Summary = { totals: Record<string, number>; pending: Record<string, number>; quality: Record<string, number> };
-const names: Record<string, string> = { providers: 'الأنشطة', listings: 'الإعلانات المحلية', ads: 'إعلانات الرئيسية', reviews: 'التقييمات', missingProviderLocation: 'أنشطة بلا موقع', missingProviderPhone: 'أنشطة بلا هاتف' };
+const names: Record<string, string> = { providers: 'الأنشطة', listings: 'الإعلانات المحلية', ads: 'إعلانات الرئيسية', reviews: 'التقييمات', missingProviderLocation: 'أنشطة بلا موقع', missingProviderPhone: 'أنشطة بلا هاتف', missingProviderCategory: 'أنشطة بلا تصنيف', missingProviderImage: 'أنشطة بلا صورة', missingProviderHours: 'أنشطة بلا ساعات عمل', inactiveAreaProviders: 'أنشطة في مناطق غير نشطة' };
 export default async function AnalyticsPage() {
   if (!await hasAdminSession()) redirect('/admin/login');
   const data = await apiGet<Summary>('/api/admin/reports/summary', { admin: true }).catch(() => ({ totals: {}, pending: {}, quality: {} }));

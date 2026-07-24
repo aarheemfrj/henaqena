@@ -44,6 +44,9 @@ The table is intentionally exhaustive for routes registered by `apps/api/src/ser
 ## Request and response notes
 
 - Provider/listing list endpoints accept query filters for search, category, area, approval/status and pagination; exact accepted keys are parsed in the handler.
+- `GET /api/providers` accepts `areaId`, active `category` slug, `q`, `verified`, `openNow`, provider attribute flags, `sort` (`name`, `latest`, `rating`, `reviews`, or `distance`), `page`, `pageSize` and `meta=true`. With `meta=true` it returns `{ data, total, page, pageSize, hasMore }`; the default response remains the legacy array shape. `distance` additionally requires `latitude` and `longitude`.
+- Public directory results are approved, non-archived, non-deleted providers in active areas; inactive categories are excluded from the category relation in the response.
+- Each provider result includes `rating`, `reviewCount` and `openNow` (`true`, `false`, or `null` when hours are absent/invalid). Open-now uses `Africa/Cairo` and supports validated overnight ranges.
 - POST/PATCH handlers validate JSON with Zod and return a created/updated record or an error object; callers must not assume every endpoint shares one envelope.
 - Upload endpoints accept base64 payloads and return generated local URLs. See [Security Model](./SECURITY_MODEL.md) for validation rules.
 - Admin endpoints may return summary objects, arrays or queue rows depending on the route; use the implementation as the contract.

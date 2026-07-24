@@ -16,6 +16,7 @@ Read [Documentation Index](./docs/DOCUMENTATION_INDEX.md), the relevant feature 
 - Do not commit `.env`, credentials, tokens, uploads, backups or simulator artifacts.
 - Preserve remote media URLs during local cleanup.
 - Update the relevant docs and `PROJECT_ACTIVITY_LOG.md` when behavior or deployment contracts change.
+- Record user-visible or API behavior changes in [`docs/CHANGELOG.md`](docs/CHANGELOG.md) and update the documentation index when adding a durable guide.
 - Avoid adding routes to legacy `apps/api/src/app.ts`; production is `src/server.ts`.
 
 ## Validation

@@ -19,6 +19,7 @@
 | [Environment Variables](./ENVIRONMENT_VARIABLES.md) | Safe variable catalog | Deployment developers | Variable names/usage change |
 | [Testing Guide](./TESTING_GUIDE.md) | Test strategy and commands | QA/developers/CI | Test infrastructure changes |
 | [Documentation Gaps](./DOCUMENTATION_GAPS.md) | Ambiguities and unverifiable items | Maintainers | Unknowns are resolved |
+| [Changelog](./CHANGELOG.md) | Versioned engineering changes | All developers/AI agents | A sprint or release changes behavior |
 | [Contributing](../CONTRIBUTING.md) | Contribution and review rules | Contributors | Workflow or CI changes |
 | [Release Checklist](./RELEASE_CHECKLIST.md) | Existing release checks | Release owner | Release process changes |
 | [VPS Deployment](./VPS_DEPLOYMENT.md) | Existing VPS-specific notes | Deployment owner | VPS process changes |

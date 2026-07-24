@@ -15,11 +15,23 @@ The following baseline sprints are **closed بالكامل** and included in tag
 
 ## Sprint 2 — Directory and trust depth
 
-1. Close remaining physical Google/Apple and staging browser verification.
-2. Expand provider/listing contract tests and owner workflows.
-3. Improve admin audit browsing, moderation queues and import observability.
-4. Reduce Flutter analyzer warnings and add critical journey smoke tests.
-5. Decide taxonomy hierarchy and duplicate merge policy before schema work.
+Sprint 2 is split into focused delivery gates:
+
+### Sprint 2A — Directory Experience — Closed
+
+Active taxonomy filtering, stable paginated provider listing, open-now calculation, nearby handling, safe empty/error states and admin data-quality indicators are implemented and verified in `SPRINT_2A_DIRECTORY_EXPERIENCE_REPORT.md`.
+
+### Sprint 2B — Search — Planned
+
+Unified search relevance, query normalization and search analytics. Not implemented in Sprint 2A.
+
+### Sprint 2C — Maps — Planned
+
+Spatial clustering, richer map interactions and distance-query optimization. Not implemented in Sprint 2A.
+
+### Sprint 2D — Provider Page / Reviews / Favorites — Planned
+
+Provider-page depth, review/favorite UX improvements and related contract work. Not implemented in Sprint 2A.
 
 ## Sprint 3 — Security and media operations
 

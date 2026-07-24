@@ -2435,7 +2435,7 @@ class _HomePageState extends State<HomePage> {
                       const SizedBox(height: 11),
                       CategoryRail(
                         items: categoryItems,
-                        onSelected: _openDirectory,
+                        onSelected: (value) => _openDirectory('$value'),
                       ),
                       const SizedBox(height: 20),
                       const SectionTitle(title: 'مختارات قنا'),
@@ -3555,8 +3555,8 @@ class _PromoCarouselState extends State<PromoCarousel> {
 
 class CategoryRail extends StatelessWidget {
   const CategoryRail({super.key, required this.items, this.onSelected});
-  final List<String> items;
-  final ValueChanged<String>? onSelected;
+  final List<dynamic> items;
+  final ValueChanged<dynamic>? onSelected;
   @override
   Widget build(BuildContext context) => SizedBox(
     height: 42,
@@ -3578,7 +3578,11 @@ class CategoryRail extends StatelessWidget {
                   ? null
                   : () => onSelected!(items[index]),
               avatar: Icon(Icons.circle, size: 8, color: gold),
-              label: Text(items[index]),
+              label: Text(
+                items[index] is CategoryOption
+                    ? (items[index] as CategoryOption).name
+                    : '${items[index]}',
+              ),
               backgroundColor: Colors.white,
               side: const BorderSide(color: Color(0xFFE0E8E6)),
               shape: RoundedRectangleBorder(
@@ -3602,6 +3606,7 @@ class MiniItem extends StatefulWidget {
     this.rating,
     this.reviewCount = 0,
     this.isVerified = false,
+    this.openNow,
   });
   final IconData icon;
   final String title;
@@ -3614,6 +3619,7 @@ class MiniItem extends StatefulWidget {
   final double? rating;
   final int reviewCount;
   final bool isVerified;
+  final bool? openNow;
   @override
   State<MiniItem> createState() => _MiniItemState();
 }
@@ -3733,6 +3739,8 @@ class _MiniItemState extends State<MiniItem> {
                     widget.categoryName!,
                   if (widget.subtitle.trim().isNotEmpty) widget.subtitle,
                   if (widget.reviewCount > 0) '${widget.reviewCount} تقييم',
+                  if (widget.openNow == true) 'مفتوح الآن',
+                  if (widget.openNow == false) 'مغلق الآن',
                 ].join(' · '),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -3772,8 +3780,12 @@ class _DirectoryPageState extends State<DirectoryPage> {
   final searchController = TextEditingController();
   Timer? searchDebounce;
   DirectoryFilters filters = const DirectoryFilters();
-  List<String> categoryItems = const [];
+  List<CategoryOption> categoryItems = const [];
+  List<AreaOption> areaItems = const [];
   Position? _userPosition;
+  int _page = 1;
+  bool _hasMore = false;
+  bool _loadingMore = false;
 
   Future<Position?> _resolveUserPosition() async {
     if (_userPosition != null) return _userPosition;
@@ -3798,14 +3810,13 @@ class _DirectoryPageState extends State<DirectoryPage> {
     super.initState();
     searchController.text = widget.initialQuery ?? '';
     providersFuture = _fetchProviders();
-    api
-        .fetchCategories()
-        .then((categories) {
-          if (mounted) {
-            setState(
-              () => categoryItems = categories.map((c) => c.name).toList(),
-            );
-          }
+    Future.wait([api.fetchCategories(), api.fetchAreas()])
+        .then((values) {
+          if (!mounted) return;
+          setState(() {
+            categoryItems = values[0] as List<CategoryOption>;
+            areaItems = values[1] as List<AreaOption>;
+          });
         })
         .catchError((_) {});
   }
@@ -3836,7 +3847,7 @@ class _DirectoryPageState extends State<DirectoryPage> {
     final position = await _resolveUserPosition();
     if (position == null) return providers;
     return providers.where((provider) {
-      if (provider.latitude == null || provider.longitude == null) return true;
+      if (provider.latitude == null || provider.longitude == null) return false;
       final meters = Geolocator.distanceBetween(
         position.latitude,
         position.longitude,
@@ -3858,19 +3869,33 @@ class _DirectoryPageState extends State<DirectoryPage> {
         ? 'latest'
         : filters.sort == 'الأكثر مراجعات'
         ? 'reviews'
+        : filters.sort == 'الأقرب'
+        ? 'distance'
         : 'name';
     final query = (searchQuery ?? searchController.text).trim();
-    final results = await api.fetchProviders(
+    final position = sort == 'distance' ? await _resolveUserPosition() : null;
+    final effectiveSort = sort == 'distance' && position == null
+        ? 'name'
+        : sort;
+    final page = await api.fetchProviderPage(
+      areaId: filters.areaId,
+      category: filters.categorySlug,
       searchQuery: query,
+      page: 1,
+      pageSize: pageSize ?? 20,
       verifiedOnly: filters.verified,
       openNow: filters.openNow,
       hasDelivery: filters.hasDelivery,
       hasParking: filters.hasParking,
       acceptsCards: filters.acceptsCards,
-      sort: sort,
-      pageSize: pageSize,
+      sort: effectiveSort,
+      latitude: position?.latitude,
+      longitude: position?.longitude,
       skipCache: force,
     );
+    _page = 1;
+    _hasMore = page.hasMore;
+    final results = page.data;
     if (query.isEmpty || results.isNotEmpty) {
       return _applyDistanceFilter(results);
     }
@@ -3879,6 +3904,8 @@ class _DirectoryPageState extends State<DirectoryPage> {
     // do not compare equally in PostgreSQL. Retry the current directory and
     // apply a normalized token match so the visible list and map stay useful.
     final all = await api.fetchProviders(
+      areaId: filters.areaId,
+      category: filters.categorySlug,
       verifiedOnly: filters.verified,
       openNow: filters.openNow,
       sort: sort,
@@ -3893,6 +3920,52 @@ class _DirectoryPageState extends State<DirectoryPage> {
       return tokens.every(haystack.contains);
     }).toList();
     return _applyDistanceFilter(filtered);
+  }
+
+  Future<void> _loadMore() async {
+    if (_loadingMore || !_hasMore) return;
+    setState(() => _loadingMore = true);
+    try {
+      final sort = filters.sort == 'الأعلى تقييمًا'
+          ? 'rating'
+          : filters.sort == 'الأحدث'
+          ? 'latest'
+          : filters.sort == 'الأكثر مراجعات'
+          ? 'reviews'
+          : filters.sort == 'الأقرب'
+          ? 'distance'
+          : 'name';
+      final position = filters.sort == 'الأقرب'
+          ? await _resolveUserPosition()
+          : null;
+      final next = await api.fetchProviderPage(
+        areaId: filters.areaId,
+        category: filters.categorySlug,
+        searchQuery: searchController.text,
+        page: _page + 1,
+        pageSize: 20,
+        verifiedOnly: filters.verified,
+        openNow: filters.openNow,
+        hasDelivery: filters.hasDelivery,
+        hasParking: filters.hasParking,
+        acceptsCards: filters.acceptsCards,
+        sort: sort,
+        latitude: position?.latitude,
+        longitude: position?.longitude,
+        skipCache: true,
+      );
+      final current = await providersFuture;
+      final seen = current.map((item) => item.id).toSet();
+      final merged = [
+        ...current,
+        ...next.data.where((item) => seen.add(item.id)),
+      ];
+      _page = next.page;
+      _hasMore = next.hasMore;
+      if (mounted) setState(() => providersFuture = Future.value(merged));
+    } finally {
+      if (mounted) setState(() => _loadingMore = false);
+    }
   }
 
   String _normalizeArabicQuery(String value) => value
@@ -4000,8 +4073,15 @@ class _DirectoryPageState extends State<DirectoryPage> {
         CategoryRail(
           items: categoryItems,
           onSelected: (value) {
-            searchController.text = value;
-            _search(value);
+            if (value is CategoryOption) {
+              setState(
+                () => filters = filters.copyWith(
+                  categorySlug: value.slug,
+                  categoryName: value.name,
+                ),
+              );
+              _reload();
+            }
           },
         ),
         const SizedBox(height: 16),
@@ -4090,10 +4170,28 @@ class _DirectoryPageState extends State<DirectoryPage> {
                       rating: provider.rating,
                       reviewCount: provider.reviewCount,
                       isVerified: provider.isVerified,
+                      openNow: provider.openNow,
                       onTap: () => _openDetails(context, provider, icon),
                     ),
                   );
                 }),
+                if (_hasMore)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: OutlinedButton.icon(
+                      onPressed: _loadingMore ? null : _loadMore,
+                      icon: _loadingMore
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.expand_more),
+                      label: Text(
+                        _loadingMore ? 'جاري التحميل…' : 'تحميل المزيد',
+                      ),
+                    ),
+                  ),
               ],
             );
           },
@@ -4136,7 +4234,11 @@ class _DirectoryPageState extends State<DirectoryPage> {
         duration: AppMotion.gentle,
         reverseDuration: AppMotion.quick,
       ),
-      builder: (_) => _FilterSheet(initial: filters),
+      builder: (_) => _FilterSheet(
+        initial: filters,
+        categories: categoryItems,
+        areas: areaItems,
+      ),
     );
     if (selected == null || !mounted) return;
     setState(() {
@@ -4155,6 +4257,10 @@ class DirectoryFilters {
     this.hasParking = false,
     this.acceptsCards = false,
     this.maxDistanceKm,
+    this.categorySlug,
+    this.categoryName,
+    this.areaId,
+    this.areaName,
   });
   final String sort;
   final bool openNow;
@@ -4163,11 +4269,39 @@ class DirectoryFilters {
   final bool hasParking;
   final bool acceptsCards;
   final double? maxDistanceKm;
+  final String? categorySlug;
+  final String? categoryName;
+  final String? areaId;
+  final String? areaName;
+  DirectoryFilters copyWith({
+    String? categorySlug,
+    String? categoryName,
+    String? areaId,
+    String? areaName,
+  }) => DirectoryFilters(
+    sort: sort,
+    openNow: openNow,
+    verified: verified,
+    hasDelivery: hasDelivery,
+    hasParking: hasParking,
+    acceptsCards: acceptsCards,
+    maxDistanceKm: maxDistanceKm,
+    categorySlug: categorySlug ?? this.categorySlug,
+    categoryName: categoryName ?? this.categoryName,
+    areaId: areaId ?? this.areaId,
+    areaName: areaName ?? this.areaName,
+  );
 }
 
 class _FilterSheet extends StatefulWidget {
-  const _FilterSheet({required this.initial});
+  const _FilterSheet({
+    required this.initial,
+    required this.categories,
+    required this.areas,
+  });
   final DirectoryFilters initial;
+  final List<CategoryOption> categories;
+  final List<AreaOption> areas;
   @override
   State<_FilterSheet> createState() => _FilterSheetState();
 }
@@ -4180,6 +4314,10 @@ class _FilterSheetState extends State<_FilterSheet> {
   late bool hasParking = widget.initial.hasParking;
   late bool acceptsCards = widget.initial.acceptsCards;
   late double? maxDistanceKm = widget.initial.maxDistanceKm;
+  late String? categorySlug = widget.initial.categorySlug;
+  late String? categoryName = widget.initial.categoryName;
+  late String? areaId = widget.initial.areaId;
+  late String? areaName = widget.initial.areaName;
   @override
   Widget build(BuildContext context) => Directionality(
     textDirection: TextDirection.rtl,
@@ -4230,7 +4368,13 @@ class _FilterSheetState extends State<_FilterSheet> {
             Wrap(
               spacing: 8,
               children:
-                  ['الافتراضي', 'الأعلى تقييمًا', 'الأحدث', 'الأكثر مراجعات']
+                  [
+                        'الافتراضي',
+                        'الأقرب',
+                        'الأعلى تقييمًا',
+                        'الأحدث',
+                        'الأكثر مراجعات',
+                      ]
                       .map(
                         (item) => ChoiceChip(
                           label: Text(item),
@@ -4242,6 +4386,73 @@ class _FilterSheetState extends State<_FilterSheet> {
                       .toList(),
             ),
             const SizedBox(height: 10),
+            if (widget.categories.isNotEmpty)
+              DropdownButtonFormField<String?>(
+                value: categorySlug,
+                decoration: const InputDecoration(labelText: 'التصنيف'),
+                items: [
+                  const DropdownMenuItem<String?>(
+                    value: null,
+                    child: Text('كل التصنيفات'),
+                  ),
+                  ...widget.categories.map(
+                    (item) => DropdownMenuItem<String?>(
+                      value: item.slug,
+                      child: Text(item.name),
+                    ),
+                  ),
+                ],
+                onChanged: (value) => setState(() {
+                  categorySlug = value;
+                  final matches = widget.categories.where(
+                    (item) => item.slug == value,
+                  );
+                  categoryName = matches.isEmpty ? null : matches.first.name;
+                }),
+              ),
+            if (widget.areas.isNotEmpty)
+              DropdownButtonFormField<String?>(
+                value: areaId,
+                decoration: const InputDecoration(labelText: 'المنطقة'),
+                items: [
+                  const DropdownMenuItem<String?>(
+                    value: null,
+                    child: Text('كل المناطق'),
+                  ),
+                  ...widget.areas.map(
+                    (item) => DropdownMenuItem<String?>(
+                      value: item.id,
+                      child: Text(item.name),
+                    ),
+                  ),
+                ],
+                onChanged: (value) => setState(() {
+                  areaId = value;
+                  final matches = widget.areas.where(
+                    (item) => item.id == value,
+                  );
+                  areaName = matches.isEmpty ? null : matches.first.name;
+                }),
+              ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () => setState(() {
+                  sort = 'الافتراضي';
+                  openNow = false;
+                  verified = false;
+                  hasDelivery = false;
+                  hasParking = false;
+                  acceptsCards = false;
+                  maxDistanceKm = null;
+                  categorySlug = null;
+                  categoryName = null;
+                  areaId = null;
+                  areaName = null;
+                }),
+                child: const Text('إعادة ضبط الفلاتر'),
+              ),
+            ),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: const Text('مفتوح الآن'),
@@ -4307,14 +4518,17 @@ class _FilterSheetState extends State<_FilterSheet> {
                   : '${maxDistanceKm!.round()} كم',
               onChanged: (value) => setState(() => maxDistanceKm = value),
             ),
-            if (maxDistanceKm != null)
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: () => setState(() => maxDistanceKm = null),
-                  child: const Text('إلغاء تحديد النطاق'),
-                ),
-              ),
+            ...?(maxDistanceKm == null
+                ? null
+                : [
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: () => setState(() => maxDistanceKm = null),
+                        child: const Text('إلغاء تحديد النطاق'),
+                      ),
+                    ),
+                  ]),
             const SizedBox(height: 8),
             FilledButton(
               onPressed: () => Navigator.pop(
@@ -4327,6 +4541,10 @@ class _FilterSheetState extends State<_FilterSheet> {
                   hasParking: hasParking,
                   acceptsCards: acceptsCards,
                   maxDistanceKm: maxDistanceKm,
+                  categorySlug: categorySlug,
+                  categoryName: categoryName,
+                  areaId: areaId,
+                  areaName: areaName,
                 ),
               ),
               style: FilledButton.styleFrom(
@@ -4754,11 +4972,7 @@ class _ProviderMapPageState extends State<ProviderMapPage> {
       // point can be a few metres away from the actual user/provider pins.
       // Keep the exact endpoints in the polyline so the line always meets
       // the pins visually.
-      final alignedPoints = <ll.LatLng>[
-        origin,
-        ...points,
-        destination,
-      ];
+      final alignedPoints = <ll.LatLng>[origin, ...points, destination];
       if (mounted) setState(() => routePoints = alignedPoints);
     } catch (_) {
       if (mounted)
@@ -4944,7 +5158,8 @@ class _InternalQenaMapState extends State<InternalQenaMap> {
     if (!mounted || widget.routePoints.length < 2) return;
     final first = widget.routePoints.first;
     final last = widget.routePoints.last;
-    final signature = '${widget.routePoints.length}:${first.latitude},${first.longitude}:${last.latitude},${last.longitude}';
+    final signature =
+        '${widget.routePoints.length}:${first.latitude},${first.longitude}:${last.latitude},${last.longitude}';
     if (signature == _fittedRouteSignature) return;
     _fittedRouteSignature = signature;
     try {

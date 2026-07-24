@@ -12,6 +12,7 @@
 | Sprint 1 — Production Stabilization | Implemented | Commit `4cb2c4b`; stabilization report and regression fixes |
 | Sprint 1.1 — Production Verification & Integration Testing | Implemented | Commit `56f8803`; 75/75 isolated PostgreSQL integration tests, staging migration and restore verification |
 | Sprint 1.5 — Engineering Documentation | Implemented | Commits `c7e1d5c` and `47dc98e`; documentation set, route audit and final validation |
+| Sprint 2A — Directory Experience | Implemented | Sprint 2A report; isolated PostgreSQL tests, API build, web checks and Flutter analysis |
 
 These statuses describe completed engineering sprints, not new product features.
 
@@ -22,31 +23,31 @@ Legend: **Implemented** = present in current code; **Partial** = some paths/UI o
 | Email/password auth and sessions | Implemented | API register/login/session/logout; 30-day bearer sessions |
 | Guest navigation | Partial | Client navigation exists; guest restrictions vary by action |
 | OTP verification/reset | Partial | API/webhook hooks exist; provider delivery is external/unverified |
-| Google login | Partial/Unverified | Flutter/API verification paths exist; physical devices and production config pending |
-| Apple login | Partial/Unverified | Flutter/API hooks exist; callback/device verification pending |
+| Google login | Unverified | Flutter/API verification paths exist; physical devices and production config pending |
+| Apple login | Unverified | Flutter/API hooks exist; callback/device verification pending |
 | Profiles/preferences/avatar | Implemented | API and mobile/web paths present; upload rules enforced |
 | Block/unblock and admin roles | Implemented | Admin endpoint/UI and audit metadata covered by Sprint 1.1 |
-| Provider directory | Implemented/Partial | CRUD, moderation, media and owner paths; broad catalog population is data-dependent |
+| Provider directory | Implemented | CRUD, moderation, media and owner paths; active filters, stable pagination, sorting and open-now handling verified |
 | Categories/areas | Implemented | Reads, duplicate checks and safe deactivation; parent/child taxonomy planned |
-| Listings/classifieds | Implemented/Partial | Lifecycle, media, favorites, reports; advanced marketplace flows are not present |
-| Reviews/replies/helpful | Implemented/Partial | API moderation and reactions exist; full social UX varies by screen |
+| Listings/classifieds | Partial | Lifecycle, media, favorites, reports; advanced marketplace flows are not present |
+| Reviews/replies/helpful | Partial | API moderation and reactions exist; full social UX varies by screen |
 | Favorites/lists/saved searches | Implemented | Ownership checks and refresh paths present |
-| Ads/home campaigns | Implemented/Partial | API/admin controls and reactions; external ad billing is not present |
-| Prices | Implemented/Partial | API/admin CRUD; authoritative live feeds and history depth depend on data |
-| Qena Now | Implemented/Partial | API/admin content and helpful votes; push delivery not implemented |
-| Notifications | Implemented/Partial | Persisted/read/unread/deep-link target; push provider not implemented |
-| Internal map | Implemented/Partial | Flutter map with provider pins; navigation uses optional external directions |
-| Google Maps/Places | Partial/Unverified | Feature-flagged and credential-dependent |
-| Data import/collection | Implemented/Partial | Admin import and OSM/Google paths; source quotas and browser E2E pending |
-| Admin dashboard | Implemented/Partial | Next.js CRUD/moderation/settings/import screens; full browser audit pending |
+| Ads/home campaigns | Partial | API/admin controls and reactions; external ad billing is not present |
+| Prices | Partial | API/admin CRUD; authoritative live feeds and history depth depend on data |
+| Qena Now | Partial | API/admin content and helpful votes; push delivery not implemented |
+| Notifications | Partial | Persisted/read/unread/deep-link target; push provider not implemented |
+| Internal map | Partial | Flutter map with provider pins; navigation uses optional external directions |
+| Google Maps/Places | Unverified | Feature-flagged and credential-dependent |
+| Data import/collection | Partial | Admin import and OSM/Google paths; source quotas and browser E2E pending |
+| Admin dashboard | Partial | Next.js CRUD/moderation/settings/import screens; full browser audit pending |
 | Owner business portal | Planned | Owner API checks exist; dedicated self-service portal is not complete |
 | Analytics/reporting | Partial | Admin summaries/audit endpoints; full product analytics dashboards are limited |
-| Backups/restore/reset | Implemented/Partial | API and scripts exist; destructive operations require operational approval |
+| Backups/restore/reset | Partial | API and scripts exist; destructive operations require operational approval |
 | Push notifications | Planned | DB notifications only |
 | Access/refresh rotation | Planned | Deferred security sprint |
 | Category hierarchy | Planned | Deferred data migration |
 | Object storage/thumbnail pipeline | Planned | Current storage is local filesystem |
-| Jobs, rentals, cars, emergencies, tourism, education expansions | Planned/Partial | Some directory data can represent them; dedicated modules are not all present |
+| Jobs, rentals, cars, emergencies, tourism, education expansions | Planned | Some directory data can represent them; dedicated modules are not all present |
 
 ## Audit rule
 

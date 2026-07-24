@@ -7,7 +7,7 @@ import { promisify } from 'node:util';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import cors from 'cors';
 import express from 'express';
-import { PrismaClient, ReviewStatus, ListingStatus } from '@prisma/client';
+import { PrismaClient, ReviewStatus, ListingStatus, Prisma } from '@prisma/client';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { z } from 'zod';
 import { createDataCollectionRouter } from './data-collection/router';
@@ -386,8 +386,8 @@ app.get('/api/admin/auth/me', async (req, res, next) => {
 
 app.get('/api/areas', async (req, res, next) => {
   try {
-    const limit = Math.min(100, Math.max(1, Number(req.query.limit ?? 100)));
-    const offset = Math.max(0, Number(req.query.offset ?? 0));
+    const limit = parseDirectoryInteger(req.query.limit, 100, 1, 100);
+    const offset = parseDirectoryInteger(req.query.offset, 0, 0, 100000);
     const [areas, total] = await Promise.all([
       prisma.area.findMany({ where: { isActive: true }, orderBy: { name: 'asc' }, take: limit, skip: offset }),
       prisma.area.count({ where: { isActive: true } }),
@@ -400,8 +400,8 @@ app.get('/api/areas', async (req, res, next) => {
 
 app.get('/api/categories', async (req, res, next) => {
   try {
-    const limit = Math.min(100, Math.max(1, Number(req.query.limit ?? 100)));
-    const offset = Math.max(0, Number(req.query.offset ?? 0));
+    const limit = parseDirectoryInteger(req.query.limit, 100, 1, 100);
+    const offset = parseDirectoryInteger(req.query.offset, 0, 0, 100000);
     const [categories, total] = await Promise.all([
       prisma.category.findMany({ where: { isActive: true }, orderBy: { name: 'asc' }, take: limit, skip: offset }),
       prisma.category.count({ where: { isActive: true } }),
@@ -412,6 +412,62 @@ app.get('/api/categories', async (req, res, next) => {
   }
 });
 
+const parseDirectoryInteger = (value: unknown, fallback: number, min: number, max: number) => {
+  if (value === undefined) return fallback;
+  if (typeof value !== 'string' || !/^\d+$/.test(value)) throw new Error('invalid_directory_pagination');
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed < min || parsed > max) throw new Error('invalid_directory_pagination');
+  return parsed;
+};
+
+const parseClockMinutes = (value: unknown): number | null => {
+  if (typeof value !== 'string' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(value.trim())) return null;
+  const [hours, minutes] = value.trim().split(':').map(Number);
+  return hours * 60 + minutes;
+};
+
+type OpeningRange = { open: string; close: string };
+const openingRange = (value: unknown): OpeningRange[] => {
+  if (typeof value === 'string') {
+    const match = value.trim().match(/^(\d{2}:\d{2})\s*[-–]\s*(\d{2}:\d{2})$/);
+    return match ? [{ open: match[1], close: match[2] }] : [];
+  }
+  if (Array.isArray(value)) return value.flatMap((item) => openingRange(item));
+  if (!value || typeof value !== 'object') return [];
+  const item = value as Record<string, unknown>;
+  const open = item.open ?? item.from ?? item.start;
+  const close = item.close ?? item.to ?? item.end;
+  return typeof open === 'string' && typeof close === 'string' ? [{ open, close }] : [];
+};
+
+const cairoClock = (now: Date) => {
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Africa/Cairo', weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(now);
+  const weekday = parts.find((part) => part.type === 'weekday')?.value ?? 'Sun';
+  const hour = Number(parts.find((part) => part.type === 'hour')?.value ?? '0');
+  const minute = Number(parts.find((part) => part.type === 'minute')?.value ?? '0');
+  const dayIndex = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(weekday);
+  return { dayIndex: dayIndex < 0 ? 0 : dayIndex, minutes: hour * 60 + minute };
+};
+
+const rangesForDay = (openingHours: unknown, dayIndex: number): OpeningRange[] => {
+  if (Array.isArray(openingHours)) return openingRange(openingHours[dayIndex]);
+  if (!openingHours || typeof openingHours !== 'object') return [];
+  const source = openingHours as Record<string, unknown>;
+  const names = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  return openingRange(source[String(dayIndex)] ?? source[names[dayIndex]] ?? source[names[dayIndex].slice(0, 3)]);
+};
+
+/** Returns null when hours are absent or invalid; false is never presented as open. */
+export const providerOpenNow = (provider: { open24h?: boolean | null; openingHours?: unknown; openingTime?: string | null; closingTime?: string | null }, now = new Date()): boolean | null => {
+  if (provider.open24h) return true;
+  const clock = cairoClock(now);
+  const ranges = rangesForDay(provider.openingHours, clock.dayIndex);
+  const fallback = ranges.length ? ranges : (provider.openingTime && provider.closingTime ? [{ open: provider.openingTime, close: provider.closingTime }] : []);
+  const valid = fallback.map((range) => ({ open: parseClockMinutes(range.open), close: parseClockMinutes(range.close) })).filter((range): range is { open: number; close: number } => range.open !== null && range.close !== null);
+  if (!valid.length) return null;
+  return valid.some(({ open, close }) => close >= open ? clock.minutes >= open && clock.minutes <= close : clock.minutes >= open || clock.minutes <= close);
+};
+
 app.get('/api/providers', async (req, res, next) => {
   try {
     const areaId = typeof req.query.areaId === 'string' ? req.query.areaId : undefined;
@@ -420,44 +476,38 @@ app.get('/api/providers', async (req, res, next) => {
     const verifiedOnly = req.query.verified === 'true';
     const openNow = req.query.openNow === 'true';
     const sort = typeof req.query.sort === 'string' ? req.query.sort : 'name';
-    const page = Math.max(1, Number(req.query.page ?? 1));
-    const pageSize = Math.min(50, Math.max(1, Number(req.query.pageSize ?? 20)));
-    const attributeFilters = Object.fromEntries(
-      Object.keys(providerAttributesFields)
-        .filter((key) => req.query[key] === 'true')
-        .map((key) => [key, true]),
-    );
-    let providers = await prisma.provider.findMany({
-      where: {
-        status: ReviewStatus.APPROVED,
-        archivedAt: null,
-        deletedAt: null,
-        ...(verifiedOnly ? { isVerified: true } : {}),
-        ...(areaId ? { areaId } : {}),
-        ...(category ? { categories: { some: { category: { slug: category } } } } : {}),
-        ...attributeFilters,
-        ...(q ? { OR: [{ name: { contains: q, mode: 'insensitive' } }, { description: { contains: q, mode: 'insensitive' } }, { address: { contains: q, mode: 'insensitive' } }, { categories: { some: { category: { name: { contains: q, mode: 'insensitive' } } } } }] } : {}),
-      },
-      include: { area: true, images: { orderBy: { sortOrder: 'asc' } }, categories: { include: { category: true } }, reviews: { where: { status: ReviewStatus.APPROVED }, select: { quality: true, commitment: true, value: true } } },
-      orderBy: sort === 'latest' ? { createdAt: 'desc' } : [{ isVerified: 'desc' }, { name: 'asc' }],
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-    });
-    if (openNow) {
-      const current = new Date();
-      const currentMinutes = current.getHours() * 60 + current.getMinutes();
-      const parseMinutes = (value: string | null) => { if (!value || !/^\d{2}:\d{2}$/.test(value)) return null; const [hours, minutes] = value.split(':').map(Number); return hours * 60 + minutes; };
-      providers = providers.filter((provider) => { const opening = parseMinutes(provider.openingTime); const closing = parseMinutes(provider.closingTime); if (opening === null || closing === null) return false; return closing >= opening ? currentMinutes >= opening && currentMinutes <= closing : currentMinutes >= opening || currentMinutes <= closing; });
-    }
-    const withScores = providers.map((provider) => {
+    if (!['name', 'rating', 'reviews', 'latest', 'distance'].includes(sort)) return res.status(400).json({ message: 'ترتيب غير صالح' });
+    if (sort === 'distance' && (typeof req.query.latitude !== 'string' || typeof req.query.longitude !== 'string')) return res.status(400).json({ message: 'إحداثيات الموقع مطلوبة للترتيب حسب الأقرب' });
+    const page = parseDirectoryInteger(req.query.page, 1, 1, 100000);
+    const pageSize = parseDirectoryInteger(req.query.pageSize, 20, 1, 50);
+    const attributeFilters = Object.fromEntries(Object.keys(providerAttributesFields).filter((key) => req.query[key] === 'true').map((key) => [key, true]));
+    const where = {
+      status: ReviewStatus.APPROVED, archivedAt: null, deletedAt: null, area: { isActive: true },
+      ...(verifiedOnly ? { isVerified: true } : {}), ...(areaId ? { areaId } : {}),
+      ...(category ? { categories: { some: { category: { slug: category, isActive: true } } } } : {}), ...attributeFilters,
+      ...(q ? { OR: [{ name: { contains: q, mode: 'insensitive' as const } }, { description: { contains: q, mode: 'insensitive' as const } }, { address: { contains: q, mode: 'insensitive' as const } }, { categories: { some: { category: { name: { contains: q, mode: 'insensitive' as const, isActive: true } } } } }] } : {}),
+    };
+    const [total, rows] = await Promise.all([
+      prisma.provider.count({ where }),
+      prisma.provider.findMany({ where, include: { area: true, images: { orderBy: { sortOrder: 'asc' } }, categories: { where: { category: { isActive: true } }, include: { category: true } }, reviews: { where: { status: ReviewStatus.APPROVED }, select: { quality: true, commitment: true, value: true } } }, orderBy: sort === 'latest' ? [{ createdAt: 'desc' }, { id: 'asc' }] : [{ isVerified: 'desc' }, { name: 'asc' }, { id: 'asc' }] }),
+    ]);
+    const withScores = rows.map((provider) => {
       const rating = provider.reviews.length === 0 ? 0 : provider.reviews.reduce((sum, review) => sum + (review.quality + review.commitment + review.value) / 3, 0) / provider.reviews.length;
       const { reviews, ...publicProvider } = provider;
-      return { ...publicProvider, rating: Number(rating.toFixed(1)), reviewCount: reviews.length };
-    });
-    if (sort === 'rating') withScores.sort((left, right) => right.rating - left.rating || left.name.localeCompare(right.name, 'ar'));
-    if (sort === 'reviews') withScores.sort((left, right) => right.reviewCount - left.reviewCount || left.name.localeCompare(right.name, 'ar'));
-    res.json(withScores);
+      return { ...publicProvider, rating: Number(rating.toFixed(1)), reviewCount: reviews.length, openNow: providerOpenNow(provider) };
+    }).filter((provider) => !openNow || provider.openNow === true);
+    if (sort === 'rating') withScores.sort((a, b) => b.rating - a.rating || b.reviewCount - a.reviewCount || a.name.localeCompare(b.name, 'ar') || a.id.localeCompare(b.id));
+    if (sort === 'reviews') withScores.sort((a, b) => b.reviewCount - a.reviewCount || b.rating - a.rating || a.name.localeCompare(b.name, 'ar') || a.id.localeCompare(b.id));
+    if (sort === 'distance') {
+      const latitude = Number(req.query.latitude); const longitude = Number(req.query.longitude);
+      const distance = (item: typeof withScores[number]) => item.latitude == null || item.longitude == null ? Number.POSITIVE_INFINITY : ((item.latitude - latitude) ** 2 + (item.longitude - longitude) ** 2);
+      withScores.sort((a, b) => distance(a) - distance(b) || a.name.localeCompare(b.name, 'ar') || a.id.localeCompare(b.id));
+    }
+    const data = withScores.slice((page - 1) * pageSize, page * pageSize);
+    const response = { data, total: withScores.length, page, pageSize, hasMore: page * pageSize < withScores.length };
+    res.json(req.query.meta === 'true' ? response : data);
   } catch (error) {
+    if (error instanceof Error && error.message === 'invalid_directory_pagination') return res.status(400).json({ message: 'قيم الصفحة غير صالحة' });
     next(error);
   }
 });
@@ -1420,12 +1470,16 @@ app.get('/api/admin/review-queue', requireAdmin, async (_req, res, next) => {
 
 app.get('/api/admin/reports/summary', requireAdmin, async (_req, res, next) => {
   try {
-    const [providers, listings, ads, reviews, pendingProviders, pendingListings, pendingAds, missingProviderLocation, missingProviderPhone] = await Promise.all([
+    const [providers, listings, ads, reviews, pendingProviders, pendingListings, pendingAds, missingProviderLocation, missingProviderPhone, missingProviderCategory, missingProviderImage, missingProviderHours, inactiveAreaProviders] = await Promise.all([
       prisma.provider.count({ where: { deletedAt: null } }), prisma.listing.count({ where: { deletedAt: null } }), prisma.ad.count({ where: { deletedAt: null } }), prisma.review.count(),
       prisma.provider.count({ where: { status: ReviewStatus.PENDING } }), prisma.listing.count({ where: { status: ListingStatus.PENDING } }), prisma.ad.count({ where: { status: ReviewStatus.PENDING } }),
       prisma.provider.count({ where: { deletedAt: null, OR: [{ latitude: null }, { longitude: null }] } }), prisma.provider.count({ where: { deletedAt: null, phone: null } }),
+      prisma.provider.count({ where: { deletedAt: null, categories: { none: {} } } }),
+      prisma.provider.count({ where: { deletedAt: null, images: { none: {} } } }),
+      prisma.provider.count({ where: { deletedAt: null, open24h: false, openingTime: null, closingTime: null, openingHours: { equals: Prisma.JsonNull } } }),
+      prisma.provider.count({ where: { deletedAt: null, area: { isActive: false } } }),
     ]);
-    res.json({ totals: { providers, listings, ads, reviews }, pending: { providers: pendingProviders, listings: pendingListings, ads: pendingAds }, quality: { missingProviderLocation, missingProviderPhone } });
+    res.json({ totals: { providers, listings, ads, reviews }, pending: { providers: pendingProviders, listings: pendingListings, ads: pendingAds }, quality: { missingProviderLocation, missingProviderPhone, missingProviderCategory, missingProviderImage, missingProviderHours, inactiveAreaProviders } });
   } catch (error) { next(error); }
 });
 

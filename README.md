@@ -4,6 +4,8 @@
 
 A local community services platform for Qena Governorate, Egypt.
 
+Engineering documentation starts at [`docs/DOCUMENTATION_INDEX.md`](docs/DOCUMENTATION_INDEX.md).
+
 ---
 
 ## 📋 المتطلبات

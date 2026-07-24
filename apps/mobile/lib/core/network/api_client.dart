@@ -79,6 +79,7 @@ class ProviderSummary {
     this.rating = 0,
     this.reviewCount = 0,
     this.isVerified = false,
+    this.openNow,
   });
   final String id;
   final String name;
@@ -93,6 +94,7 @@ class ProviderSummary {
   final double rating;
   final int reviewCount;
   final bool isVerified;
+  final bool? openNow;
   // Display image: the owner's uploaded logo, falling back to the first
   // photo -- callers fall back further to a category icon when this is null.
   String? get displayImageUrl => logoUrl ?? imageUrl;
@@ -118,7 +120,23 @@ class ProviderSummary {
         rating: (json['rating'] as num? ?? 0).toDouble(),
         reviewCount: (json['reviewCount'] as num? ?? 0).toInt(),
         isVerified: json['isVerified'] == true,
+        openNow: json['openNow'] as bool?,
       );
+}
+
+class ProviderPage {
+  const ProviderPage({
+    required this.data,
+    required this.total,
+    required this.page,
+    required this.pageSize,
+    required this.hasMore,
+  });
+  final List<ProviderSummary> data;
+  final int total;
+  final int page;
+  final int pageSize;
+  final bool hasMore;
 }
 
 String? _firstCategoryName(dynamic categoriesJson) {
@@ -273,19 +291,30 @@ class AreaOption {
 }
 
 class BootstrapData {
-  const BootstrapData({required this.categories, required this.areas, required this.settings});
+  const BootstrapData({
+    required this.categories,
+    required this.areas,
+    required this.settings,
+  });
   final List<CategoryOption> categories;
   final List<AreaOption> areas;
   final Map<String, dynamic> settings;
 
   factory BootstrapData.fromJson(Map<String, dynamic> json) => BootstrapData(
     categories: (json['categories'] as List<dynamic>? ?? [])
-        .map((item) => CategoryOption.fromJson(Map<String, dynamic>.from(item as Map)))
+        .map(
+          (item) =>
+              CategoryOption.fromJson(Map<String, dynamic>.from(item as Map)),
+        )
         .toList(),
     areas: (json['areas'] as List<dynamic>? ?? [])
-        .map((item) => AreaOption.fromJson(Map<String, dynamic>.from(item as Map)))
+        .map(
+          (item) => AreaOption.fromJson(Map<String, dynamic>.from(item as Map)),
+        )
         .toList(),
-    settings: Map<String, dynamic>.from((json['settings'] as Map?)?.cast<String, dynamic>() ?? const {}),
+    settings: Map<String, dynamic>.from(
+      (json['settings'] as Map?)?.cast<String, dynamic>() ?? const {},
+    ),
   );
 }
 
@@ -365,22 +394,36 @@ class ApiClient {
     const cacheKey = 'bootstrap';
     try {
       if (!forceRefresh) {
-        final fresh = await _cacheGet(cacheKey, maxAge: const Duration(minutes: 2));
-        if (fresh != null && fresh.isNotEmpty) return BootstrapData.fromJson(Map<String, dynamic>.from(fresh.first as Map));
+        final fresh = await _cacheGet(
+          cacheKey,
+          maxAge: const Duration(minutes: 2),
+        );
+        if (fresh != null && fresh.isNotEmpty)
+          return BootstrapData.fromJson(
+            Map<String, dynamic>.from(fresh.first as Map),
+          );
       }
-      final response = await http.get(Uri.parse('$baseUrl/api/bootstrap')).timeout(const Duration(seconds: 4));
+      final response = await http
+          .get(Uri.parse('$baseUrl/api/bootstrap'))
+          .timeout(const Duration(seconds: 4));
       if (response.statusCode != 200) throw Exception('bootstrap_error');
       final data = Map<String, dynamic>.from(jsonDecode(response.body) as Map);
       await _cacheSet(cacheKey, [data]);
       // Keep the legacy caches warm for screens that still request a list
       // independently (add-activity and profile preferences).
-      await _cacheSet('categories', (data['categories'] as List<dynamic>? ?? []));
+      await _cacheSet(
+        'categories',
+        (data['categories'] as List<dynamic>? ?? []),
+      );
       await _cacheSet('areas', (data['areas'] as List<dynamic>? ?? []));
       await _cacheSet('platform_settings', [data['settings'] ?? const {}]);
       return BootstrapData.fromJson(data);
     } catch (_) {
       final cached = await _cacheGet(cacheKey, maxAge: const Duration(days: 7));
-      if (cached != null && cached.isNotEmpty) return BootstrapData.fromJson(Map<String, dynamic>.from(cached.first as Map));
+      if (cached != null && cached.isNotEmpty)
+        return BootstrapData.fromJson(
+          Map<String, dynamic>.from(cached.first as Map),
+        );
       rethrow;
     }
   }
@@ -1072,7 +1115,10 @@ class ApiClient {
     if (response.statusCode != 200) {
       throw Exception('API error ${response.statusCode}');
     }
-    final data = jsonDecode(response.body) as List<dynamic>;
+    final decoded = jsonDecode(response.body);
+    final data = decoded is Map<String, dynamic>
+        ? (decoded['data'] as List<dynamic>? ?? const [])
+        : decoded as List<dynamic>;
     await _cacheSet(cacheKey, data);
     return data
         .map(
@@ -1080,6 +1126,69 @@ class ApiClient {
               ProviderSummary.fromJson(item as Map<String, dynamic>, baseUrl),
         )
         .toList();
+  }
+
+  Future<ProviderPage> fetchProviderPage({
+    String? areaId,
+    String? category,
+    String? searchQuery,
+    int page = 1,
+    int pageSize = 20,
+    bool verifiedOnly = false,
+    bool openNow = false,
+    bool hasDelivery = false,
+    bool hasParking = false,
+    bool acceptsCards = false,
+    String sort = 'name',
+    double? latitude,
+    double? longitude,
+    bool skipCache = false,
+  }) async {
+    final params = <String, String>{
+      if (areaId != null) 'areaId': areaId,
+      if (category != null) 'category': category,
+      if (searchQuery != null && searchQuery.trim().isNotEmpty)
+        'q': searchQuery.trim(),
+      'page': '$page',
+      'pageSize': '$pageSize',
+      'meta': 'true',
+      'sort': sort,
+      if (verifiedOnly) 'verified': 'true',
+      if (openNow) 'openNow': 'true',
+      if (hasDelivery) 'hasDelivery': 'true',
+      if (hasParking) 'hasParking': 'true',
+      if (acceptsCards) 'acceptsCards': 'true',
+      ...?((latitude != null && longitude != null)
+          ? {'latitude': '$latitude', 'longitude': '$longitude'}
+          : null),
+    };
+    final uri = Uri.parse(
+      '$baseUrl/api/providers',
+    ).replace(queryParameters: params);
+    final response = await http.get(uri).timeout(const Duration(seconds: 5));
+    if (response.statusCode != 200)
+      throw Exception('API error ${response.statusCode}');
+    final body = jsonDecode(response.body);
+    final payload = body is Map<String, dynamic>
+        ? body
+        : <String, dynamic>{
+            'data': body,
+            'total': (body as List<dynamic>).length,
+            'page': page,
+            'pageSize': pageSize,
+            'hasMore': false,
+          };
+    final data = (payload['data'] as List<dynamic>? ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .map((item) => ProviderSummary.fromJson(item, baseUrl))
+        .toList();
+    return ProviderPage(
+      data: data,
+      total: (payload['total'] as num? ?? data.length).toInt(),
+      page: (payload['page'] as num? ?? page).toInt(),
+      pageSize: (payload['pageSize'] as num? ?? pageSize).toInt(),
+      hasMore: payload['hasMore'] == true,
+    );
   }
 
   Future<ProviderDetails> fetchProvider(String id) async {

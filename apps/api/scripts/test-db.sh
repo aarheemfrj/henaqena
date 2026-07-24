@@ -12,11 +12,15 @@ export ADMIN_API_KEY="${ADMIN_API_KEY:-integration-admin-key}"
 export UPLOADS_DIR="${UPLOADS_DIR:-/tmp/henaqena-test-uploads}"
 
 cleanup() {
-  docker compose -f docker-compose.test.yml down -v >/dev/null 2>&1 || true
+COMPOSE=(docker compose)
+if ! docker compose version >/dev/null 2>&1; then COMPOSE=(docker-compose); fi
+"${COMPOSE[@]}" -f docker-compose.test.yml down -v >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
 
-docker compose -f docker-compose.test.yml up -d --wait
+COMPOSE=(docker compose)
+if ! docker compose version >/dev/null 2>&1; then COMPOSE=(docker-compose); fi
+"${COMPOSE[@]}" -f docker-compose.test.yml up -d --wait
 npx prisma generate
 npx prisma migrate deploy
 npm run test:integration

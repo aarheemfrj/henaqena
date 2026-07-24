@@ -15,7 +15,7 @@ jest.mock('jose', () => ({
   jwtVerify: jest.fn(async () => ({ payload: { sub: 'blocked-google-sub', email: 'blocked-federated@example.com', name: 'Blocked Federated' } })),
 }));
 
-import { app, prisma, runListingLifecycle } from '../server';
+import { app, prisma, providerOpenNow, runListingLifecycle } from '../server';
 
 const tables = [
   'AdminSession', 'Session', 'VerificationCode', 'AuditLog', 'ProviderReport', 'ProviderImage',
@@ -178,5 +178,48 @@ describe('Sprint 1 production stabilization integration', () => {
     expect(await prisma.listing.findUnique({ where: { id: listing.id } })).toBeNull();
     // A remote URL is never translated into a local filesystem path or deleted.
     expect(remoteUrl.startsWith('https://')).toBe(true);
+  });
+
+  it('keeps public directory taxonomy active-only and paginated without duplicates', async () => {
+    const user = await makeUser('Directory owner');
+    const active = await makeProvider(user.id, ReviewStatus.APPROVED);
+    await makeProvider(user.id, ReviewStatus.APPROVED);
+    await makeProvider(user.id, ReviewStatus.APPROVED);
+    const inactiveArea = await prisma.area.create({ data: { name: `Inactive ${randomBytes(3).toString('hex')}`, city: 'قنا', isActive: false } });
+    const inactiveCategory = await prisma.category.create({ data: { name: `Hidden ${randomBytes(3).toString('hex')}`, slug: `hidden-${randomBytes(5).toString('hex')}`, isActive: false } });
+    await prisma.provider.create({ data: { name: 'Hidden provider', ownerId: user.id, areaId: inactiveArea.id, status: ReviewStatus.APPROVED, categories: { create: { categoryId: inactiveCategory.id } } } });
+    const categories = await request(app).get('/api/categories');
+    const areas = await request(app).get('/api/areas');
+    expect(categories.status).toBe(200);
+    expect(areas.status).toBe(200);
+    expect(categories.body.data.some((item: { id: string }) => item.id === inactiveCategory.id)).toBe(false);
+    expect(areas.body.data.some((item: { id: string }) => item.id === inactiveArea.id)).toBe(false);
+    const first = await request(app).get('/api/providers?meta=true&page=1&pageSize=1');
+    const second = await request(app).get('/api/providers?meta=true&page=2&pageSize=1');
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    const pageIds = [...first.body.data, ...second.body.data].map((item: { id: string }) => item.id);
+    expect(new Set(pageIds).size).toBe(pageIds.length);
+    expect((await request(app).get(`/api/providers?areaId=${inactiveArea.id}`)).body).toEqual([]);
+    expect((await request(app).get(`/api/providers?category=${inactiveCategory.slug}`)).body).toEqual([]);
+    expect(active.provider.id).toBeTruthy();
+  });
+
+  it('rejects invalid directory filters and handles missing optional provider data', async () => {
+    const user = await makeUser('Sparse directory owner');
+    await makeProvider(user.id, ReviewStatus.APPROVED);
+    expect((await request(app).get('/api/providers?page=0')).status).toBe(400);
+    expect((await request(app).get('/api/providers?sort=unknown')).status).toBe(400);
+    const response = await request(app).get('/api/providers?meta=true&pageSize=50&sort=rating');
+    expect(response.status).toBe(200);
+    expect(response.body.data.every((item: { rating: number; reviewCount: number }) => typeof item.rating === 'number' && typeof item.reviewCount === 'number')).toBe(true);
+  });
+
+  it('calculates Cairo opening hours safely, including overnight and invalid values', () => {
+    const atMorning = new Date('2026-07-24T06:00:00.000Z'); // 09:00 in Cairo during July.
+    expect(providerOpenNow({ openingTime: '09:00', closingTime: '22:00' }, atMorning)).toBe(true);
+    expect(providerOpenNow({ openingTime: '22:00', closingTime: '02:00' }, atMorning)).toBe(false);
+    expect(providerOpenNow({ openingTime: 'bad', closingTime: '22:00' }, atMorning)).toBeNull();
+    expect(providerOpenNow({ open24h: true }, atMorning)).toBe(true);
   });
 });
