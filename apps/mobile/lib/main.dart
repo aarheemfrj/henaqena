@@ -8263,20 +8263,94 @@ class _PricesPageState extends State<PricesPage> {
                     return Column(
                       children: [
                         for (final item in items)
-                          MotionIn(
-                            child: MiniItem(
-                              icon: Icons.sell_outlined,
-                              title: item['name'] as String,
-                              subtitle:
-                                  'من ${item['minPrice']} إلى ${item['maxPrice']} جنيه${item['unit'] == null ? '' : ' · ${item['unit']}'}',
-                            ),
-                          ),
+                          MotionIn(child: PriceCard(item: item)),
                       ],
                     );
                   },
                 ),
         ),
       ],
+    ),
+  );
+}
+
+class PriceCard extends StatefulWidget {
+  const PriceCard({super.key, required this.item});
+  final Map<String, dynamic> item;
+  @override
+  State<PriceCard> createState() => _PriceCardState();
+}
+
+class _PriceCardState extends State<PriceCard> {
+  bool loading = false;
+  Future<void> confirm(bool valid) async {
+    if (!AuthSession.isSignedIn) {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const AuthPage()),
+      );
+      if (!AuthSession.isSignedIn) return;
+    }
+    setState(() => loading = true);
+    try {
+      final result = await ApiClient().confirmPrice(
+        id: widget.item['id'] as String,
+        stillValid: valid,
+      );
+      if (mounted) {
+        setState(() {
+          widget.item['viewerConfirmed'] = valid;
+          widget.item['confirmationCount'] = result['confirmationCount'];
+        });
+        showTopToast(
+          context,
+          message: valid
+              ? 'أكدت إن السعر ما زال مناسبًا'
+              : 'سجلنا إن السعر يحتاج تحديثًا',
+        );
+      }
+    } catch (_) {
+      if (mounted)
+        showTopToast(context, message: 'تعذر تسجيل التأكيد', isError: true);
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Card(
+    child: Padding(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            widget.item['name'] as String,
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
+          Text(
+            'من ${widget.item['minPrice']} إلى ${widget.item['maxPrice']} جنيه${widget.item['unit'] == null ? '' : ' · ${widget.item['unit']}'}',
+          ),
+          Text(
+            '${widget.item['confirmationCount'] ?? 0} تأكيد · آخر تأكيد ${widget.item['lastConfirmedAt'] == null ? 'غير محدد' : 'حديث'}',
+            style: const TextStyle(color: muted, fontSize: 12),
+          ),
+          Row(
+            children: [
+              const Text('السعر لسه صحيح؟'),
+              const Spacer(),
+              TextButton(
+                onPressed: loading ? null : () => confirm(true),
+                child: const Text('أيوه'),
+              ),
+              TextButton(
+                onPressed: loading ? null : () => confirm(false),
+                child: const Text('اتغير'),
+              ),
+            ],
+          ),
+        ],
+      ),
     ),
   );
 }

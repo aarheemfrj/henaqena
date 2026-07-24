@@ -531,6 +531,26 @@ class ApiClient {
         .toList();
   }
 
+  Future<Map<String, dynamic>> confirmPrice({
+    required String id,
+    required bool stillValid,
+    String? note,
+  }) async {
+    final response = await http
+        .post(
+          Uri.parse('$baseUrl/api/prices/$id/confirm'),
+          headers: _jsonHeaders,
+          body: jsonEncode({
+            'stillValid': stillValid,
+            if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
+          }),
+        )
+        .timeout(const Duration(seconds: 8));
+    if (response.statusCode == 401) throw Exception('unauthorized');
+    if (response.statusCode != 200) throw Exception('price_confirmation_error');
+    return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+  }
+
   Future<Map<String, dynamic>> submitPrice({
     required String name,
     required double minPrice,
