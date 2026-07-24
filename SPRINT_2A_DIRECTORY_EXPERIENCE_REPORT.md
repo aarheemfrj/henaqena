@@ -110,7 +110,8 @@ The first test attempt used the developer database before the isolated workflow 
 ## Commit and tag
 
 - Implementation commit: `5622296` (`feat(directory): complete Sprint 2A directory experience improvements`).
-- Tag: `v0.2-directory` will be created only after the final validation commit.
+- Final report commit: `eae774b`.
+- Tag: `v0.2-directory` created as an annotated tag on the final report commit.
 
 ## Go / No-Go for Sprint 2B
 
