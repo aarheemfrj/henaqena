@@ -125,7 +125,12 @@ class ProviderSummary {
 }
 
 class MapViewport {
-  const MapViewport({required this.north, required this.south, required this.east, required this.west});
+  const MapViewport({
+    required this.north,
+    required this.south,
+    required this.east,
+    required this.west,
+  });
   final double north;
   final double south;
   final double east;
@@ -1222,8 +1227,10 @@ class ApiClient {
   }) async {
     final params = <String, String>{
       if (viewport != null) ...{
-        'north': '${viewport.north}', 'south': '${viewport.south}',
-        'east': '${viewport.east}', 'west': '${viewport.west}',
+        'north': '${viewport.north}',
+        'south': '${viewport.south}',
+        'east': '${viewport.east}',
+        'west': '${viewport.west}',
       },
       if (areaId != null) 'areaId': areaId,
       if (categoryId != null) 'categoryId': categoryId,
@@ -1233,18 +1240,33 @@ class ApiClient {
       if (longitude != null) 'longitude': '$longitude',
       'limit': '$limit',
     };
-    final uri = Uri.parse('$baseUrl/api/providers/map').replace(queryParameters: params);
+    final uri = Uri.parse(
+      '$baseUrl/api/providers/map',
+    ).replace(queryParameters: params);
     final response = await http.get(uri).timeout(const Duration(seconds: 5));
-    if (response.statusCode != 200) throw Exception('API error ${response.statusCode}');
+    if (response.statusCode != 200)
+      throw Exception('API error ${response.statusCode}');
     final body = jsonDecode(response.body) as Map<String, dynamic>;
     return (body['data'] as List<dynamic>? ?? const [])
         .whereType<Map<String, dynamic>>()
-        .map((item) => ProviderSummary.fromJson({
-              ...item,
-              'area': {'name': item['areaName'] ?? 'قنا'},
-              'categories': item['categoryName'] == null ? const [] : [{'category': {'name': item['categoryName']}}],
-              'images': item['imageUrl'] == null ? const [] : [{'url': item['imageUrl']}],
-            }, baseUrl))
+        .map(
+          (item) => ProviderSummary.fromJson({
+            ...item,
+            'area': {'name': item['areaName'] ?? 'قنا'},
+            'categories': item['categoryName'] == null
+                ? const []
+                : [
+                    {
+                      'category': {'name': item['categoryName']},
+                    },
+                  ],
+            'images': item['imageUrl'] == null
+                ? const []
+                : [
+                    {'url': item['imageUrl']},
+                  ],
+          }, baseUrl),
+        )
         .toList();
   }
 

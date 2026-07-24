@@ -4030,10 +4030,11 @@ class _DirectoryPageState extends State<DirectoryPage> {
     searchDebounce?.cancel();
     // The map is an explicit user action: bypass the short list cache and
     // request the full directory so an old empty response cannot hide pins.
-    final currentResults = _fetchProviders(
-      searchQuery: searchController.text,
-      force: true,
-      pageSize: 50,
+    final currentResults = api.fetchMapMarkers(
+      query: searchController.text,
+      areaId: filters.areaId,
+      category: filters.categorySlug,
+      limit: 120,
     );
     setState(() {
       providersFuture = currentResults;
@@ -4959,23 +4960,18 @@ class ProviderMapPage extends StatefulWidget {
   State<ProviderMapPage> createState() => _ProviderMapPageState();
 }
 
-const _qenaAreaCenters = <String, ll.LatLng>{
-  'وسط البلد': ll.LatLng(26.1554, 32.7162),
-  'مدينة العمال': ll.LatLng(26.1605, 32.7058),
-  'الشؤون': ll.LatLng(26.1702, 32.7078),
-  'المساكن': ll.LatLng(26.1492, 32.7290),
-  'نجع سعيد': ll.LatLng(26.1438, 32.7412),
-  'المعنى': ll.LatLng(26.1352, 32.7220),
-  'الحميدات': ll.LatLng(26.1662, 32.7350),
-  'الأحوال': ll.LatLng(26.1512, 32.6988),
-  'عمر فندي': ll.LatLng(26.1588, 32.7198),
-  'المنشية': ll.LatLng(26.1480, 32.7110),
-};
-
 ll.LatLng? _providerMapPoint(ProviderSummary provider) {
   final latitude = provider.latitude;
   final longitude = provider.longitude;
-  if (latitude == null || longitude == null || !latitude.isFinite || !longitude.isFinite || latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) return null;
+  if (latitude == null ||
+      longitude == null ||
+      !latitude.isFinite ||
+      !longitude.isFinite ||
+      latitude < -90 ||
+      latitude > 90 ||
+      longitude < -180 ||
+      longitude > 180)
+    return null;
   return ll.LatLng(latitude, longitude);
 }
 
@@ -4998,18 +4994,31 @@ class _ProviderMapPageState extends State<ProviderMapPage> {
   Future<void> _locateUser() async {
     try {
       if (!await Geolocator.isLocationServiceEnabled()) {
-        if (mounted) setState(() => locationMessage = 'خدمة الموقع مغلقة — يمكنك تشغيلها من إعدادات الجهاز');
+        if (mounted)
+          setState(
+            () => locationMessage =
+                'خدمة الموقع مغلقة — يمكنك تشغيلها من إعدادات الجهاز',
+          );
         return;
       }
       var permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
       }
-      if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
-        if (mounted) setState(() => locationMessage = permission == LocationPermission.deniedForever ? 'صلاحية الموقع مرفوضة نهائيًا — افتح إعدادات التطبيق' : 'صلاحية الموقع مرفوضة');
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        if (mounted)
+          setState(
+            () =>
+                locationMessage = permission == LocationPermission.deniedForever
+                ? 'صلاحية الموقع مرفوضة نهائيًا — افتح إعدادات التطبيق'
+                : 'صلاحية الموقع مرفوضة',
+          );
         return;
       }
-      final position = await Geolocator.getCurrentPosition().timeout(const Duration(seconds: 8));
+      final position = await Geolocator.getCurrentPosition().timeout(
+        const Duration(seconds: 8),
+      );
       if (!mounted) return;
       final target = LatLng(position.latitude, position.longitude);
       setState(() {
@@ -5026,7 +5035,11 @@ class _ProviderMapPageState extends State<ProviderMapPage> {
         );
       }
     } catch (_) {
-      if (mounted) setState(() => locationMessage = 'تعذر تحديد موقعك حاليًا — الخريطة ما زالت متاحة');
+      if (mounted)
+        setState(
+          () => locationMessage =
+              'تعذر تحديد موقعك حاليًا — الخريطة ما زالت متاحة',
+        );
     } finally {
       if (mounted) setState(() => locating = false);
     }
@@ -5117,7 +5130,9 @@ class _ProviderMapPageState extends State<ProviderMapPage> {
           // can have an address before exact coordinates are entered; those
           // use a small area-centre fallback until a precise pin is saved.
           final mapped = snapshot.data ?? const <ProviderSummary>[];
-          final located = mapped.where((provider) => _providerMapPoint(provider) != null).toList();
+          final located = mapped
+              .where((provider) => _providerMapPoint(provider) != null)
+              .toList();
           if (mapped.isEmpty) {
             return const _StateMessage(
               icon: Icons.map_outlined,
@@ -5129,7 +5144,8 @@ class _ProviderMapPageState extends State<ProviderMapPage> {
             ..sort((a, b) {
               final aPoint = _providerMapPoint(a);
               final bPoint = _providerMapPoint(b);
-              if (aPoint == null && bPoint == null) return a.name.compareTo(b.name);
+              if (aPoint == null && bPoint == null)
+                return a.name.compareTo(b.name);
               if (aPoint == null) return 1;
               if (bPoint == null) return -1;
               final aDistance = Geolocator.distanceBetween(
@@ -5194,7 +5210,11 @@ class _ProviderMapPageState extends State<ProviderMapPage> {
               if (locationMessage != null)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(18, 8, 18, 0),
-                  child: Text(locationMessage!, textAlign: TextAlign.center, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                  child: Text(
+                    locationMessage!,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 12, color: Colors.black54),
+                  ),
                 ),
               Expanded(child: list),
             ],
