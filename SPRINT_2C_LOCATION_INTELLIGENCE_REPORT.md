@@ -41,3 +41,53 @@ This sprint will improve the existing map without replacing its SDK or adding a 
 - Category parent/child relations and any Prisma migration for them.
 
 Implementation and validation stages will be appended below with separate commit boundaries.
+
+## Implementation status
+
+### Stage 1 — Bounded map API and distance contract (completed)
+
+- Added `GET /api/providers/map` with finite coordinate/bounds validation, a 1–200 marker cap, approved/active/non-archived/non-deleted visibility and missing-coordinate exclusion.
+- Added a light marker projection (identity, name, logo/first image, category, area, coordinates, rating and optional distance) and deterministic ordering.
+- Replaced API directory distance approximation with a shared exported Haversine kilometre helper.
+- Added integration coverage for map bounds, visibility, invalid coordinates and Haversine accuracy.
+
+**Commit:** `6bf4d60` — `feat(maps): add bounded provider map markers and safe coordinates`
+
+### Stage 2 — Flutter map safety and location UX (completed)
+
+- Directory map now loads the bounded map-marker contract instead of a broad directory page.
+- Removed synthetic area-centre pins. Providers without valid coordinates remain in the list but never appear at a misleading map point.
+- Added explicit service-disabled, denied/denied-forever, timeout and unavailable messaging while keeping the map usable at Qena fallback.
+- Preserved recenter/follow, location stream, route fitting, provider labels and category-colored markers.
+
+**Commit:** `745a351` — `feat(maps): harden mobile location and marker rendering`
+
+## Final validation run
+
+| Command | Result |
+|---|---|
+| `cd apps/api && npm run build` | Pass |
+| `cd apps/api && npm run test:db` | Pass — isolated Docker PostgreSQL, 8 suites, 84 tests |
+| `cd apps/web && npm run lint` | Pass |
+| `cd apps/web && npm run build` | Pass |
+| `cd apps/mobile && flutter analyze --no-fatal-infos --no-fatal-warnings` | Pass — 0 errors; 45 existing non-fatal infos/warnings |
+| `cd apps/mobile && flutter test` | Pass — 10/10 |
+| `git diff --check` | Pass |
+
+### Manual/runtime verification
+
+- Internal map implementation was reviewed against the current Flutter source and the API contract was exercised by integration tests.
+- Physical GPS, denied-forever settings screens, Android/iOS external directions and VPS browser verification were not available in this local run.
+- No Prisma migration was added; existing migrations applied successfully in the isolated test database.
+- No new secrets or paid map credentials were introduced.
+
+## Remaining risks and deferred work
+
+- Clustering and spatial indexes are not implemented; bounded marker limits and viewport parameters are the safe current control.
+- Offline tiles and internal turn-by-turn navigation remain out of scope.
+- Production-volume latency, exact Qena coordinate quality and physical-device permission/GPS behavior require staging/device verification.
+- The current Flutter map receives the viewport contract at open time; subsequent camera-driven server refresh/debounce can be added after measuring real catalog size.
+
+## Go / No-Go for Sprint 2D
+
+**GO for Sprint 2D planning, with a staging/device verification follow-up.** Critical API visibility/coordinate tests, API/Web builds, Flutter analysis and widget tests passed. Do not claim production GPS or map-provider credential verification until the manual checks above are completed.

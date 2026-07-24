@@ -25,9 +25,9 @@ Active taxonomy filtering, stable paginated provider listing, open-now calculati
 
 Provider directory search now has bounded query validation, Arabic/English normalization, relevance-ranked matching across provider names/services/categories/areas, deterministic pagination, suggestions and local recent-search UX. Search analytics and cross-module search remain out of scope.
 
-### Sprint 2C — Maps — Planned
+### Sprint 2C — Maps — Implemented (local verification)
 
-Spatial clustering, richer map interactions and distance-query optimization. Not implemented in Sprint 2A.
+Internal Qena map markers now use a bounded API contract, approved-only visibility, valid-coordinate filtering, category coloring, actionable location permissions, recenter/follow behavior, route fitting and shared Haversine distance ordering. Clustering, offline tiles and production device verification remain deferred; see `SPRINT_2C_LOCATION_INTELLIGENCE_REPORT.md`.
 
 ### Sprint 2D — Provider Page / Reviews / Favorites — Planned
 

@@ -111,6 +111,10 @@ Notifications are rows in `Notification` addressed to a user. Read operations up
 
 The API provides provider/listing/category/area query endpoints and the mobile client performs the user-facing search/filter experience. External social enrichment is optional and disabled by default. Google Custom Search is not a guaranteed production dependency.
 
+## Internal map flow
+
+The mobile directory opens the internal `flutter_map`/OpenStreetMap view through `GET /api/providers/map`. The endpoint applies the same approved, active-area/category and archive/deletion visibility rules as the directory, requires valid coordinates, supports bounded viewport parameters and returns a capped marker payload. Flutter rejects invalid coordinates, deduplicates by provider ID, shows provider names with category colors, and keeps the map usable when location permission is denied or the location service is disabled. User location is shown only on-device and is not persisted as a precise coordinate.
+
 ## Deployment topology
 
 ```mermaid

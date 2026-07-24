@@ -353,3 +353,5 @@
 - Recorded risks and scope in `SPRINT_2C_LOCATION_INTELLIGENCE_REPORT.md` before product-code changes.
 - Deferred clustering, offline tiles, internal turn-by-turn directions, automatic coordinate correction and taxonomy hierarchy.
 - Status: audit complete; implementation pending in separate commits.
+
+2026-07-24 — Codex — Sprint 2C Location Intelligence & Maps — completed in two rollback-safe stages. Added bounded approved-only map markers, coordinate validation, shared Haversine distance, safe Flutter marker rendering, actionable permission states, recenter/follow and route preservation. Validation: isolated API PostgreSQL 84/84, API build, web lint/build, Flutter analyze (0 errors) and Flutter tests 10/10. Commits: `6bf4d60`, `745a351`. Deferred: clustering, offline tiles, spatial indexes, camera-driven refresh debounce, physical-device GPS and VPS verification.

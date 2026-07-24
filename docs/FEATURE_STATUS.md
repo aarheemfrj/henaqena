@@ -37,7 +37,7 @@ Legend: **Implemented** = present in current code; **Partial** = some paths/UI o
 | Prices | Partial | API/admin CRUD; authoritative live feeds and history depth depend on data |
 | Qena Now | Partial | API/admin content and helpful votes; push delivery not implemented |
 | Notifications | Partial | Persisted/read/unread/deep-link target; push provider not implemented |
-| Internal map | Partial | Flutter map with provider pins; navigation uses optional external directions |
+| Internal map | Implemented | Bounded approved-only marker API, valid coordinates, category-colored pins, location/recenter states, route fitting and external directions fallback; clustering/offline tiles remain deferred |
 | Google Maps/Places | Unverified | Feature-flagged and credential-dependent |
 | Data import/collection | Partial | Admin import and OSM/Google paths; source quotas and browser E2E pending |
 | Admin dashboard | Partial | Next.js CRUD/moderation/settings/import screens; full browser audit pending |

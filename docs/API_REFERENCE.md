@@ -19,6 +19,8 @@ The table is intentionally exhaustive for routes registered by `apps/api/src/ser
 
 `GET /api/search/suggestions` requires at least two characters, caps `limit` at 20 and returns bounded provider/service/category/area suggestions from approved providers in active areas/categories. It never exposes pending, archived or deleted records.
 
+`GET /api/providers/map` is the lightweight internal-map marker contract. It accepts `north`, `south`, `east`, `west` (all four together when a viewport is supplied), optional `q`, `areaId`, `categoryId`/`category`, optional user `latitude`/`longitude`, and a bounded `limit` (1–200, default 120). It returns `{ data, total, limit }` with only approved, active, non-archived, non-deleted providers that have valid coordinates. Invalid bounds or coordinates are rejected with 400; pending providers, inactive taxonomy and missing-coordinate records never produce markers. `distanceKm` is included only when a valid user point is supplied.
+
 | Module | Methods and paths | Auth / role | Main models | Status |
 |---|---|---|---|---|
 | Health | `GET /health`, `GET /ready`, `GET /api/bootstrap`, `GET /api/admin/health/details` | public; admin details guarded | PlatformSettings | Implemented |

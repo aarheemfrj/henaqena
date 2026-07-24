@@ -28,6 +28,7 @@ The script starts `docker-compose.test.yml`, waits for PostgreSQL, runs `prisma 
 - approved-only public providers and owner pending visibility
 - favorite-list/provider/listing ownership
 - invalid bytes, MIME mismatch and oversized image rejection
+- map bounds validation, approved-only marker visibility, missing-coordinate exclusion and Haversine distance
 - local replacement/deletion and remote URL preservation
 - taxonomy duplicate/deactivation behavior
 - active-only directory taxonomy, stable pagination, invalid directory query rejection and Cairo open-now edge cases
