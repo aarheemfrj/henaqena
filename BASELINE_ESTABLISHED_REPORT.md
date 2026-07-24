@@ -5,7 +5,7 @@
 
 ## Commit Hash
 
-`<BASELINE_COMMIT_HASH>`
+`46a8eba` (baseline content commit)
 
 ## Tag Name
 
