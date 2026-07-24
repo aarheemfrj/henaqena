@@ -184,22 +184,23 @@ export async function importProvidersV2(formData: FormData) {
   if (!await hasAdminSession()) redirect('/admin/login');
   const file = formData.get('file');
   if (!(file instanceof File) || file.size === 0) redirect('/admin/import?error=file');
+  let result: { created: number; updated: number; skipped: number; failed: number; errors: string[] };
   try {
     const workbook = XLSX.read(new Uint8Array(await file.arrayBuffer()), { type: 'array', cellDates: false });
     const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
     if (!firstSheet) redirect('/admin/import?error=sheet');
     const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(firstSheet, { defval: '' });
     const rows = rawRows.map((raw) => Object.fromEntries(Object.entries(raw).map(([key, value]) => [normalizeImportHeader(key), value])));
-    const result = await apiPost<{ created: number; updated: number; skipped: number; failed: number; errors: string[] }>('/api/admin/import/providers/v2', {
+    result = await apiPost<{ created: number; updated: number; skipped: number; failed: number; errors: string[] }>('/api/admin/import/providers/v2', {
       rows,
       publishMode: String(formData.get('publishMode') ?? 'DIRECT'),
       duplicateMode: String(formData.get('duplicateMode') ?? 'UPDATE'),
     });
-    revalidatePath('/admin/import'); revalidatePath('/admin/providers'); revalidatePath('/providers'); revalidatePath('/');
-    redirect(`/admin/import?created=${result.created}&updated=${result.updated}&skipped=${result.skipped}&failed=${result.failed}`);
   } catch {
     redirect('/admin/import?error=processing');
   }
+  revalidatePath('/admin/import'); revalidatePath('/admin/providers'); revalidatePath('/providers'); revalidatePath('/');
+  redirect(`/admin/import?created=${result.created}&updated=${result.updated}&skipped=${result.skipped}&failed=${result.failed}`);
 }
 
 export async function moderateService(formData: FormData) { if (!await hasAdminSession()) redirect('/admin/login'); const id = String(formData.get('id') ?? ''); const status = String(formData.get('status') ?? ''); if (!id || !['APPROVED', 'REJECTED'].includes(status)) return; await apiPatch(`/api/admin/services/${id}`, { status }); revalidatePath('/admin/services'); }

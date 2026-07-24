@@ -4663,6 +4663,7 @@ ll.LatLng _providerMapPoint(ProviderSummary provider, int index) {
 class _ProviderMapPageState extends State<ProviderMapPage> {
   static const _qena = LatLng(26.1551, 32.7160);
   LatLng center = _qena;
+  LatLng? userPosition;
   bool locating = true;
   List<ll.LatLng> routePoints = const [];
   bool routeLoading = false;
@@ -4687,7 +4688,10 @@ class _ProviderMapPageState extends State<ProviderMapPage> {
       final position = await Geolocator.getCurrentPosition();
       if (!mounted) return;
       final target = LatLng(position.latitude, position.longitude);
-      setState(() => center = target);
+      setState(() {
+        center = target;
+        userPosition = target;
+      });
       if (widget.routeDestination != null) {
         await _loadRoute(
           ll.LatLng(target.latitude, target.longitude),
@@ -4839,6 +4843,12 @@ class _ProviderMapPageState extends State<ProviderMapPage> {
                   providers: mapped,
                   onProviderTap: _openProvider,
                   initialCenter: ll.LatLng(center.latitude, center.longitude),
+                  initialUserPosition: userPosition == null
+                      ? null
+                      : ll.LatLng(
+                          userPosition!.latitude,
+                          userPosition!.longitude,
+                        ),
                   routePoints: routePoints,
                 ),
               ),
@@ -4857,12 +4867,14 @@ class InternalQenaMap extends StatefulWidget {
     required this.providers,
     required this.onProviderTap,
     this.initialCenter,
+    this.initialUserPosition,
     this.routePoints = const [],
   });
 
   final List<ProviderSummary> providers;
   final ValueChanged<ProviderSummary> onProviderTap;
   final ll.LatLng? initialCenter;
+  final ll.LatLng? initialUserPosition;
   final List<ll.LatLng> routePoints;
 
   @override
@@ -4876,6 +4888,22 @@ class _InternalQenaMapState extends State<InternalQenaMap> {
   bool _followingUser = false;
   ll.LatLng? _userPosition;
   StreamSubscription<Position>? _positionSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _userPosition = widget.initialUserPosition;
+  }
+
+  @override
+  void didUpdateWidget(covariant InternalQenaMap oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialUserPosition != null &&
+        widget.initialUserPosition != oldWidget.initialUserPosition &&
+        _userPosition == null) {
+      setState(() => _userPosition = widget.initialUserPosition);
+    }
+  }
 
   List<ProviderSummary> get _mapped => widget.providers;
 
