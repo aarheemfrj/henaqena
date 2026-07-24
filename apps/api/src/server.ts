@@ -1505,10 +1505,30 @@ app.post('/api/ads', requireAdmin, async (req, res, next) => {
 
 app.get('/api/prices', async (req, res, next) => {
   try {
+    const session = await sessionFromRequest(req);
     const areaId = typeof req.query.areaId === 'string' ? req.query.areaId : undefined;
     const category = typeof req.query.category === 'string' ? req.query.category : undefined;
     const prices = await prisma.priceGuide.findMany({ where: { status: ReviewStatus.APPROVED, archivedAt: null, deletedAt: null, ...(category ? { category } : {}), ...(areaId ? { OR: [{ areaId: null }, { area: { id: areaId, isActive: true } }] } : { OR: [{ areaId: null }, { area: { isActive: true } }] }) }, include: { area: true }, orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }], take: 100 });
-    res.json(prices);
+    const ids = prices.map((price) => price.id);
+    const confirmations = ids.length ? await prisma.priceConfirmation.groupBy({ by: ['priceGuideId'], where: { priceGuideId: { in: ids }, stillValid: true }, _count: { _all: true }, _max: { createdAt: true } }) : [];
+    const confirmationByPrice = new Map(confirmations.map((item) => [item.priceGuideId, item]));
+    const viewerConfirmations = session && ids.length ? await prisma.priceConfirmation.findMany({ where: { userId: session.userId, priceGuideId: { in: ids } }, select: { priceGuideId: true, stillValid: true } }) : [];
+    const viewerByPrice = new Map(viewerConfirmations.map((item) => [item.priceGuideId, item.stillValid]));
+    res.json(prices.map((price) => { const confirmation = confirmationByPrice.get(price.id); return { ...price, confirmationCount: confirmation?._count._all ?? 0, lastConfirmedAt: confirmation?._max.createdAt ?? null, viewerConfirmed: viewerByPrice.get(price.id) ?? null }; }));
+  } catch (error) { next(error); }
+});
+
+app.post('/api/prices/:id/confirm', async (req, res, next) => {
+  try {
+    const session = await sessionFromRequest(req);
+    if (!session) return res.status(401).json({ message: 'سجّل الدخول لتأكيد السعر' });
+    const input = z.object({ stillValid: z.boolean(), note: z.string().trim().max(240).optional() }).parse(req.body);
+    const price = await prisma.priceGuide.findFirst({ where: { id: String(req.params.id), status: ReviewStatus.APPROVED, archivedAt: null, deletedAt: null } });
+    if (!price) return res.status(404).json({ message: 'السعر غير متاح' });
+    const confirmation = await prisma.priceConfirmation.upsert({ where: { priceGuideId_userId: { priceGuideId: price.id, userId: session.userId } }, update: { stillValid: input.stillValid, note: input.note ?? null }, create: { priceGuideId: price.id, userId: session.userId, stillValid: input.stillValid, note: input.note ?? null } });
+    await audit('price.confirmed', 'priceGuide', price.id, { userId: session.userId, stillValid: input.stillValid });
+    const count = await prisma.priceConfirmation.count({ where: { priceGuideId: price.id, stillValid: true } });
+    res.json({ confirmed: confirmation.stillValid, confirmationCount: count });
   } catch (error) { next(error); }
 });
 

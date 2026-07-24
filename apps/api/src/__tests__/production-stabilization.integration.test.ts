@@ -18,6 +18,7 @@ jest.mock('jose', () => ({
 import { app, prisma, haversineDistanceKm, normalizeSearchText, providerOpenNow, runListingLifecycle } from '../server';
 
 const tables = [
+  'PriceConfirmation',
   'MinShaterReport', 'MinShaterHelpful', 'MinShaterRecommendation', 'MinShaterRequest',
   'AdminSession', 'Session', 'VerificationCode', 'AuditLog', 'ProviderReport', 'ProviderImage',
   'ProviderFavorite', 'FavoriteList', 'SavedSearch', 'ProviderService', 'ProviderOffer',
@@ -382,5 +383,22 @@ describe('Sprint 1 production stabilization integration', () => {
 
     await prisma.user.update({ where: { id: other.id }, data: { isBlocked: true } });
     expect((await request(app).post(`/api/min-shater/${requestId}/report`).set('Authorization', `Bearer ${otherToken}`).send({ reason: 'OTHER' })).status).toBe(401);
+  });
+
+  it('supports approved price confirmations without allowing public or duplicate writes', async () => {
+    const user = await makeUser('Price confirmer');
+    const token = await makeToken(user.id);
+    const { area } = await makeAreaCategory();
+    const price = await prisma.priceGuide.create({ data: { name: `سعر اختبار ${randomBytes(3).toString('hex')}`, minPrice: 100, maxPrice: 120, areaId: area.id, status: ReviewStatus.APPROVED } });
+    const before = await request(app).get('/api/prices');
+    expect(before.status).toBe(200);
+    const item = before.body.find((row: { id: string }) => row.id === price.id);
+    expect(item.confirmationCount).toBe(0);
+    expect((await request(app).post(`/api/prices/${price.id}/confirm`).set('Authorization', `Bearer ${token}`).send({ stillValid: true })).status).toBe(200);
+    expect((await request(app).post(`/api/prices/${price.id}/confirm`).set('Authorization', `Bearer ${token}`).send({ stillValid: false, note: 'اتغير السعر' })).status).toBe(200);
+    const after = await request(app).get('/api/prices').set('Authorization', `Bearer ${token}`);
+    const updated = after.body.find((row: { id: string }) => row.id === price.id);
+    expect(updated.viewerConfirmed).toBe(false);
+    expect(updated.confirmationCount).toBe(0);
   });
 });
