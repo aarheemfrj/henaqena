@@ -4972,16 +4972,11 @@ const _qenaAreaCenters = <String, ll.LatLng>{
   'المنشية': ll.LatLng(26.1480, 32.7110),
 };
 
-ll.LatLng _providerMapPoint(ProviderSummary provider, int index) {
-  if (provider.latitude != null && provider.longitude != null) {
-    return ll.LatLng(provider.latitude!, provider.longitude!);
-  }
-  final base =
-      _qenaAreaCenters[provider.subtitle] ?? const ll.LatLng(26.1551, 32.7160);
-  // Keep address-less imported activities visible without stacking every
-  // fallback pin in exactly the same pixel. Exact coordinates always win.
-  final offset = ((index % 7) - 3) * 0.00055;
-  return ll.LatLng(base.latitude + offset, base.longitude + offset * .8);
+ll.LatLng? _providerMapPoint(ProviderSummary provider) {
+  final latitude = provider.latitude;
+  final longitude = provider.longitude;
+  if (latitude == null || longitude == null || !latitude.isFinite || !longitude.isFinite || latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) return null;
+  return ll.LatLng(latitude, longitude);
 }
 
 class _ProviderMapPageState extends State<ProviderMapPage> {
@@ -4989,6 +4984,7 @@ class _ProviderMapPageState extends State<ProviderMapPage> {
   LatLng center = _qena;
   LatLng? userPosition;
   bool locating = true;
+  String? locationMessage;
   List<ll.LatLng> routePoints = const [];
   bool routeLoading = false;
 
@@ -5001,15 +4997,19 @@ class _ProviderMapPageState extends State<ProviderMapPage> {
 
   Future<void> _locateUser() async {
     try {
+      if (!await Geolocator.isLocationServiceEnabled()) {
+        if (mounted) setState(() => locationMessage = 'خدمة الموقع مغلقة — يمكنك تشغيلها من إعدادات الجهاز');
+        return;
+      }
       var permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
       }
-      if (permission == LocationPermission.denied ||
-          permission == LocationPermission.deniedForever) {
+      if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
+        if (mounted) setState(() => locationMessage = permission == LocationPermission.deniedForever ? 'صلاحية الموقع مرفوضة نهائيًا — افتح إعدادات التطبيق' : 'صلاحية الموقع مرفوضة');
         return;
       }
-      final position = await Geolocator.getCurrentPosition();
+      final position = await Geolocator.getCurrentPosition().timeout(const Duration(seconds: 8));
       if (!mounted) return;
       final target = LatLng(position.latitude, position.longitude);
       setState(() {
@@ -5026,7 +5026,7 @@ class _ProviderMapPageState extends State<ProviderMapPage> {
         );
       }
     } catch (_) {
-      // Qena remains the safe fallback when location is unavailable.
+      if (mounted) setState(() => locationMessage = 'تعذر تحديد موقعك حاليًا — الخريطة ما زالت متاحة');
     } finally {
       if (mounted) setState(() => locating = false);
     }
@@ -5117,6 +5117,7 @@ class _ProviderMapPageState extends State<ProviderMapPage> {
           // can have an address before exact coordinates are entered; those
           // use a small area-centre fallback until a precise pin is saved.
           final mapped = snapshot.data ?? const <ProviderSummary>[];
+          final located = mapped.where((provider) => _providerMapPoint(provider) != null).toList();
           if (mapped.isEmpty) {
             return const _StateMessage(
               icon: Icons.map_outlined,
@@ -5126,8 +5127,11 @@ class _ProviderMapPageState extends State<ProviderMapPage> {
           }
           final ordered = [...mapped]
             ..sort((a, b) {
-              final aPoint = _providerMapPoint(a, mapped.indexOf(a));
-              final bPoint = _providerMapPoint(b, mapped.indexOf(b));
+              final aPoint = _providerMapPoint(a);
+              final bPoint = _providerMapPoint(b);
+              if (aPoint == null && bPoint == null) return a.name.compareTo(b.name);
+              if (aPoint == null) return 1;
+              if (bPoint == null) return -1;
               final aDistance = Geolocator.distanceBetween(
                 center.latitude,
                 center.longitude,
@@ -5169,7 +5173,7 @@ class _ProviderMapPageState extends State<ProviderMapPage> {
               SizedBox(
                 height: 360,
                 child: InternalQenaMap(
-                  providers: mapped,
+                  providers: located,
                   onProviderTap: _openProvider,
                   initialCenter: ll.LatLng(center.latitude, center.longitude),
                   initialUserPosition: userPosition == null
@@ -5187,6 +5191,11 @@ class _ProviderMapPageState extends State<ProviderMapPage> {
                         ),
                 ),
               ),
+              if (locationMessage != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 8, 18, 0),
+                  child: Text(locationMessage!, textAlign: TextAlign.center, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                ),
               Expanded(child: list),
             ],
           );
@@ -5354,7 +5363,7 @@ class _InternalQenaMapState extends State<InternalQenaMap> {
         ),
       for (final entry in mapped.asMap().entries)
         fmap.Marker(
-          point: _providerMapPoint(entry.value, entry.key),
+          point: _providerMapPoint(entry.value)!,
           width: 170,
           height: 56,
           alignment: Alignment.bottomCenter,

@@ -124,6 +124,14 @@ class ProviderSummary {
       );
 }
 
+class MapViewport {
+  const MapViewport({required this.north, required this.south, required this.east, required this.west});
+  final double north;
+  final double south;
+  final double east;
+  final double west;
+}
+
 class ProviderPage {
   const ProviderPage({
     required this.data,
@@ -1200,6 +1208,44 @@ class ApiClient {
       pageSize: (payload['pageSize'] as num? ?? pageSize).toInt(),
       hasMore: payload['hasMore'] == true,
     );
+  }
+
+  Future<List<ProviderSummary>> fetchMapMarkers({
+    MapViewport? viewport,
+    String? areaId,
+    String? categoryId,
+    String? category,
+    String? query,
+    double? latitude,
+    double? longitude,
+    int limit = 120,
+  }) async {
+    final params = <String, String>{
+      if (viewport != null) ...{
+        'north': '${viewport.north}', 'south': '${viewport.south}',
+        'east': '${viewport.east}', 'west': '${viewport.west}',
+      },
+      if (areaId != null) 'areaId': areaId,
+      if (categoryId != null) 'categoryId': categoryId,
+      if (category != null) 'category': category,
+      if (query != null && query.trim().isNotEmpty) 'q': query.trim(),
+      if (latitude != null) 'latitude': '$latitude',
+      if (longitude != null) 'longitude': '$longitude',
+      'limit': '$limit',
+    };
+    final uri = Uri.parse('$baseUrl/api/providers/map').replace(queryParameters: params);
+    final response = await http.get(uri).timeout(const Duration(seconds: 5));
+    if (response.statusCode != 200) throw Exception('API error ${response.statusCode}');
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    return (body['data'] as List<dynamic>? ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .map((item) => ProviderSummary.fromJson({
+              ...item,
+              'area': {'name': item['areaName'] ?? 'قنا'},
+              'categories': item['categoryName'] == null ? const [] : [{'category': {'name': item['categoryName']}}],
+              'images': item['imageUrl'] == null ? const [] : [{'url': item['imageUrl']}],
+            }, baseUrl))
+        .toList();
   }
 
   Future<List<SearchSuggestion>> fetchSearchSuggestions(

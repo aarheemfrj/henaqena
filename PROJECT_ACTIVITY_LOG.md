@@ -347,3 +347,9 @@
 
 2026-07-24 — Codex — تنفيذ Sprint 1.5 Engineering Documentation: إنشاء توثيق المعمارية وقاعدة البيانات ومرجع كل مسارات API وقواعد العمل والأمان والنشر والاختبارات وبنية المشروع وحالة الميزات وخارطة الطريق ومتغيرات البيئة وفجوات التوثيق، إضافة CONTRIBUTING وفهرس موحد وتقرير Sprint 1.5، وتحديث README برابط الفهرس فقط. لا تغييرات في منطق المنتج أو المخطط أو الـAPI؛ فحوصات الروابط وgit diff check وAPI build وNext.js lint/build وFlutter analyze/test ناجحة — مكتملة — المنفذ: Codex
 2026-07-24 — Codex — تنفيذ Sprint 2A Directory Experience: تثبيت عقد دليل الأنشطة بفلاتر التصنيف والمنطقة النشطة، صفحات مستقرة مع metadata وLoad More ومنع التكرار، ترتيب الاسم/الأحدث/التقييم/عدد المراجعات/الأقرب، حالات open-now بزمن Africa/Cairo وساعات ليلية وتعامل آمن مع البيانات غير الصالحة، واستبعاد المناطق غير النشطة والأنشطة غير المعتمدة. أضيفت مؤشرات جودة بيانات الأنشطة في تقارير الإدارة، وتحديث API client وواجهة Flutter للفلاتر وإعادة الضبط والتحميل المرحلي. الاختبارات المعزولة أصبحت 78/78 بعد تشغيل Docker Compose، مع نجاح API build وFlutter analyze — قيد التحقق النهائي لباقي builds — المنفذ: Codex
+# 2026-07-24 — Codex — Sprint 2C pre-implementation audit
+
+- Reviewed the current Flutter internal map, location permission flow, route map, API provider directory contract, Prisma coordinates, admin coordinate editing and existing test/docs baseline.
+- Recorded risks and scope in `SPRINT_2C_LOCATION_INTELLIGENCE_REPORT.md` before product-code changes.
+- Deferred clustering, offline tiles, internal turn-by-turn directions, automatic coordinate correction and taxonomy hierarchy.
+- Status: audit complete; implementation pending in separate commits.

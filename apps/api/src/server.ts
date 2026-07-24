@@ -514,6 +514,21 @@ const searchMatchRank = (query: string, provider: { name: string; description: s
   return null;
 };
 
+const parseCoordinate = (value: unknown, min: number, max: number): number | null => {
+  if (typeof value !== 'string' || value.trim() === '') return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= min && parsed <= max ? parsed : null;
+};
+
+/** Great-circle distance in kilometres; shared by directory and map contracts. */
+export const haversineDistanceKm = (from: { latitude: number; longitude: number }, to: { latitude: number; longitude: number }) => {
+  const radians = (value: number) => value * Math.PI / 180;
+  const dLat = radians(to.latitude - from.latitude);
+  const dLon = radians(to.longitude - from.longitude);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(radians(from.latitude)) * Math.cos(radians(to.latitude)) * Math.sin(dLon / 2) ** 2;
+  return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(Math.max(0, 1 - a)));
+};
+
 /** Returns null when hours are absent or invalid; false is never presented as open. */
 export const providerOpenNow = (provider: { open24h?: boolean | null; openingHours?: unknown; openingTime?: string | null; closingTime?: string | null }, now = new Date()): boolean | null => {
   if (provider.open24h) return true;
@@ -537,7 +552,7 @@ app.get('/api/providers', async (req, res, next) => {
     const openNow = req.query.openNow === 'true';
     const sort = typeof req.query.sort === 'string' ? req.query.sort : 'name';
     if (!['name', 'rating', 'reviews', 'latest', 'distance'].includes(sort)) return res.status(400).json({ message: 'ترتيب غير صالح' });
-    if (sort === 'distance' && (typeof req.query.latitude !== 'string' || typeof req.query.longitude !== 'string')) return res.status(400).json({ message: 'إحداثيات الموقع مطلوبة للترتيب حسب الأقرب' });
+    if (sort === 'distance' && (parseCoordinate(req.query.latitude, -90, 90) == null || parseCoordinate(req.query.longitude, -180, 180) == null)) return res.status(400).json({ message: 'إحداثيات الموقع غير صالحة للترتيب حسب الأقرب' });
     const page = parseDirectoryInteger(req.query.page, 1, 1, 100000);
     const pageSize = parseDirectoryInteger(req.query.pageSize, 20, 1, 50);
     const attributeFilters = Object.fromEntries(Object.keys(providerAttributesFields).filter((key) => req.query[key] === 'true').map((key) => [key, true]));
@@ -561,8 +576,8 @@ app.get('/api/providers', async (req, res, next) => {
     if (sort === 'latest') withScores.sort((a, b) => relevanceTie(a, b) || (new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()) || a.name.localeCompare(b.name, 'ar') || a.id.localeCompare(b.id));
     if (sort === 'name') withScores.sort((a, b) => relevanceTie(a, b) || a.name.localeCompare(b.name, 'ar') || a.id.localeCompare(b.id));
     if (sort === 'distance') {
-      const latitude = Number(req.query.latitude); const longitude = Number(req.query.longitude);
-      const distance = (item: typeof withScores[number]) => item.latitude == null || item.longitude == null ? Number.POSITIVE_INFINITY : ((item.latitude - latitude) ** 2 + (item.longitude - longitude) ** 2);
+      const latitude = parseCoordinate(req.query.latitude, -90, 90)!; const longitude = parseCoordinate(req.query.longitude, -180, 180)!;
+      const distance = (item: typeof withScores[number]) => item.latitude == null || item.longitude == null ? Number.POSITIVE_INFINITY : haversineDistanceKm({ latitude, longitude }, { latitude: item.latitude, longitude: item.longitude });
       withScores.sort((a, b) => relevanceTie(a, b) || distance(a) - distance(b) || a.name.localeCompare(b.name, 'ar') || a.id.localeCompare(b.id));
     }
     const data = withScores.slice((page - 1) * pageSize, page * pageSize).map(({ relevance, ...item }) => item);
@@ -572,6 +587,56 @@ app.get('/api/providers', async (req, res, next) => {
     if (error instanceof Error && error.message === 'invalid_directory_pagination') return res.status(400).json({ message: 'قيم الصفحة غير صالحة' });
     next(error);
   }
+});
+
+/**
+ * Lightweight, bounded marker contract for the internal map. The public
+ * directory visibility rules are intentionally repeated here so a direct map
+ * request cannot reveal pending, archived, deleted or inactive-taxonomy data.
+ */
+app.get('/api/providers/map', async (req, res, next) => {
+  try {
+    const north = parseCoordinate(req.query.north, -90, 90);
+    const south = parseCoordinate(req.query.south, -90, 90);
+    const east = parseCoordinate(req.query.east, -180, 180);
+    const west = parseCoordinate(req.query.west, -180, 180);
+    const hasBounds = [north, south, east, west].some((value) => value !== null);
+    if (hasBounds && (north == null || south == null || east == null || west == null || south >= north || west >= east)) return res.status(400).json({ message: 'حدود الخريطة غير صالحة' });
+    const latitude = req.query.latitude == null ? null : parseCoordinate(req.query.latitude, -90, 90);
+    const longitude = req.query.longitude == null ? null : parseCoordinate(req.query.longitude, -180, 180);
+    if ((req.query.latitude != null || req.query.longitude != null) && (latitude == null || longitude == null)) return res.status(400).json({ message: 'إحداثيات الموقع غير صالحة' });
+    const limit = parseDirectoryInteger(req.query.limit, 120, 1, 200);
+    const rawQuery = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+    if (rawQuery.length > 120) return res.status(400).json({ message: 'نص البحث طويل جدًا' });
+    const areaId = typeof req.query.areaId === 'string' ? req.query.areaId : undefined;
+    const categoryId = typeof req.query.categoryId === 'string' ? req.query.categoryId : undefined;
+    const category = typeof req.query.category === 'string' ? req.query.category : undefined;
+    const where: Prisma.ProviderWhereInput = {
+      status: ReviewStatus.APPROVED, archivedAt: null, deletedAt: null,
+      latitude: { not: null, ...(south == null ? {} : { gte: south, lte: north! }) },
+      longitude: { not: null, ...(west == null ? {} : { gte: west, lte: east! }) },
+      area: { isActive: true }, ...(areaId ? { areaId } : {}),
+      ...(categoryId || category ? { categories: { some: { ...(categoryId ? { categoryId } : {}), category: { ...(category ? { slug: category } : {}), isActive: true } } } } : {}),
+    };
+    const rows = await prisma.provider.findMany({
+      where,
+      select: {
+        id: true, name: true, logoUrl: true, latitude: true, longitude: true, address: true,
+        isVerified: true, area: { select: { name: true } },
+        images: { orderBy: { sortOrder: 'asc' }, take: 1, select: { url: true } },
+        categories: { where: { category: { isActive: true } }, take: 1, select: { category: { select: { name: true } } } },
+        reviews: { where: { status: ReviewStatus.APPROVED }, select: { quality: true, commitment: true, value: true } },
+      },
+      orderBy: [{ isVerified: 'desc' }, { name: 'asc' }, { id: 'asc' }], take: 500,
+    });
+    const query = rawQuery ? normalizeSearchText(rawQuery) : null;
+    const data = rows.filter((provider) => !query || normalizeSearchText(provider.name).includes(query) || normalizeSearchText(provider.address ?? '').includes(query) || normalizeSearchText(provider.area.name).includes(query)).slice(0, limit).map((provider) => {
+      const rating = provider.reviews.length === 0 ? 0 : provider.reviews.reduce((sum, review) => sum + (review.quality + review.commitment + review.value) / 3, 0) / provider.reviews.length;
+      const point = provider.latitude == null || provider.longitude == null || latitude == null || longitude == null ? null : { latitude: provider.latitude, longitude: provider.longitude };
+      return { id: provider.id, name: provider.name, logoUrl: provider.logoUrl, imageUrl: provider.images[0]?.url ?? null, latitude: provider.latitude, longitude: provider.longitude, address: provider.address, areaName: provider.area.name, categoryName: provider.categories[0]?.category.name ?? null, rating: Number(rating.toFixed(1)), reviewCount: provider.reviews.length, isVerified: provider.isVerified, ...(point ? { distanceKm: Number(haversineDistanceKm({ latitude: latitude!, longitude: longitude! }, point).toFixed(2)) } : {}) };
+    });
+    res.json({ data, total: data.length, limit });
+  } catch (error) { next(error); }
 });
 
 app.get('/api/search/suggestions', async (req, res, next) => {

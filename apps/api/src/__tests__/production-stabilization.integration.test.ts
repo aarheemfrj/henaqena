@@ -15,7 +15,7 @@ jest.mock('jose', () => ({
   jwtVerify: jest.fn(async () => ({ payload: { sub: 'blocked-google-sub', email: 'blocked-federated@example.com', name: 'Blocked Federated' } })),
 }));
 
-import { app, prisma, normalizeSearchText, providerOpenNow, runListingLifecycle } from '../server';
+import { app, prisma, haversineDistanceKm, normalizeSearchText, providerOpenNow, runListingLifecycle } from '../server';
 
 const tables = [
   'AdminSession', 'Session', 'VerificationCode', 'AuditLog', 'ProviderReport', 'ProviderImage',
@@ -262,5 +262,27 @@ describe('Sprint 1 production stabilization integration', () => {
     expect(second.status).toBe(200);
     const ids = [...first.body.data, ...second.body.data].map((item: { id: string }) => item.id);
     expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('serves only approved geocoded providers inside valid map bounds', async () => {
+    const owner = await makeUser('Map owner');
+    const { area, category } = await makeAreaCategory();
+    const visible = await prisma.provider.create({ data: { name: 'Visible map place', ownerId: owner.id, areaId: area.id, latitude: 26.1555, longitude: 32.7165, status: ReviewStatus.APPROVED, categories: { create: { categoryId: category.id } } } });
+    await prisma.provider.create({ data: { name: 'Outside map place', ownerId: owner.id, areaId: area.id, latitude: 26.30, longitude: 32.90, status: ReviewStatus.APPROVED, categories: { create: { categoryId: category.id } } } });
+    await prisma.provider.create({ data: { name: 'Pending map place', ownerId: owner.id, areaId: area.id, latitude: 26.155, longitude: 32.716, status: ReviewStatus.PENDING, categories: { create: { categoryId: category.id } } } });
+    await prisma.provider.create({ data: { name: 'Missing map place', ownerId: owner.id, areaId: area.id, status: ReviewStatus.APPROVED, categories: { create: { categoryId: category.id } } } });
+    const response = await request(app).get('/api/providers/map?north=26.2&south=26.1&east=32.8&west=32.6&latitude=26.15&longitude=32.71');
+    expect(response.status).toBe(200);
+    expect(response.body.data.map((item: { id: string }) => item.id)).toEqual([visible.id]);
+    expect(response.body.data[0]).toMatchObject({ name: 'Visible map place', categoryName: category.name });
+    expect(response.body.data[0].services).toBeUndefined();
+    expect((await request(app).get('/api/providers/map?north=26.1&south=26.2&east=32.8&west=32.6')).status).toBe(400);
+    expect((await request(app).get('/api/providers/map?north=nan&south=26.1&east=32.8&west=32.6')).status).toBe(400);
+  });
+
+  it('uses a stable Haversine distance in kilometres', () => {
+    const distance = haversineDistanceKm({ latitude: 0, longitude: 0 }, { latitude: 0, longitude: 1 });
+    expect(distance).toBeGreaterThan(111);
+    expect(distance).toBeLessThan(112);
   });
 });
