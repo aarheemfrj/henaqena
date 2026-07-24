@@ -131,3 +131,5 @@ Treat `User`, `AdminAccount`, `Session`, `VerificationCode`, `AuditLog`, support
 ## مين شاطر
 
 The additive migration `20260724194542_min_shater` adds `MinShaterRequest`, `MinShaterRecommendation`, `MinShaterHelpful`, and `MinShaterReport`. Requests and recommendations use existing `ReviewStatus` moderation values, soft-delete/archive timestamps, active taxonomy references, and indexes for moderation, ownership, pagination and lookup. Helpful has a composite uniqueness key; reports support one pending report per user/target at the service layer.
+
+The additive migration `20260724220619_price_confirmations` adds `PriceConfirmation`, uniquely scoped to `(priceGuideId, userId)`. It stores whether a user still considers an approved price valid, an optional note and timestamps without overwriting the original price observation.

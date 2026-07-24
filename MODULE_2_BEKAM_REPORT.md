@@ -11,16 +11,17 @@ The existing prices foundation was audited and hardened without a new migration.
 - User and admin submissions reject zero or negative amounts.
 - User submissions reject inactive areas and duplicate pending/approved rows for the same name/category/area.
 - Admin-created prices are audited with `price.created`.
+- Added additive `PriceConfirmation` with one upsertable confirmation per user/price, aggregate count, latest confirmation and `POST /api/prices/:id/confirm`.
 
 ## Verified
 
 - API TypeScript build passed.
-- Isolated Docker PostgreSQL migration and integration suite passed: 87/87 tests.
-- No Prisma migration was required for this slice.
+- Isolated Docker PostgreSQL migration and integration suite passed: 88/88 tests.
+- Migration `20260724220619_price_confirmations` applied successfully to the isolated database.
 
 ## Still missing
 
-Confirmation history, freshness/expiry metadata, confidence/outlier handling, source attribution, richer admin edit/archive/restore, price-specific regression tests, and device/staging verification remain for the next slice.
+Expiry metadata, confidence/outlier handling, source attribution, richer admin edit/archive/restore, mobile confirmation UI and device/staging verification remain for the next slice.
 
 ## Release status
 
