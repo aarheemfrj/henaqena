@@ -29,8 +29,8 @@ const createRateLimiter = (maxRequests: number, windowMs: number) => {
   };
 };
 
-const prisma = new PrismaClient();
-const app = express();
+export const prisma = new PrismaClient();
+export const app = express();
 app.set('trust proxy', 1);
 const port = Number(process.env.PORT ?? 4000);
 const host = process.env.API_HOST ?? '127.0.0.1';
@@ -2126,7 +2126,7 @@ app.use((error: unknown, _req: express.Request, res: express.Response, _next: ex
   res.status(500).json({ message: 'خطأ في الخادم - يرجى المحاولة لاحقاً' });
 });
 
-const runListingLifecycle = async () => {
+export const runListingLifecycle = async () => {
   const now = new Date();
   const expiring = await prisma.listing.findMany({ where: { status: ListingStatus.ACTIVE, expiresAt: { lt: now } }, select: { id: true, ownerId: true, title: true } });
   for (const listing of expiring) {
@@ -2139,17 +2139,12 @@ const runListingLifecycle = async () => {
   const stale = await prisma.listing.findMany({ where: { status: ListingStatus.EXPIRED, expiresAt: { lt: cleanupBefore } }, include: { images: true } });
   for (const listing of stale) {
     await prisma.listing.delete({ where: { id: listing.id } });
-    await Promise.all(listing.images.map(async (image) => {
-      try {
-        const pathname = new URL(image.url).pathname;
-        if (pathname.startsWith('/uploads/providers/')) await unlink(path.join(uploadRoot, 'providers', path.basename(pathname)));
-      } catch { /* Missing files do not block lifecycle cleanup. */ }
-    }));
+    await Promise.all(listing.images.map((image) => removeLocalUpload(image.url)));
   }
   await cleanupOrphanUploads();
 };
 
-app.listen(port, host, () => {
+if (process.env.NODE_ENV !== 'test') app.listen(port, host, () => {
   console.log(`Hena Qena API listening on http://${host}:${port}`);
   if (process.env.ENABLE_BACKGROUND_JOBS !== 'false') {
     void runListingLifecycle().catch((error) => console.error('[listing-lifecycle]', error));

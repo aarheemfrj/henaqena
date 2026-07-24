@@ -15,4 +15,7 @@ services:
       timeout: 5s
       retries: 10
     volumes:
-      - /tmp/postgres-test:/var/lib/postgresql/data
+      - henaqena_test_data:/var/lib/postgresql/data
+
+volumes:
+  henaqena_test_data:

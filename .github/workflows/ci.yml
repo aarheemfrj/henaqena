@@ -25,6 +25,9 @@ jobs:
     env:
       DATABASE_URL: postgresql://henaqena:henaqena@localhost:5432/henaqena?schema=public
       NODE_ENV: test
+      ENABLE_BACKGROUND_JOBS: 'false'
+      ADMIN_API_KEY: ci-integration-key
+      UPLOADS_DIR: /tmp/henaqena-ci-uploads
     defaults:
       run:
         working-directory: apps/api
@@ -38,7 +41,7 @@ jobs:
       - run: npm ci
       - run: npx prisma generate
       - run: npx prisma migrate deploy
-      - run: npm test -- --runInBand
+      - run: npm run test:integration
       - run: npm run build
 
   web:
@@ -54,6 +57,7 @@ jobs:
           cache: npm
           cache-dependency-path: apps/web/package-lock.json
       - run: npm ci
+      - run: npm run lint
       - run: npm run build
 
   mobile:
