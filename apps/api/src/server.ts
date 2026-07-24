@@ -4,6 +4,7 @@ import { mkdir, unlink, writeFile, readdir, stat, statfs, readFile, rm } from 'n
 import { execFile as execFileCallback } from 'node:child_process';
 import path from 'node:path';
 import { promisify } from 'node:util';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import cors from 'cors';
 import express from 'express';
 import { PrismaClient, ReviewStatus, ListingStatus } from '@prisma/client';
@@ -39,16 +40,34 @@ const backupConfigPath = path.join(backupRoot, 'schedule.json');
 const publicApiBaseUrl = (process.env.PUBLIC_API_BASE_URL ?? `http://127.0.0.1:${port}`).replace(/\/$/, '');
 const scrypt = promisify(scryptCallback);
 const execFile = promisify(execFileCallback);
+const auditContext = new AsyncLocalStorage<{ adminId?: string; role?: string }>();
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
 const passwordHash = async (password: string) => { const salt = randomBytes(16); const derived = await scrypt(password, salt, 64) as Buffer; return `${salt.toString('hex')}:${derived.toString('hex')}`; };
 const verifyPassword = async (password: string, stored: string) => { const [saltHex, storedHash] = stored.split(':'); const salt = Buffer.from(saltHex, 'hex'); const derived = await scrypt(password, salt, 64) as Buffer; return derived.toString('hex') === storedHash; };
 const issueSession = async (userId: string) => { const token = randomBytes(32).toString('hex'); await prisma.session.create({ data: { userId, tokenHash: hash(token), expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) } }); return token; };
 const issueAdminSession = async (adminId: string) => { const token = randomBytes(32).toString('hex'); await prisma.adminSession.create({ data: { adminId, tokenHash: hash(token), expiresAt: new Date(Date.now() + 12 * 60 * 60 * 1000) } }); return token; };
-const sessionFromRequest = async (req: express.Request) => { const token = typeof req.headers.authorization === 'string' ? req.headers.authorization.replace(/^Bearer\s+/i, '') : ''; if (!token) return null; const session = await prisma.session.findUnique({ where: { tokenHash: hash(token) }, include: { user: true } }); return session && session.expiresAt > new Date() ? session : null; };
+const sessionFromRequest = async (req: express.Request) => { const token = typeof req.headers.authorization === 'string' ? req.headers.authorization.replace(/^Bearer\s+/i, '') : ''; if (!token) return null; const session = await prisma.session.findUnique({ where: { tokenHash: hash(token) }, include: { user: true } }); return session && session.expiresAt > new Date() && !session.user.isBlocked ? session : null; };
 const adminSessionFromRequest = async (req: express.Request) => { const token = typeof req.headers.authorization === 'string' ? req.headers.authorization.replace(/^Bearer\s+/i, '') : ''; if (!token) return null; const session = await prisma.adminSession.findUnique({ where: { tokenHash: hash(token) }, include: { admin: true } }); return session && session.expiresAt > new Date() && session.admin.isActive ? session : null; };
-const requireAdmin = async (req: express.Request, res: express.Response, next: express.NextFunction) => { const expected = process.env.ADMIN_API_KEY ?? (process.env.NODE_ENV !== 'production' ? 'dev-henaqena-admin' : undefined); const provided = typeof req.headers['x-admin-key'] === 'string' ? req.headers['x-admin-key'] : ''; if (expected && provided === expected) return next(); if (await adminSessionFromRequest(req)) return next(); return res.status(403).json({ message: 'صلاحيات الإدارة مطلوبة' }); };
-const requireAdminRoles = (roles: string[]) => async (req: express.Request, res: express.Response, next: express.NextFunction) => { const expected = process.env.ADMIN_API_KEY ?? (process.env.NODE_ENV !== 'production' ? 'dev-henaqena-admin' : undefined); const provided = typeof req.headers['x-admin-key'] === 'string' ? req.headers['x-admin-key'] : ''; if (expected && provided === expected) return next(); const session = await adminSessionFromRequest(req); if (!session || !roles.includes(session.admin.role)) return res.status(403).json({ message: 'الدور الإداري لا يسمح بهذه العملية' }); next(); };
-const audit = (action: string, entity: string, entityId: string, metadata?: Record<string, unknown>) => prisma.auditLog.create({ data: { action, entity, entityId, metadata: metadata as any } });
+const requireAdmin = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  const expected = process.env.ADMIN_API_KEY ?? (process.env.NODE_ENV !== 'production' ? 'dev-henaqena-admin' : undefined);
+  const provided = typeof req.headers['x-admin-key'] === 'string' ? req.headers['x-admin-key'] : '';
+  if (expected && provided === expected) return auditContext.run({ role: 'OWNER', adminId: 'api-key' }, next);
+  const session = await adminSessionFromRequest(req);
+  if (!session) return res.status(403).json({ message: 'صلاحيات الإدارة مطلوبة' });
+  return auditContext.run({ role: session.admin.role, adminId: session.admin.id }, next);
+};
+const requireAdminRoles = (roles: string[]) => async (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  const expected = process.env.ADMIN_API_KEY ?? (process.env.NODE_ENV !== 'production' ? 'dev-henaqena-admin' : undefined);
+  const provided = typeof req.headers['x-admin-key'] === 'string' ? req.headers['x-admin-key'] : '';
+  if (expected && provided === expected) return auditContext.run({ role: 'OWNER', adminId: 'api-key' }, next);
+  const session = await adminSessionFromRequest(req);
+  if (!session || !roles.includes(session.admin.role)) return res.status(403).json({ message: 'الدور الإداري لا يسمح بهذه العملية' });
+  return auditContext.run({ role: session.admin.role, adminId: session.admin.id }, next);
+};
+const audit = (action: string, entity: string, entityId: string, metadata?: Record<string, unknown>) => {
+  const context = auditContext.getStore();
+  return prisma.auditLog.create({ data: { action, entity, entityId, metadata: { ...metadata, ...(context ? { adminId: context.adminId, adminRole: context.role } : {}) } as any } });
+};
 type BackupSchedule = { enabled: boolean; interval: '3d' | '6d' | 'week' | 'month'; nextRunAt: string | null; updatedAt: string };
 const backupIntervals: Record<BackupSchedule['interval'], number> = { '3d': 3, '6d': 6, week: 7, month: 30 };
 const defaultBackupSchedule = (): BackupSchedule => ({ enabled: false, interval: 'week', nextRunAt: null, updatedAt: new Date().toISOString() });
@@ -107,7 +126,9 @@ const deliverVerificationCode = async (channel: string, target: string, code: st
 const allowedOrigins = (process.env.CORS_ORIGINS ?? '*').split(',').map((origin) => origin.trim()).filter(Boolean);
 app.use(cors({ origin: allowedOrigins.includes('*') ? true : allowedOrigins }));
 app.use((_req, res, next) => { res.set({ 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'strict-origin-when-cross-origin', 'Permissions-Policy': 'geolocation=(self)' }); next(); });
-app.use(express.json({ limit: '16mb' }));
+// Ten images may each be up to 2 MiB after client-side compression. Keep
+// enough room for JSON/base64 overhead while still bounding request memory.
+app.use(express.json({ limit: '24mb' }));
 app.use('/uploads', express.static(uploadRoot, { maxAge: '7d', etag: true }));
 app.use(
   '/api/admin/data-collection',
@@ -251,6 +272,7 @@ app.post('/api/auth/login', authLimiter, async (req, res, next) => {
       : null;
     const userPasswordValid = Boolean(user?.passwordHash && await verifyPassword(input.password, user.passwordHash));
     const adminPasswordValid = Boolean(admin?.isActive && await verifyPassword(input.password, admin.passwordHash));
+    if (user?.isBlocked) return res.status(403).json({ message: 'تم إيقاف هذا الحساب. تواصل مع الإدارة.' });
     if (!userPasswordValid && !adminPasswordValid) return res.status(401).json({ message: 'بيانات الدخول غير صحيحة' });
     if (!user && admin && adminPasswordValid) {
       user = await prisma.user.create({ data: { name: admin.name, email: admin.email, passwordHash: admin.passwordHash, authProvider: 'password', role: 'ADMIN' } });
@@ -287,6 +309,7 @@ app.post('/api/auth/federated', authLimiter, async (req, res, next) => {
     if (!subject) return res.status(401).json({ message: 'رمز الهوية لا يحتوي معرف مستخدم' });
     const email = typeof verified.payload.email === 'string' ? verified.payload.email.toLowerCase() : null;
     let user = await prisma.user.findUnique({ where: { authProvider_authSubject: { authProvider: input.provider, authSubject: subject } } });
+    if (user?.isBlocked) return res.status(403).json({ message: 'تم إيقاف هذا الحساب. تواصل مع الإدارة.' });
     if (!user && email) {
       const existing = await prisma.user.findUnique({ where: { email } });
       if (existing) return res.status(409).json({ message: 'البريد مرتبط بحساب موجود. ادخل للحساب أولاً ثم اربط وسيلة الدخول من الإعدادات.' });
@@ -439,6 +462,65 @@ app.get('/api/providers', async (req, res, next) => {
   }
 });
 
+const imageMimeFromBytes = (bytes: Buffer): 'image/jpeg' | 'image/png' | 'image/webp' | null => {
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return 'image/jpeg';
+  if (bytes.length >= 8 && bytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return 'image/png';
+  if (bytes.length >= 12 && bytes.subarray(0, 4).toString('ascii') === 'RIFF' && bytes.subarray(8, 12).toString('ascii') === 'WEBP') return 'image/webp';
+  return null;
+};
+
+const localUploadPath = (value: string | null | undefined) => {
+  if (!value) return null;
+  try {
+    const parsed = new URL(value, publicApiBaseUrl);
+    if (parsed.origin !== new URL(publicApiBaseUrl).origin || !parsed.pathname.startsWith('/uploads/')) return null;
+    const relative = parsed.pathname.replace(/^\/uploads\//, '');
+    if (!/^(providers|avatars|listings)\/[A-Za-z0-9._-]+$/.test(relative)) return null;
+    return path.join(uploadRoot, relative);
+  } catch { return null; }
+};
+
+const removeLocalUpload = async (value: string | null | undefined) => {
+  const target = localUploadPath(value);
+  if (!target) return;
+  try { await unlink(target); } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') console.warn('Unable to remove upload', target, error); }
+};
+
+const cleanupOrphanUploads = async () => {
+  const [providerImages, listingImages, providers, users, ads] = await Promise.all([
+    prisma.providerImage.findMany({ select: { url: true } }),
+    prisma.listingImage.findMany({ select: { url: true } }),
+    prisma.provider.findMany({ select: { logoUrl: true } }),
+    prisma.user.findMany({ select: { avatarUrl: true } }),
+    prisma.ad.findMany({ select: { imageUrl: true } }),
+  ]);
+  const referencedValues = [
+    ...providerImages.map((item) => item.url), ...listingImages.map((item) => item.url),
+    ...providers.map((item) => item.logoUrl), ...users.map((item) => item.avatarUrl), ...ads.map((item) => item.imageUrl),
+  ];
+  const referenced = new Set(referencedValues.filter((value): value is string => Boolean(value)).map((value) => localUploadPath(value)).filter((value): value is string => Boolean(value)));
+  const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+  for (const folderName of ['providers', 'avatars', 'listings']) {
+    const folder = path.join(uploadRoot, folderName);
+    let entries: string[];
+    try { entries = await readdir(folder, { encoding: 'utf8' }); } catch { continue; }
+    await Promise.all(entries.map(async (entry) => {
+      const target = path.join(folder, entry);
+      if (referenced.has(target)) return;
+      try { const info = await stat(target); if (info.isFile() && info.mtimeMs < cutoff) await unlink(target); } catch { /* a concurrent cleanup may remove it */ }
+    }));
+  }
+};
+
+const validateUploadedImage = (image: { base64: string; mimeType: string }) => {
+  const bytes = Buffer.from(image.base64, 'base64');
+  if (!bytes.length) throw new Error('الصورة غير صالحة');
+  const detected = imageMimeFromBytes(bytes);
+  if (!detected || detected !== image.mimeType) throw new Error('نوع الصورة لا يطابق محتواها');
+  if (bytes.length > 2 * 1024 * 1024) throw new Error('حجم الصورة يجب ألا يزيد عن 2 ميجابايت');
+  return bytes;
+};
+
 const uploadedImageSchema = z.object({
   base64: z.string().min(32),
   mimeType: z.enum(['image/jpeg', 'image/png', 'image/webp']),
@@ -452,9 +534,7 @@ app.post('/api/uploads/provider-images', async (req, res, next) => {
     const input = z.object({ images: z.array(uploadedImageSchema).min(1).max(10) }).parse(req.body);
     const folder = path.join(uploadRoot, 'providers');
     await mkdir(folder, { recursive: true });
-    const decodedImages = input.images.map((image) => ({ image, bytes: Buffer.from(image.base64, 'base64') }));
-    const oversized = decodedImages.find(({ bytes }) => bytes.length === 0 || bytes.length > 2 * 1024 * 1024);
-    if (oversized) return res.status(400).json({ message: 'حجم الصورة يجب ألا يزيد عن 2 ميجابايت. اختر صورة أصغر أو ارفعها من جديد.' });
+    const decodedImages = input.images.map((image) => ({ image, bytes: validateUploadedImage(image) }));
     const images = await Promise.all(decodedImages.map(async ({ image, bytes }) => {
       const extension = image.mimeType === 'image/png' ? 'png' : image.mimeType === 'image/webp' ? 'webp' : 'jpg';
       const filename = `${Date.now()}-${randomBytes(10).toString('hex')}.${extension}`;
@@ -470,8 +550,7 @@ app.post('/api/uploads/avatar', async (req, res, next) => {
     const session = await sessionFromRequest(req);
     if (!session) return res.status(401).json({ message: 'سجّل الدخول أولاً' });
     const image = uploadedImageSchema.parse(req.body);
-    const bytes = Buffer.from(image.base64, 'base64');
-    if (bytes.length === 0 || bytes.length > 2 * 1024 * 1024) return res.status(400).json({ message: 'حجم الصورة يجب ألا يزيد عن 2 ميجابايت' });
+    const bytes = validateUploadedImage(image);
     const extension = image.mimeType === 'image/png' ? 'png' : image.mimeType === 'image/webp' ? 'webp' : 'jpg';
     const folder = path.join(uploadRoot, 'avatars');
     await mkdir(folder, { recursive: true });
@@ -481,12 +560,28 @@ app.post('/api/uploads/avatar', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+// Remove an uploaded image that was selected but never attached to a record.
+// The path is constrained to our own upload directories; arbitrary filesystem
+// paths and remote URLs are never accepted.
+app.delete('/api/uploads/provider-images', async (req, res, next) => {
+  try {
+    const session = await sessionFromRequest(req);
+    const admin = session ? null : await adminSessionFromRequest(req);
+    if (!session && !admin) return res.status(401).json({ message: 'سجّل الدخول أولاً' });
+    const input = z.object({ urls: z.array(z.string().url()).min(1).max(10) }).parse(req.body);
+    await Promise.all(input.urls.map((url) => removeLocalUpload(url)));
+    res.json({ deleted: input.urls.length });
+  } catch (error) { next(error); }
+});
+
 app.patch('/api/me/profile', async (req, res, next) => {
   try {
     const session = await sessionFromRequest(req);
     if (!session) return res.status(401).json({ message: 'غير مسجل الدخول' });
     const input = z.object({ name: z.string().trim().min(2).max(80), email: z.union([z.string().email(), z.literal('')]).optional(), avatarUrl: z.string().url().nullable().optional() }).parse(req.body);
+    const previous = await prisma.user.findUnique({ where: { id: session.userId }, select: { avatarUrl: true } });
     const user = await prisma.user.update({ where: { id: session.userId }, data: { name: input.name, email: input.email ? input.email.toLowerCase() : null, ...(input.avatarUrl !== undefined ? { avatarUrl: input.avatarUrl } : {}) } });
+    if (input.avatarUrl !== undefined && previous?.avatarUrl && previous.avatarUrl !== input.avatarUrl) await removeLocalUpload(previous.avatarUrl);
     res.json({ id: user.id, name: user.name, email: user.email, avatarUrl: user.avatarUrl });
   } catch (error) { next(error); }
 });
@@ -515,7 +610,7 @@ app.patch('/api/providers/:id', async (req, res, next) => {
     const session = await sessionFromRequest(req);
     if (!session) return res.status(401).json({ message: 'سجّل الدخول أولاً لتعديل النشاط' });
     const input = providerEditSchema.parse(req.body);
-    const existing = await prisma.provider.findUnique({ where: { id: String(req.params.id) } });
+    const existing = await prisma.provider.findUnique({ where: { id: String(req.params.id) }, include: { images: true } });
     if (!existing) return res.status(404).json({ message: 'النشاط غير موجود' });
     if (existing.ownerId !== session.userId) return res.status(403).json({ message: 'لا تملك صلاحية تعديل النشاط' });
     const { categoryIds, images, ...fields } = input;
@@ -524,6 +619,7 @@ app.patch('/api/providers/:id', async (req, res, next) => {
       if (categoryIds) await tx.providerCategory.deleteMany({ where: { providerId: existing.id } });
       return tx.provider.update({ where: { id: existing.id }, data: { ...fields, status: ReviewStatus.PENDING, isVerified: false, ...(images ? { images: { create: images.map((image, index) => ({ url: image.url, kind: image.kind ?? 'work', sortOrder: index })) } } : {}), ...(categoryIds ? { categories: { create: categoryIds.map((categoryId) => ({ categoryId })) } } : {}) }, include: { area: true, images: true, categories: { include: { category: true } } } });
     });
+    if (images) await Promise.all(existing.images.map((image) => removeLocalUpload(image.url)));
     res.json(provider);
   } catch (error) { next(error); }
 });
@@ -541,8 +637,8 @@ app.post('/api/provider-reports', async (req, res, next) => {
 app.get('/api/providers/:id', async (req, res, next) => {
   try {
     const session = await sessionFromRequest(req);
-    const provider = await prisma.provider.findUnique({
-      where: { id: req.params.id, archivedAt: null, deletedAt: null },
+    const provider = await prisma.provider.findFirst({
+      where: { id: req.params.id, archivedAt: null, deletedAt: null, OR: [{ status: ReviewStatus.APPROVED }, ...(session ? [{ ownerId: session.userId }] : [])] },
       include: {
         area: true,
         images: { orderBy: { sortOrder: 'asc' } },
@@ -571,6 +667,10 @@ app.post('/api/providers/:id/favorite', async (req, res, next) => {
     if (!session) return res.status(401).json({ message: 'سجّل الدخول أولاً' });
     const providerId = String(req.params.id);
     const listId = typeof req.body?.listId === 'string' ? req.body.listId : null;
+    if (listId) {
+      const list = await prisma.favoriteList.findFirst({ where: { id: listId, userId: session.userId }, select: { id: true } });
+      if (!list) return res.status(403).json({ message: 'قائمة المفضلة لا تخص هذا الحساب' });
+    }
     const existing = await prisma.providerFavorite.findFirst({ where: { userId: session.userId, providerId, listId } });
     if (existing) await prisma.providerFavorite.delete({ where: { id: existing.id } });
     else await prisma.providerFavorite.create({ data: { userId: session.userId, providerId, listId } });
@@ -859,8 +959,7 @@ app.delete('/api/me/listings/:id', async (req, res, next) => {
     await Promise.all(listing.images.map(async (image) => {
       try {
         const pathname = new URL(image.url).pathname;
-        if (!pathname.startsWith('/uploads/providers/')) return;
-        await unlink(path.join(uploadRoot, 'providers', path.basename(pathname)));
+        await removeLocalUpload(`${publicApiBaseUrl}${pathname}`);
       } catch { /* The database record is already removed; missing files are harmless. */ }
     }));
     res.json({ deleted: true });
@@ -1214,7 +1313,18 @@ app.patch('/api/admin/team/:id', requireAdminRoles(['OWNER']), async (req, res, 
 });
 
 app.get('/api/admin/users', requireAdmin, async (_req, res, next) => {
-  try { res.json(await prisma.user.findMany({ select: { id: true, name: true, phone: true, email: true, points: true, level: true, role: true, createdAt: true, _count: { select: { reviews: true, listings: true, providers: true } } }, orderBy: { createdAt: 'desc' }, take: 500 })); } catch (error) { next(error); }
+  try { res.json(await prisma.user.findMany({ select: { id: true, name: true, phone: true, email: true, points: true, level: true, role: true, isBlocked: true, blockedAt: true, blockedReason: true, createdAt: true, _count: { select: { reviews: true, listings: true, providers: true } } }, orderBy: { createdAt: 'desc' }, take: 500 })); } catch (error) { next(error); }
+});
+app.patch('/api/admin/users/:id', requireAdminRoles(['OWNER', 'MODERATOR']), async (req, res, next) => {
+  try {
+    const input = z.object({ isBlocked: z.boolean(), blockedReason: z.string().trim().max(500).nullable().optional() }).parse(req.body);
+    const user = await prisma.user.findUnique({ where: { id: String(req.params.id) }, select: { id: true, role: true } });
+    if (!user || user.role === 'SYSTEM' || user.role === 'ADMIN') return res.status(404).json({ message: 'المستخدم غير موجود أو محمي' });
+    const updated = await prisma.user.update({ where: { id: user.id }, data: { isBlocked: input.isBlocked, blockedAt: input.isBlocked ? new Date() : null, blockedReason: input.isBlocked ? (input.blockedReason ?? null) : null } });
+    if (input.isBlocked) await prisma.session.deleteMany({ where: { userId: user.id } });
+    await audit(input.isBlocked ? 'user.blocked' : 'user.unblocked', 'user', user.id, { reason: input.blockedReason ?? null });
+    res.json({ id: updated.id, isBlocked: updated.isBlocked, blockedAt: updated.blockedAt, blockedReason: updated.blockedReason });
+  } catch (error) { next(error); }
 });
 
 app.get('/api/admin/support-tickets', requireAdmin, async (_req, res, next) => {
@@ -1439,7 +1549,7 @@ const resolveAreaId = async (areaId?: string, newAreaName?: string) => {
   if (areaId) return areaId;
   const name = (newAreaName ?? '').trim();
   if (!name) throw new Error('اختر منطقة موجودة أو اكتب اسم منطقة جديدة');
-  const existing = await prisma.area.findFirst({ where: { name } });
+  const existing = await prisma.area.findFirst({ where: { name: { equals: name, mode: 'insensitive' } } });
   if (existing) return existing.id;
   const created = await prisma.area.create({ data: { name, city: 'قنا' } });
   return created.id;
@@ -1450,7 +1560,7 @@ const resolveCategoryId = async (categoryId?: string, newCategoryName?: string) 
   const name = (newCategoryName ?? '').trim();
   if (!name) throw new Error('اختر فئة موجودة أو اكتب اسم فئة جديدة');
   const slugBase = name.toLowerCase().replace(/[^a-z0-9؀-ۿ]+/g, '-').replace(/^-+|-+$/g, '') || 'category';
-  const existing = await prisma.category.findFirst({ where: { OR: [{ name }, { slug: slugBase }] } });
+  const existing = await prisma.category.findFirst({ where: { OR: [{ name: { equals: name, mode: 'insensitive' } }, { slug: slugBase }] } });
   if (existing) return existing.id;
   const created = await prisma.category.create({ data: { name, slug: `${slugBase}-${randomBytes(3).toString('hex')}` } });
   return created.id;
@@ -1731,7 +1841,7 @@ const adminProviderEditSchema = z.object({
 app.patch('/api/admin/providers/:id/details', requireAdmin, async (req, res, next) => {
   try {
     const input = adminProviderEditSchema.parse(req.body);
-    const existing = await prisma.provider.findUnique({ where: { id: String(req.params.id) } });
+    const existing = await prisma.provider.findUnique({ where: { id: String(req.params.id) }, include: { images: true } });
     if (!existing) return res.status(404).json({ message: 'النشاط غير موجود' });
     const { categoryIds, images, areaId, ...fields } = input;
     const provider = await prisma.$transaction(async (tx) => {
@@ -1748,6 +1858,7 @@ app.patch('/api/admin/providers/:id/details', requireAdmin, async (req, res, nex
         include: { area: true, images: { orderBy: { sortOrder: 'asc' } }, categories: { include: { category: true } } },
       });
     });
+    if (images) await Promise.all(existing.images.map((image) => removeLocalUpload(image.url)));
     await audit('provider.admin_details_updated', 'provider', provider.id, { fields: Object.keys(input) });
     res.json(provider);
   } catch (error) { next(error); }
@@ -1764,16 +1875,27 @@ app.patch('/api/admin/providers/:id', requireAdmin, async (req, res, next) => {
 });
 app.delete('/api/admin/providers/:id', requireAdmin, async (req, res, next) => {
   try {
-    const provider = await prisma.provider.findUnique({ where: { id: String(req.params.id) } });
+    const provider = await prisma.provider.findUnique({ where: { id: String(req.params.id) }, include: { images: true } });
     if (!provider) return res.status(404).json({ message: 'النشاط غير موجود' });
     await prisma.provider.delete({ where: { id: provider.id } });
+    await Promise.all(provider.images.map((image) => removeLocalUpload(image.url)));
+    await removeLocalUpload(provider.logoUrl);
     await audit('provider.deleted', 'provider', provider.id, { name: provider.name });
     res.json({ deleted: true });
   } catch (error) { next(error); }
 });
 
 app.delete('/api/admin/listings/:id', requireAdmin, async (req, res, next) => {
-  try { const id = String(req.params.id); const listing = await prisma.listing.findUnique({ where: { id }, select: { id: true, title: true } }); if (!listing) return res.status(404).json({ message: 'الإعلان غير موجود' }); await prisma.listing.delete({ where: { id } }); await audit('listing.deleted', 'listing', id, { title: listing.title }); res.json({ deleted: true }); } catch (error) { next(error); }
+  try {
+    const id = String(req.params.id);
+    const listing = await prisma.listing.findUnique({ where: { id }, include: { images: true } });
+    if (!listing) return res.status(404).json({ message: 'الإعلان غير موجود' });
+    await prisma.listing.delete({ where: { id } });
+    await Promise.all(listing.images.map((image) => removeLocalUpload(image.url)));
+    await removeLocalUpload(listing.logoUrl);
+    await audit('listing.deleted', 'listing', id, { title: listing.title });
+    res.json({ deleted: true });
+  } catch (error) { next(error); }
 });
 app.delete('/api/admin/services/:id', requireAdmin, async (req, res, next) => {
   try { const id = String(req.params.id); const item = await prisma.providerService.delete({ where: { id } }); await audit('service.deleted', 'providerService', id, { name: item.name }); res.json({ deleted: true }); } catch (error) { next(error); }
@@ -1893,12 +2015,16 @@ app.post('/api/admin/constants/:type', requireAdmin, async (req, res, next) => {
     const { name } = z.object({ name: z.string().trim().min(1).max(120) }).parse(req.body);
 
     if (type === 'categories') {
+      const duplicate = await prisma.category.findFirst({ where: { name: { equals: name, mode: 'insensitive' } } });
+      if (duplicate) return res.status(409).json({ message: 'الفئة موجودة بالفعل' });
       const slug = `${name.toLowerCase().replace(/[^a-z0-9؀-ۿ]+/g, '-').replace(/^-+|-+$/g, '') || 'category'}-${randomBytes(3).toString('hex')}`;
       const item = await prisma.category.create({ data: { name, slug, isActive: true } });
       await audit('category.create', 'category', item.id, { name });
       return res.json(item);
     }
     if (type === 'areas') {
+      const duplicate = await prisma.area.findFirst({ where: { name: { equals: name, mode: 'insensitive' } } });
+      if (duplicate) return res.status(409).json({ message: 'المنطقة موجودة بالفعل' });
       const item = await prisma.area.create({ data: { name, city: 'قنا', isActive: true } });
       await audit('area.create', 'area', item.id, { name });
       return res.json(item);
@@ -1917,11 +2043,15 @@ app.put('/api/admin/constants/:type/:id', requireAdmin, async (req, res, next) =
     const { name } = z.object({ name: z.string().trim().min(1).max(120) }).parse(req.body);
 
     if (type === 'categories') {
+      const duplicate = await prisma.category.findFirst({ where: { name: { equals: name, mode: 'insensitive' }, NOT: { id } } });
+      if (duplicate) return res.status(409).json({ message: 'الفئة موجودة بالفعل' });
       const item = await prisma.category.update({ where: { id }, data: { name } });
       await audit('category.update', 'category', item.id, { name });
       return res.json(item);
     }
     if (type === 'areas') {
+      const duplicate = await prisma.area.findFirst({ where: { name: { equals: name, mode: 'insensitive' }, NOT: { id } } });
+      if (duplicate) return res.status(409).json({ message: 'المنطقة موجودة بالفعل' });
       const item = await prisma.area.update({ where: { id }, data: { name } });
       await audit('area.update', 'area', item.id, { name });
       return res.json(item);
@@ -1939,14 +2069,30 @@ app.delete('/api/admin/constants/:type/:id', requireAdmin, async (req, res, next
     const id = String(req.params.id);
 
     if (type === 'categories') {
+      const usage = await prisma.providerCategory.count({ where: { categoryId: id } });
+      if (usage > 0) {
+        const item = await prisma.category.update({ where: { id }, data: { isActive: false } });
+        await audit('category.deactivated', 'category', id, { usage });
+        return res.json({ ok: true, archived: true, item });
+      }
       await prisma.category.delete({ where: { id } });
       await audit('category.delete', 'category', id);
-      return res.json({ ok: true });
+      return res.json({ ok: true, archived: false });
     }
     if (type === 'areas') {
+      const [providers, listings, ads, prices, now] = await Promise.all([
+        prisma.provider.count({ where: { areaId: id } }), prisma.listing.count({ where: { areaId: id } }), prisma.ad.count({ where: { areaId: id } }),
+        prisma.priceGuide.count({ where: { areaId: id } }), prisma.nowUpdate.count({ where: { areaId: id } }),
+      ]);
+      const usage = providers + listings + ads + prices + now;
+      if (usage > 0) {
+        const item = await prisma.area.update({ where: { id }, data: { isActive: false } });
+        await audit('area.deactivated', 'area', id, { usage });
+        return res.json({ ok: true, archived: true, item });
+      }
       await prisma.area.delete({ where: { id } });
       await audit('area.delete', 'area', id);
-      return res.json({ ok: true });
+      return res.json({ ok: true, archived: false });
     }
     if (['service-types', 'listing-types', 'news-types'].includes(type)) {
       return res.json({ ok: true });
@@ -1966,6 +2112,9 @@ app.use((error: unknown, _req: express.Request, res: express.Response, _next: ex
   if (error instanceof z.ZodError) {
     const formatted = error.issues.map(issue => ({ path: issue.path.join('.'), message: issue.message }));
     return res.status(400).json({ message: 'بيانات المدخلات غير صحيحة', errors: formatted });
+  }
+  if (error instanceof Error && /الصورة|image/i.test(error.message)) {
+    return res.status(400).json({ message: error.message });
   }
   if (error instanceof Error && error.message.includes('Unique constraint')) {
     return res.status(409).json({ message: 'البيانات موجودة بالفعل' });
@@ -1997,6 +2146,7 @@ const runListingLifecycle = async () => {
       } catch { /* Missing files do not block lifecycle cleanup. */ }
     }));
   }
+  await cleanupOrphanUploads();
 };
 
 app.listen(port, host, () => {

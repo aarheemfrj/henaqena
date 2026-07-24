@@ -147,6 +147,17 @@ export async function updateTeamMember(formData: FormData) {
   revalidatePath('/admin/team');
 }
 
+export async function updateUserBlock(formData: FormData) {
+  if (!await hasAdminSession()) redirect('/admin/login');
+  const id = String(formData.get('id') ?? '');
+  if (!id) return;
+  await apiPatch(`/api/admin/users/${id}`, {
+    isBlocked: formData.get('isBlocked') === 'true',
+    blockedReason: String(formData.get('reason') ?? '').trim() || null,
+  });
+  revalidatePath('/admin/users');
+}
+
 export async function moderateListing(formData: FormData) {
   if (!await hasAdminSession()) redirect('/admin/login'); const id = String(formData.get('id') ?? ''); const status = String(formData.get('status') ?? ''); if (!id || !['ACTIVE', 'REJECTED', 'ARCHIVED'].includes(status)) return; await apiPatch(`/api/admin/listings/${id}`, { status, note: String(formData.get('note') ?? '') }); revalidatePath('/admin/listings'); revalidatePath('/listings');
 }
