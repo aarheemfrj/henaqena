@@ -21,6 +21,7 @@ const groups = [
       { href: '/admin/reports', label: 'البلاغات والدعم', icon: '!' },
       { href: '/admin/services', label: 'الخدمات والعروض', icon: '◈' },
       { href: '/admin/review-center', label: 'مركز الاعتماد', icon: '✓' },
+      { href: '/admin/min-shater', label: 'مين شاطر؟', icon: '★' },
     ],
   },
   {

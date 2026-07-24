@@ -203,6 +203,30 @@ export async function moderateQueueItem(formData: FormData) {
   revalidatePath('/admin/review-center'); revalidatePath('/admin'); revalidatePath('/');
 }
 
+export async function moderateMinShaterRequest(formData: FormData) {
+  if (!await hasAdminSession()) redirect('/admin/login');
+  const id = String(formData.get('id') ?? ''); const status = String(formData.get('status') ?? '');
+  if (!id || !['APPROVED', 'REJECTED', 'ARCHIVED', 'HIDDEN'].includes(status)) return;
+  await apiPatch(`/api/admin/min-shater/requests/${id}/status`, { status, reason: String(formData.get('reason') ?? '').trim() || undefined });
+  revalidatePath('/admin/min-shater'); revalidatePath('/admin/review-center');
+}
+
+export async function moderateMinShaterRecommendation(formData: FormData) {
+  if (!await hasAdminSession()) redirect('/admin/login');
+  const id = String(formData.get('id') ?? ''); const status = String(formData.get('status') ?? '');
+  if (!id || !['APPROVED', 'REJECTED', 'ARCHIVED', 'HIDDEN'].includes(status)) return;
+  await apiPatch(`/api/admin/min-shater/recommendations/${id}/status`, { status, reason: String(formData.get('reason') ?? '').trim() || undefined });
+  revalidatePath('/admin/min-shater'); revalidatePath('/admin/review-center');
+}
+
+export async function moderateMinShaterReport(formData: FormData) {
+  if (!await hasAdminSession()) redirect('/admin/login');
+  const id = String(formData.get('id') ?? ''); const status = String(formData.get('status') ?? '');
+  if (!id || !['RESOLVED', 'DISMISSED'].includes(status)) return;
+  await apiPatch(`/api/admin/min-shater/reports/${id}/status`, { status, reason: String(formData.get('reason') ?? '').trim() || undefined });
+  revalidatePath('/admin/min-shater');
+}
+
 export async function importProviders(formData: FormData) {
   if (!await hasAdminSession()) redirect('/admin/login');
   const file = formData.get('file'); if (!(file instanceof File)) return;
