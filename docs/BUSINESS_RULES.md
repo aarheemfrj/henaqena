@@ -37,8 +37,9 @@ Each rule below names the enforced outcome. UI wording is not a substitute for t
 
 ## Reviews, reactions and favorites
 
-- Reviews and replies are public only according to moderation status.
-- Helpful/reaction endpoints operate on the addressed record and require the expected authenticated context.
+- Reviews and replies are public only according to moderation status; provider details expose a bounded first page and `/api/providers/:id/reviews` provides deterministic pagination.
+- A provider owner cannot review their own provider, and only the provider owner may reply to reviews for that provider.
+- Helpful votes require an approved, visible review. Review deletion is limited to the review author.
 - Favorite lists belong to one user; another user’s list ID is rejected.
 
 ## Notifications and settings

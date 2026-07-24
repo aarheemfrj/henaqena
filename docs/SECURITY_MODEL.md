@@ -32,6 +32,8 @@ The client is untrusted. Authorization is enforced in the API, not only in Flutt
 - Admin routes use API-key or admin-session authentication plus role checks.
 - Provider, listing, review, favorite-list and contribution mutations compare resource ownership to the authenticated user.
 - Public provider detail hides non-approved records; an owner exception is limited to that owner.
+- Public provider detail uses an explicit safe projection, hides ownership/internal lifecycle fields, bounds nested reviews, and exposes only approved active services/offers/replies.
+- Review replies are owner-only; review helpful and deletion routes enforce approved visibility or author ownership.
 - System/admin accounts cannot be blocked through the user-block route.
 - Sensitive admin mutations write `AuditLog` metadata with actor ID and role.
 

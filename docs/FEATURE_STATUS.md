@@ -31,8 +31,8 @@ Legend: **Implemented** = present in current code; **Partial** = some paths/UI o
 | Provider directory and search | Implemented | CRUD, moderation, media and owner paths; active filters, stable pagination, sorting, open-now handling, normalized relevance search and suggestions verified |
 | Categories/areas | Implemented | Reads, duplicate checks and safe deactivation; parent/child taxonomy planned |
 | Listings/classifieds | Partial | Lifecycle, media, favorites, reports; advanced marketplace flows are not present |
-| Reviews/replies/helpful | Partial | API moderation and reactions exist; full social UX varies by screen |
-| Favorites/lists/saved searches | Implemented | Ownership checks and refresh paths present |
+| Reviews/replies/helpful | Implemented | Provider detail, bounded reviews route, owner-only replies, helpful state and author deletion are covered by Sprint 2D API/mobile contracts |
+| Favorites/lists/saved searches | Implemented | Ownership checks, named lists, optimistic detail state and refresh paths present |
 | Ads/home campaigns | Partial | API/admin controls and reactions; external ad billing is not present |
 | Prices | Partial | API/admin CRUD; authoritative live feeds and history depth depend on data |
 | Qena Now | Partial | API/admin content and helpful votes; push delivery not implemented |

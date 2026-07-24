@@ -52,3 +52,8 @@ All notable engineering changes are documented here. Product features outside th
 - Sprint 1.1 verified isolated PostgreSQL integration tests, staging migration and backup/restore workflow.
 - Sprint 1.5 established source-backed engineering documentation, route inventory and validation rules.
 - Baseline `v0.1-baseline` was established without adding product modules.
+## Unreleased — Sprint 2D
+
+- Hardened provider detail projection and active-area visibility.
+- Added paginated provider reviews, owner-only replies, approved-review helpful checks and author review deletion.
+- Improved mobile provider detail refresh, rating/open-state display, gallery URL deduplication and favorite synchronization.

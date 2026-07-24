@@ -29,9 +29,9 @@ Provider directory search now has bounded query validation, Arabic/English norma
 
 Internal Qena map markers now use a bounded API contract, approved-only visibility, valid-coordinate filtering, category coloring, actionable location permissions, recenter/follow behavior, route fitting and shared Haversine distance ordering. Clustering, offline tiles and production device verification remain deferred; see `SPRINT_2C_LOCATION_INTELLIGENCE_REPORT.md`.
 
-### Sprint 2D — Provider Page / Reviews / Favorites — Planned
+### Sprint 2D — Provider Page / Reviews / Favorites — Closed (local verification)
 
-Provider-page depth, review/favorite UX improvements and related contract work. Not implemented in Sprint 2A.
+Provider detail is now public-safe and bounded, rating metadata is aggregate-based, reviews are paginated with owner-only replies and author deletion, and the mobile provider page supports refresh, gallery deduplication and synchronized favorite state. See `SPRINT_2D_PROVIDER_EXPERIENCE_REPORT.md`.
 
 ## Sprint 3 — Security and media operations
 

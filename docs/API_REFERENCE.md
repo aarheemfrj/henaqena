@@ -40,7 +40,7 @@ The table is intentionally exhaustive for routes registered by `apps/api/src/ser
 | Prices | `GET/POST /api/prices`, admin `GET/POST/PATCH /api/admin/prices` | public read; session/admin write | PriceGuide | Implemented |
 | Qena now | `GET/POST /api/now`, `POST /api/now/:id/helpful`, admin `GET/POST/PATCH /api/admin/now` | public read; session/admin write | NowUpdate, NowHelpful | Implemented |
 | Support | `POST /api/support-tickets`, admin `GET/PATCH /api/admin/support-tickets` | session; admin | SupportTicket | Implemented |
-| Reviews | `POST /api/reviews`, `POST /api/reviews/:id/replies`, `POST /api/reviews/:id/helpful` | session | Review, ReviewReply, ReviewHelpful | Implemented |
+| Reviews | `GET /api/providers/:id/reviews`, `POST /api/reviews`, `PATCH/DELETE /api/me/reviews/:id`, `POST /api/reviews/:id/replies`, `POST /api/reviews/:id/helpful` | public approved reads; session; replies restricted to provider owner | Review, ReviewReply, ReviewHelpful | Implemented |
 | Admin overview | `GET /api/admin/overview`, `/audit`, `/archive`, `/catalog`, `/review-queue`, `/reports/summary`, `/services`, `/offers`, `/providers`, `/listings`, `/reviews`, `/replies` | admin role varies | Multiple | Implemented |
 | Admin CRUD | `POST/PATCH/DELETE /api/admin/providers`, `/listings`, `/services/:id`, `/offers/:id`, `/reviews/:id`, `/replies/:id`; provider details/content; listing content | admin role + ownership where applicable | Provider, Listing, Review, Reply | Implemented |
 | Admin users/team | `GET/POST/PATCH /api/admin/team`, `GET/PATCH /api/admin/users` | OWNER/team roles | AdminAccount, User | Implemented |
@@ -124,6 +124,8 @@ GET /api/providers/:id
 POST /api/providers/:id/favorite
 POST /api/providers/:id/services
 POST /api/providers/:id/offers
+
+GET /api/providers/:id/reviews?page=&pageSize=
 GET /api/offers
 GET/POST /api/listings
 GET /api/listings/categories
@@ -138,6 +140,7 @@ GET/POST /api/me/saved-searches
 DELETE /api/me/saved-searches/:id
 GET /api/me/contributions
 PATCH /api/me/reviews/:id
+DELETE /api/me/reviews/:id
 PATCH /api/me/listings/:id/renew
 DELETE /api/me/listings/:id
 POST /api/jobs/expire-listings
