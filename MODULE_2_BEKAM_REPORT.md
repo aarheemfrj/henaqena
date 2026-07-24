@@ -12,6 +12,7 @@ The existing prices foundation was audited and hardened without a new migration.
 - User submissions reject inactive areas and duplicate pending/approved rows for the same name/category/area.
 - Admin-created prices are audited with `price.created`.
 - Added additive `PriceConfirmation` with one upsertable confirmation per user/price, aggregate count, latest confirmation and `POST /api/prices/:id/confirm`.
+- Added mobile price cards with authenticated “أيوه / اتغير” confirmation actions and updated freshness counters.
 
 ## Verified
 
@@ -21,7 +22,9 @@ The existing prices foundation was audited and hardened without a new migration.
 
 ## Still missing
 
-Expiry metadata, confidence/outlier handling, source attribution, richer admin edit/archive/restore, mobile confirmation UI and device/staging verification remain for the next slice.
+Expiry metadata, confidence/outlier handling, source attribution, richer admin edit/archive/restore and device/staging verification remain for the next slice.
+
+Mobile confirmation commit: `90ca7f5`.
 
 ## Release status
 
