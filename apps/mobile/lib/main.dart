@@ -4737,7 +4737,16 @@ class _ProviderMapPageState extends State<ProviderMapPage> {
             ),
           )
           .toList();
-      if (mounted) setState(() => routePoints = points);
+      // OSRM snaps the route to the nearest road, so its first/last geometry
+      // point can be a few metres away from the actual user/provider pins.
+      // Keep the exact endpoints in the polyline so the line always meets
+      // the pins visually.
+      final alignedPoints = <ll.LatLng>[
+        origin,
+        ...points,
+        destination,
+      ];
+      if (mounted) setState(() => routePoints = alignedPoints);
     } catch (_) {
       if (mounted)
         showTopToast(context, message: 'تعذر تحميل مسار الطريق', isError: true);
@@ -4850,6 +4859,12 @@ class _ProviderMapPageState extends State<ProviderMapPage> {
                           userPosition!.longitude,
                         ),
                   routePoints: routePoints,
+                  routeDestination: widget.routeDestination == null
+                      ? null
+                      : ll.LatLng(
+                          widget.routeDestination!.latitude,
+                          widget.routeDestination!.longitude,
+                        ),
                 ),
               ),
               Expanded(child: list),
@@ -4869,6 +4884,7 @@ class InternalQenaMap extends StatefulWidget {
     this.initialCenter,
     this.initialUserPosition,
     this.routePoints = const [],
+    this.routeDestination,
   });
 
   final List<ProviderSummary> providers;
@@ -4876,6 +4892,7 @@ class InternalQenaMap extends StatefulWidget {
   final ll.LatLng? initialCenter;
   final ll.LatLng? initialUserPosition;
   final List<ll.LatLng> routePoints;
+  final ll.LatLng? routeDestination;
 
   @override
   State<InternalQenaMap> createState() => _InternalQenaMapState();
@@ -4888,6 +4905,7 @@ class _InternalQenaMapState extends State<InternalQenaMap> {
   bool _followingUser = false;
   ll.LatLng? _userPosition;
   StreamSubscription<Position>? _positionSubscription;
+  String _fittedRouteSignature = '';
 
   @override
   void initState() {
@@ -4902,6 +4920,31 @@ class _InternalQenaMapState extends State<InternalQenaMap> {
         widget.initialUserPosition != oldWidget.initialUserPosition &&
         _userPosition == null) {
       setState(() => _userPosition = widget.initialUserPosition);
+    }
+    if (widget.routePoints.length > 1 &&
+        widget.routePoints != oldWidget.routePoints) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _fitRouteIfNeeded());
+    }
+  }
+
+  void _fitRouteIfNeeded() {
+    if (!mounted || widget.routePoints.length < 2) return;
+    final first = widget.routePoints.first;
+    final last = widget.routePoints.last;
+    final signature = '${widget.routePoints.length}:${first.latitude},${first.longitude}:${last.latitude},${last.longitude}';
+    if (signature == _fittedRouteSignature) return;
+    _fittedRouteSignature = signature;
+    try {
+      _mapController.fitCamera(
+        fmap.CameraFit.bounds(
+          bounds: fmap.LatLngBounds.fromPoints(widget.routePoints),
+          padding: const EdgeInsets.fromLTRB(48, 52, 48, 92),
+        ),
+      );
+    } catch (_) {
+      // The controller is not ready during the first frame; the next update
+      // will retry without interrupting the map.
+      _fittedRouteSignature = '';
     }
   }
 
