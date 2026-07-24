@@ -109,7 +109,7 @@ The first test attempt used the developer database before the isolated workflow 
 
 ## Commit and tag
 
-- Commit: to be filled after the final clean commit.
+- Implementation commit: `5622296` (`feat(directory): complete Sprint 2A directory experience improvements`).
 - Tag: `v0.2-directory` will be created only after the final validation commit.
 
 ## Go / No-Go for Sprint 2B
