@@ -12,7 +12,7 @@
 
 ## السجل
 
-- 2026-07-24 — Codex — Close Sprint 2C/2D release gates and Sprint 2F stabilization freeze: إعادة تشغيل توليد Prisma واختبارات PostgreSQL المعزولة (86 اختبارًا) وبناء API وWeb/Admin وتحليل واختبارات Flutter، إضافة اختبارات الحساب المحظور وتفرد pagination للتقييمات، تدقيق رحلة Directory → Search → Map → Provider → Reviews → Favorites ومزامنة الحالة والروابط والأسرار — مكتملة محليًا؛ المؤجل: أجهزة فعلية وVPS staging واختبار المتصفح التفاعلي — commit: قيد التنفيذ
+- 2026-07-24 — Codex — Close Sprint 2C/2D release gates and Sprint 2F stabilization freeze: إعادة تشغيل توليد Prisma واختبارات PostgreSQL المعزولة (86 اختبارًا) وبناء API وWeb/Admin وتحليل واختبارات Flutter، إضافة اختبارات الحساب المحظور وتفرد pagination للتقييمات، تدقيق رحلة Directory → Search → Map → Provider → Reviews → Favorites ومزامنة الحالة والروابط والأسرار — مكتملة محليًا؛ المؤجل: أجهزة فعلية وVPS staging واختبار المتصفح التفاعلي — commit: `1e4cb7a`
 
 - 2026-07-24 — Codex — Sprint 2D Provider Experience: تدقيق عقد تفاصيل النشاط، حماية الإسقاط العام، تقييم إجمالي مضبوط، تقييمات مقسمة الصفحات، ردود مالك النشاط، حذف التقييم للمالك، تحديث معرض الصور والمفضلة والسحب للتحديث — مكتملة محليًا؛ المؤجل: واجهة pagination كاملة، تحديث helpful متفائل دون إعادة تحميل، واختبار جهاز فعلي — commits: `182250e`, `cf329e1`
 
