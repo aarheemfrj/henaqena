@@ -401,4 +401,17 @@ describe('Sprint 1 production stabilization integration', () => {
     expect(updated.viewerConfirmed).toBe(false);
     expect(updated.confirmationCount).toBe(0);
   });
+
+  it('hides expired prices and supports audited admin archive/restore', async () => {
+    const admin = await prisma.adminAccount.create({ data: { name: 'Price editor', email: `price-${randomBytes(3).toString('hex')}@example.com`, passwordHash: 'unused', role: 'OWNER' } });
+    const adminToken = await makeAdminToken(admin.id);
+    const expired = await prisma.priceGuide.create({ data: { name: `منتهي ${randomBytes(3).toString('hex')}`, minPrice: 10, maxPrice: 20, validUntil: new Date(Date.now() - 86_400_000), status: ReviewStatus.APPROVED } });
+    expect((await request(app).get('/api/prices')).body.some((row: { id: string }) => row.id === expired.id)).toBe(false);
+    const archived = await request(app).patch(`/api/admin/prices/${expired.id}/archive`).set('Authorization', `Bearer ${adminToken}`).send({ archived: true, reason: 'بيانات قديمة' });
+    expect(archived.status).toBe(200);
+    const restored = await request(app).patch(`/api/admin/prices/${expired.id}/archive`).set('Authorization', `Bearer ${adminToken}`).send({ archived: false });
+    expect(restored.status).toBe(200);
+    const audit = await prisma.auditLog.findFirst({ where: { action: 'price.restored', entityId: expired.id }, orderBy: { createdAt: 'desc' } });
+    expect(audit).not.toBeNull();
+  });
 });
