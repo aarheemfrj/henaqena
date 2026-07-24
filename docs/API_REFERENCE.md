@@ -150,6 +150,7 @@ POST /api/ads
 GET/POST /api/prices
 POST /api/prices/:id/confirm
 GET/POST/PATCH /api/admin/prices[/:id]
+PATCH /api/admin/prices/:id/archive
 PATCH /api/admin/prices/:id
 GET/POST /api/now
 POST /api/now/:id/helpful

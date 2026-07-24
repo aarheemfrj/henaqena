@@ -16,8 +16,8 @@
 - 2026-07-25 — Codex — Module 2 «بكام؟» stabilization slice: منع الأسعار الصفرية، رفض المناطق غير النشطة، حماية التكرار الأساسي، تحسين ترتيب وفلترة الأسعار العامة، وتسجيل إنشاء أسعار الإدارة — مكتملة؛ commit: `00e4277`
 - 2026-07-25 — Codex — Module 2 «بكام؟» stabilization report and status matrix — مكتملة جزئيًا؛ confirmation/history and device/staging checks deferred — commit: قيد التنفيذ
 - 2026-07-25 — Codex — Module 2 «بكام؟» price confirmations: إضافة PriceConfirmation مع upsert لكل مستخدم، عدد التأكيدات، آخر تأكيد، وعقد API للتأكيد مع اختبارات PostgreSQL معزولة — مكتملة؛ commit: `7321b84`
-- 2026-07-25 — Codex — Module 2 «بكام؟» mobile confirmation UI: إضافة زر تأكيد/تغيير السعر داخل بطاقات الأسعار مع Login CTA وتحديث متفائل للعدد — مكتملة؛ commit: قيد التنفيذ
-- 2026-07-25 — Codex — Module 2 «بكام؟» freshness/confidence/admin lifecycle: إضافة صلاحية ومصدر ودرجة ثقة، إخفاء الأسعار المنتهية، أرشفة/استرجاع إداري وسجل تدقيق، واختبارات PostgreSQL — مكتملة؛ commit: قيد التنفيذ
+- 2026-07-25 — Codex — Module 2 «بكام؟» mobile confirmation UI: إضافة زر تأكيد/تغيير السعر داخل بطاقات الأسعار مع Login CTA وتحديث متفائل للعدد — مكتملة؛ commit: `90ca7f5`
+- 2026-07-25 — Codex — Module 2 «بكام؟» freshness/confidence/admin lifecycle: إضافة صلاحية ومصدر ودرجة ثقة، إخفاء الأسعار المنتهية، أرشفة/استرجاع إداري وسجل تدقيق، واختبارات PostgreSQL — مكتملة؛ commit: `f3e27e5`
 
 - 2026-07-24 — Codex — Module 1 «مين شاطر» pre-implementation audit: مراجعة البنية الحالية وإعادة استخدام أنماط المصادقة والحظر والملكية والمراجعة والإشعارات والتطبيق والمنصة، وتوثيق مخاطر الخصوصية والتكرار وخطة التنفيذ — مكتملة؛ commit: `5f70b88`
 - 2026-07-24 — Codex — Module 1 «مين شاطر»: additive data model, public/user/admin API, initial Flutter flows and isolated regression coverage — مكتملة جزئيًا؛ release gate NO-GO حتى التحقق الميداني؛ commits: `03df68c`, `95922d6`, `622a26e`, `cfbd511`, `8beae58`, `1a124e1`

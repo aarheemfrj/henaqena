@@ -13,16 +13,19 @@ The existing prices foundation was audited and hardened without a new migration.
 - Admin-created prices are audited with `price.created`.
 - Added additive `PriceConfirmation` with one upsertable confirmation per user/price, aggregate count, latest confirmation and `POST /api/prices/:id/confirm`.
 - Added mobile price cards with authenticated “أيوه / اتغير” confirmation actions and updated freshness counters.
+- Added `validUntil`, `confidenceScore`, `sourceType`, and `lastReviewedAt`; expired prices are hidden publicly.
+- Added audited admin archive/restore and editable price metadata.
 
 ## Verified
 
 - API TypeScript build passed.
 - Isolated Docker PostgreSQL migration and integration suite passed: 88/88 tests.
 - Migration `20260724220619_price_confirmations` applied successfully to the isolated database.
+- Migration `20260724224317_price_freshness_confidence` applied successfully to the isolated database.
 
 ## Still missing
 
-Expiry metadata, confidence/outlier handling, source attribution, richer admin edit/archive/restore and device/staging verification remain for the next slice.
+Outlier detection, richer admin table controls, and device/staging verification remain for the next slice.
 
 Mobile confirmation commit: `90ca7f5`.
 
