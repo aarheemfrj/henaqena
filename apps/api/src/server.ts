@@ -476,11 +476,14 @@ const searchAliases: Record<string, string[]> = {
   'مطعم': ['اكل'],
   'اكل': ['مطعم'],
   'صيدليه': ['ادويه'],
+  'صيدلية': ['ادوية'],
   'ادويه': ['صيدليه'],
+  'ادوية': ['صيدلية'],
   'موبايلات': ['هواتف'],
   'هواتف': ['موبايلات'],
   'سباك': ['سباكه'],
   'سباكه': ['سباك'],
+  'سباكة': ['سباك'],
   'كهربائي': ['كهرباء'],
   'كهرباء': ['كهربائي'],
 };
@@ -555,7 +558,7 @@ app.get('/api/providers', async (req, res, next) => {
     const relevanceTie = (a: typeof withScores[number], b: typeof withScores[number]) => (q ? (a.relevance! - b.relevance!) : 0) || (b.isVerified ? 0 : 1) - (a.isVerified ? 0 : 1);
     if (sort === 'rating') withScores.sort((a, b) => relevanceTie(a, b) || b.rating - a.rating || b.reviewCount - a.reviewCount || a.name.localeCompare(b.name, 'ar') || a.id.localeCompare(b.id));
     if (sort === 'reviews') withScores.sort((a, b) => relevanceTie(a, b) || b.reviewCount - a.reviewCount || b.rating - a.rating || a.name.localeCompare(b.name, 'ar') || a.id.localeCompare(b.id));
-    if (sort === 'latest') withScores.sort((a, b) => relevanceTie(a, b) || a.name.localeCompare(b.name, 'ar') || a.id.localeCompare(b.id));
+    if (sort === 'latest') withScores.sort((a, b) => relevanceTie(a, b) || (new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()) || a.name.localeCompare(b.name, 'ar') || a.id.localeCompare(b.id));
     if (sort === 'name') withScores.sort((a, b) => relevanceTie(a, b) || a.name.localeCompare(b.name, 'ar') || a.id.localeCompare(b.id));
     if (sort === 'distance') {
       const latitude = Number(req.query.latitude); const longitude = Number(req.query.longitude);

@@ -49,6 +49,10 @@ flowchart LR
 6. Route performs Prisma reads/writes and emits `AuditLog` entries for sensitive admin actions.
 7. Errors are normalized to JSON status codes; Zod input errors are 400 and authorization failures are 401/403.
 
+### Search flow
+
+Directory search remains inside the existing Express provider route. The API retrieves only approved, non-archived providers in active areas, includes approved active service names, normalizes the incoming query in memory, applies deterministic relevance tiers and then applies the existing stable filters/sorts and pagination. Suggestions use a bounded public route over the same visibility rules. No external search engine or schema migration was introduced.
+
 ```mermaid
 sequenceDiagram
   participant C as Client

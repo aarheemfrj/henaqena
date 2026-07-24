@@ -5,10 +5,10 @@ All notable engineering changes are documented here. Product features outside th
 ## Unreleased
 
 ### Added
-- Nothing currently staged.
+- Sprint 2B provider search suggestions and bounded relevance-ranked search.
 
 ### Changed
-- Nothing currently staged.
+- Directory search now normalizes Arabic text at query time, matches approved provider services and keeps exact/name matches ahead of weaker descriptive matches.
 
 ### Fixed
 - Nothing currently staged.
@@ -17,7 +17,7 @@ All notable engineering changes are documented here. Product features outside th
 - No security model changes staged.
 
 ### Documentation
-- Sprint 2A report will be added after validation.
+- Sprint 2B search report and API contract documentation updated.
 
 ### Known Issues
 - Physical OAuth verification and production browser verification remain environment-dependent.

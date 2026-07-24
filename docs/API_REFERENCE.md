@@ -13,6 +13,12 @@ Base URL is environment-specific. JSON errors use `{ "error": "..." }` (some val
 
 The table is intentionally exhaustive for routes registered by `apps/api/src/server.ts`. Dynamic `:id` routes share the same authorization rules as their parent resource.
 
+### Directory search contract
+
+`GET /api/providers` accepts the existing directory filters plus `q`, `categoryId`, `areaId`, `latitude`, `longitude`, `sort`, `page`, `pageSize`, and `meta=true`. Search text is trimmed, capped at 120 characters and normalized at query time (hamza forms, diacritics, tatweel, Arabic digits and case). Relevance is deterministic: exact provider name, name prefix, name contains, approved service, active category, active area, then description/address. The response remains an array unless `meta=true`, which returns `{ data, total, page, pageSize, hasMore }`.
+
+`GET /api/search/suggestions` requires at least two characters, caps `limit` at 20 and returns bounded provider/service/category/area suggestions from approved providers in active areas/categories. It never exposes pending, archived or deleted records.
+
 | Module | Methods and paths | Auth / role | Main models | Status |
 |---|---|---|---|---|
 | Health | `GET /health`, `GET /ready`, `GET /api/bootstrap`, `GET /api/admin/health/details` | public; admin details guarded | PlatformSettings | Implemented |
@@ -20,7 +26,8 @@ The table is intentionally exhaustive for routes registered by `apps/api/src/ser
 | Admin auth | `POST /api/admin/auth/login`, `/logout`; `GET /api/admin/auth/me` | admin | AdminAccount, AdminSession | Implemented |
 | Users | `GET/PATCH /api/me`, `GET /api/users/:id`, `PATCH /api/me/preferences`, `POST /api/me/password`, `GET /api/notifications`, `PATCH /api/notifications/:id/read`, `POST /api/notifications/read-all` | session; own record | User, Notification | Implemented |
 | Taxonomy | `GET /api/areas`, `GET /api/categories` | public | Area, Category | Implemented |
-| Providers | `GET/POST /api/providers`, `GET/PATCH /api/providers/:id`, `POST /api/providers/:id/favorite`, `GET /api/providers/:id/services`, `/offers` | public reads; session/owner/admin writes | Provider, Area, Category, ProviderService, ProviderOffer | Implemented |
+| Search | `GET /api/search/suggestions?q=&limit=` | public; approved/active records only | Provider, ProviderService, Category, Area | Implemented |
+| Providers / directory search | `GET/POST /api/providers`, `GET/PATCH /api/providers/:id`, `POST /api/providers/:id/favorite`, `GET /api/providers/:id/services`, `/offers` | public reads; session/owner/admin writes | Provider, Area, Category, ProviderService, ProviderOffer | Implemented |
 | Provider reports | `POST /api/provider-reports`; admin `GET/PATCH /api/admin/provider-reports` | session; admin moderation | ProviderReport | Implemented |
 | Provider media | `POST /api/uploads/provider-images`, `DELETE /api/uploads/provider-images`, `POST /api/uploads/avatar` | session | ProviderImage, User | Implemented |
 | Listings | `GET/POST /api/listings`, `GET/PATCH/DELETE /api/listings/:id`, `GET /api/listings/categories`, `POST /api/listings/:id/favorite`, `/interested`, `/reports` | public approved reads; owner/session writes | Listing, ListingImage, ListingFavorite, ListingInterest, ListingReport | Implemented |

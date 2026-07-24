@@ -14,8 +14,12 @@
 
 ## Missing runtime evidence
 
+- Sprint 2B search was verified against isolated PostgreSQL and local Flutter tests; production-volume latency and physical-device suggestion rendering remain unverified.
+
 - Sprint 2A physical-device directory verification and VPS browser checks remain unverified in this local run.
 - Distance ordering currently uses a coordinate-distance approximation in application code; a spatial database query can be considered in Sprint 2C.
+
+- Fuzzy typo tolerance, cross-module search analytics and a dedicated search index remain intentionally deferred; current search is bounded in-memory relevance over the provider catalog.
 
 - GitHub Actions has been configured but its remote run was not observed in this session.
 - Google Sign-In has configured client IDs in project history, but physical iOS/Android sign-in with live tokens is unverified.

@@ -21,9 +21,9 @@ Sprint 2 is split into focused delivery gates:
 
 Active taxonomy filtering, stable paginated provider listing, open-now calculation, nearby handling, safe empty/error states and admin data-quality indicators are implemented and verified in `SPRINT_2A_DIRECTORY_EXPERIENCE_REPORT.md`.
 
-### Sprint 2B — Search — Planned
+### Sprint 2B — Search — Closed
 
-Unified search relevance, query normalization and search analytics. Not implemented in Sprint 2A.
+Provider directory search now has bounded query validation, Arabic/English normalization, relevance-ranked matching across provider names/services/categories/areas, deterministic pagination, suggestions and local recent-search UX. Search analytics and cross-module search remain out of scope.
 
 ### Sprint 2C — Maps — Planned
 

@@ -13,6 +13,7 @@
 | Sprint 1.1 — Production Verification & Integration Testing | Implemented | Commit `56f8803`; 75/75 isolated PostgreSQL integration tests, staging migration and restore verification |
 | Sprint 1.5 — Engineering Documentation | Implemented | Commits `c7e1d5c` and `47dc98e`; documentation set, route audit and final validation |
 | Sprint 2A — Directory Experience | Implemented | Sprint 2A report; isolated PostgreSQL tests, API build, web checks and Flutter analysis |
+| Sprint 2B — Search Experience | Implemented | Search API integration tests, Flutter search widget test, API/web/mobile validation |
 
 These statuses describe completed engineering sprints, not new product features.
 
@@ -27,7 +28,7 @@ Legend: **Implemented** = present in current code; **Partial** = some paths/UI o
 | Apple login | Unverified | Flutter/API hooks exist; callback/device verification pending |
 | Profiles/preferences/avatar | Implemented | API and mobile/web paths present; upload rules enforced |
 | Block/unblock and admin roles | Implemented | Admin endpoint/UI and audit metadata covered by Sprint 1.1 |
-| Provider directory | Implemented | CRUD, moderation, media and owner paths; active filters, stable pagination, sorting and open-now handling verified |
+| Provider directory and search | Implemented | CRUD, moderation, media and owner paths; active filters, stable pagination, sorting, open-now handling, normalized relevance search and suggestions verified |
 | Categories/areas | Implemented | Reads, duplicate checks and safe deactivation; parent/child taxonomy planned |
 | Listings/classifieds | Partial | Lifecycle, media, favorites, reports; advanced marketplace flows are not present |
 | Reviews/replies/helpful | Partial | API moderation and reactions exist; full social UX varies by screen |

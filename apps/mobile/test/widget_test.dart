@@ -128,7 +128,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
     final field = find.byType(TextField);
     await tester.enterText(field, 'مطعم');
-    await tester.pump(const Duration(milliseconds: 450));
+    await tester.pump(const Duration(milliseconds: 100));
     expect(find.byTooltip('مسح البحث'), findsOneWidget);
     await tester.tap(find.byTooltip('مسح البحث'));
     await tester.pump(const Duration(milliseconds: 100));
