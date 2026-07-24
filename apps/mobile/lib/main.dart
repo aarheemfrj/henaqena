@@ -6313,7 +6313,15 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
           favorite ??= data?.viewerFavorite ?? false;
           final imageUrls = data?.images ?? const <String>[];
           final reviews = data?.reviews ?? const <Map<String, dynamic>>[];
-          return ListView(
+          return RefreshIndicator(
+            color: teal,
+            onRefresh: () async {
+              _reload();
+              try {
+                await details;
+              } catch (_) {}
+            },
+            child: ListView(
             padding: const EdgeInsets.fromLTRB(18, 8, 18, 90),
             children: [
               if (snapshot.connectionState == ConnectionState.waiting)
@@ -6383,6 +6391,33 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                                 ],
                               ],
                             ),
+                            if (data != null && data.reviewCount > 0) ...[
+                              const SizedBox(height: 5),
+                              Row(
+                                children: [
+                                  Icon(Icons.star, color: gold, size: 16),
+                                  const SizedBox(width: 3),
+                                  Text(
+                                    '${data.rating.toStringAsFixed(1)} · ${data.reviewCount} تقييم',
+                                    style: const TextStyle(
+                                      color: muted,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  if (data.openNow != null) ...[
+                                    const SizedBox(width: 10),
+                                    Text(
+                                      data.openNow! ? 'مفتوح الآن' : 'مغلق الآن',
+                                      style: TextStyle(
+                                        color: data.openNow! ? teal : muted,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ],
                             const SizedBox(height: 7),
                             Row(
                               children: [
@@ -6698,7 +6733,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                           : replyAuthor.characters.first,
                       text: reply['text'] as String? ?? '',
                       timeLabel: _relativeTime(reply['createdAt']),
-                      onReply: () => _reply(reviewId),
+                      onReply: data?.viewerIsOwner == true ? () => _reply(reviewId) : null,
                     );
                   },
                 ).toList();
@@ -6717,7 +6752,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                     helpfulCount:
                         review['_count']?['helpfulVotes'] as int? ?? 0,
                     onHelpful: () => _helpful(reviewId),
-                    onReply: () => _reply(reviewId),
+                    onReply: data?.viewerIsOwner == true ? () => _reply(reviewId) : null,
                     replies: replies,
                   ),
                 );
@@ -6769,6 +6804,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                 ),
               ],
             ],
+            ),
           );
         },
       ),
@@ -6800,7 +6836,7 @@ class CommentBubble extends StatelessWidget {
   final int helpfulCount;
   final bool helpfulActive;
   final VoidCallback onHelpful;
-  final VoidCallback onReply;
+  final VoidCallback? onReply;
   final List<CommentReply> replies;
   @override
   Widget build(BuildContext context) => Padding(
@@ -6905,7 +6941,7 @@ class CommentBubble extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 12),
-                      TextButton(
+                      if (onReply != null) TextButton(
                         onPressed: onReply,
                         style: TextButton.styleFrom(
                           padding: EdgeInsets.zero,
@@ -6946,7 +6982,7 @@ class CommentReply extends StatelessWidget {
   final String initial;
   final String text;
   final String timeLabel;
-  final VoidCallback onReply;
+  final VoidCallback? onReply;
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.only(bottom: 8),
@@ -7005,8 +7041,8 @@ class CommentReply extends StatelessWidget {
               ),
               Row(
                 children: [
-                  TextButton(
-                    onPressed: onReply,
+              if (onReply != null) TextButton(
+                onPressed: onReply,
                     style: TextButton.styleFrom(
                       padding: EdgeInsets.zero,
                       minimumSize: Size.zero,

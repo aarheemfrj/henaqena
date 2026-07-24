@@ -192,6 +192,11 @@ class ProviderDetails {
     required this.services,
     required this.offers,
     required this.viewerFavorite,
+    this.viewerIsOwner = false,
+    this.rating = 0,
+    this.reviewCount = 0,
+    this.openNow,
+    this.openingHours,
     this.kidFriendly = false,
     this.accessible = false,
     this.hasParking = false,
@@ -227,6 +232,11 @@ class ProviderDetails {
   final List<Map<String, dynamic>> services;
   final List<Map<String, dynamic>> offers;
   final bool viewerFavorite;
+  final bool viewerIsOwner;
+  final double rating;
+  final int reviewCount;
+  final bool? openNow;
+  final dynamic openingHours;
   final bool kidFriendly;
   final bool accessible;
   final bool hasParking;
@@ -249,6 +259,7 @@ class ProviderDetails {
               ),
             )
             .whereType<String>()
+            .toSet()
             .toList(),
         reviews: (json['reviews'] as List<dynamic>? ?? [])
             .map((item) => Map<String, dynamic>.from(item as Map))
@@ -273,6 +284,13 @@ class ProviderDetails {
         viewerFavorite:
             (json['viewer'] as Map<String, dynamic>?)?['favorite'] as bool? ??
             false,
+        viewerIsOwner:
+            (json['viewer'] as Map<String, dynamic>?)?['isOwner'] as bool? ??
+            false,
+        rating: (json['rating'] as num? ?? 0).toDouble(),
+        reviewCount: (json['reviewCount'] as num? ?? 0).toInt(),
+        openNow: json['openNow'] as bool?,
+        openingHours: json['openingHours'],
         kidFriendly: json['kidFriendly'] as bool? ?? false,
         accessible: json['accessible'] as bool? ?? false,
         hasParking: json['hasParking'] as bool? ?? false,
@@ -1350,6 +1368,32 @@ class ApiClient {
         .timeout(const Duration(seconds: 8));
     if (response.statusCode == 401) throw Exception('unauthorized');
     if (response.statusCode != 200) throw Exception('review_error');
+  }
+
+  Future<void> deleteReview(String reviewId) async {
+    final response = await http
+        .delete(
+          Uri.parse('$baseUrl/api/me/reviews/$reviewId'),
+          headers: _jsonHeaders,
+        )
+        .timeout(const Duration(seconds: 8));
+    if (response.statusCode == 401) throw Exception('unauthorized');
+    if (response.statusCode != 200) throw Exception('review_delete_error');
+  }
+
+  Future<Map<String, dynamic>> fetchProviderReviews(
+    String providerId, {
+    int page = 1,
+    int pageSize = 10,
+  }) async {
+    final uri = Uri.parse(
+      '$baseUrl/api/providers/$providerId/reviews',
+    ).replace(queryParameters: {'page': '$page', 'pageSize': '$pageSize'});
+    final response = await http
+        .get(uri, headers: _jsonHeaders)
+        .timeout(const Duration(seconds: 8));
+    if (response.statusCode != 200) throw Exception('reviews_error');
+    return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
   }
 
   Future<Map<String, dynamic>> toggleReviewHelpful(String reviewId) async {

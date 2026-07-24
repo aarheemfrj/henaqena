@@ -847,6 +847,7 @@ app.get('/api/providers/:id', async (req, res, next) => {
       where: { id: req.params.id, archivedAt: null, deletedAt: null, area: { isActive: true }, OR: [{ status: ReviewStatus.APPROVED }, ...(session ? [{ ownerId: session.userId }] : [])] },
       select: {
         id: true, name: true, description: true, logoUrl: true, phone: true, whatsapp: true, email: true, website: true,
+        ownerId: true,
         facebookUrl: true, instagramUrl: true, tiktokUrl: true, socialPlatform: true, socialUrl: true, address: true,
         latitude: true, longitude: true, openingTime: true, closingTime: true, openingHours: true, open24h: true,
         kidFriendly: true, accessible: true, hasParking: true, acceptsCards: true, homeService: true, needsBooking: true, hasDelivery: true,
@@ -862,11 +863,16 @@ app.get('/api/providers/:id', async (req, res, next) => {
     if (!provider) return res.status(404).json({ message: 'Provider not found' });
     // A provider is saved for the viewer whether it lives in the default
     // favorites bucket or in one of the viewer's named lists.
-    const favorite = session ? await prisma.providerFavorite.findFirst({ where: { userId: session.userId, providerId: provider.id } }) : null;
+    const [favorite, ratingAggregate] = await Promise.all([
+      session ? prisma.providerFavorite.findFirst({ where: { userId: session.userId, providerId: provider.id } }) : null,
+      prisma.review.aggregate({ where: { providerId: provider.id, status: ReviewStatus.APPROVED }, _avg: { quality: true, commitment: true, value: true } }),
+    ]);
     const helpful = session ? await prisma.reviewHelpful.findMany({ where: { userId: session.userId, reviewId: { in: provider.reviews.map((review) => review.id) } }, select: { reviewId: true } }) : [];
     const helpfulIds = new Set(helpful.map((item) => item.reviewId));
-    const rating = provider.reviews.length === 0 ? 0 : provider.reviews.reduce((sum, review) => sum + (review.quality + review.commitment + review.value) / 3, 0) / provider.reviews.length;
-    res.json({ ...provider, rating: Number(rating.toFixed(1)), reviewCount: provider._count.reviews, openNow: providerOpenNow(provider), reviews: provider.reviews.map((review) => ({ ...review, viewerHelpful: helpfulIds.has(review.id) })), viewer: { favorite: Boolean(favorite) } });
+    const averages = ratingAggregate._avg;
+    const rating = averages.quality == null ? 0 : (averages.quality + (averages.commitment ?? 0) + (averages.value ?? 0)) / 3;
+    const { ownerId, ...publicProvider } = provider;
+    res.json({ ...publicProvider, rating: Number(rating.toFixed(1)), reviewCount: provider._count.reviews, openNow: providerOpenNow(provider), reviews: provider.reviews.map((review) => ({ ...review, viewerHelpful: helpfulIds.has(review.id) })), viewer: { favorite: Boolean(favorite), isOwner: session?.userId === ownerId } });
   } catch (error) {
     next(error);
   }
