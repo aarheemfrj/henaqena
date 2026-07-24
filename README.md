@@ -28,7 +28,7 @@ docker-compose up -d
 #### الخيار ب: PostgreSQL محلي
 ```sql
 CREATE DATABASE henaqena;
-CREATE USER henaqena WITH PASSWORD 'henaqena';
+CREATE USER henaqena WITH PASSWORD '<SET_OUTSIDE_GIT>';
 GRANT ALL PRIVILEGES ON DATABASE henaqena TO henaqena;
 ```
 
@@ -96,13 +96,13 @@ HenaQena/
 ```env
 # قاعدة البيانات
 # Postgres.app على macOS (قاعدة مستقلة باسم henaqena)
-DATABASE_URL="postgresql://YOUR_MAC_USER@127.0.0.1:5432/henaqena?schema=public"
+DATABASE_URL="postgresql://<USER>:<PASSWORD>@<HOST>:<PORT>/<DB>?schema=public"
 
 # الخادم
 PORT=4000
 
 # الأمان (غيّر في الإنتاج!)
-ADMIN_API_KEY="dev-henaqena-admin"
+ADMIN_API_KEY="<SET_OUTSIDE_GIT>"
 
 # البيئة
 NODE_ENV=development

@@ -53,3 +53,29 @@ See [Documentation Gaps](./docs/DOCUMENTATION_GAPS.md) for the complete list. Th
 ## Sprint 2 handoff
 
 Start with the roadmap’s verification and security prerequisites. Do not treat this documentation sprint as authorization to add product modules; update the relevant guide and feature matrix whenever implementation changes.
+
+## Final Validation Run
+
+Executed on 2026-07-24 from the repository workspace. This run made no product or schema changes.
+
+| Command | Result | Errors / warnings |
+|---|---|---:|
+| `cd apps/api && npm run build` | Passed | 0 |
+| `cd apps/web && npm run lint` | Passed | 0 |
+| `cd apps/web && npm run build` | Passed | 0 |
+| `cd apps/mobile && flutter analyze --no-fatal-infos --no-fatal-warnings` | Passed | 0 errors; 29 existing non-fatal infos/warnings |
+| `cd apps/mobile && flutter test` | Passed; all 8 tests passed | 0 |
+| `git diff --check` | Passed | 0 |
+
+### Documentation checks
+
+- Internal links in `README.md` and all `docs/*.md`: **0 broken links**.
+- Required documentation files: **0 missing or empty**.
+- API route coverage: **0 undocumented paths**. The check covered 138 top-level registrations in `apps/api/src/server.ts` plus 11 routes in the mounted `apps/api/src/data-collection/router.ts` (149 route registrations total).
+- `FEATURE_STATUS.md`: all status values are limited to `Implemented`, `Partial`, `Planned`, `Deprecated` and `Unverified` (including slash-combinations of those values).
+- README link to `./docs/DOCUMENTATION_INDEX.md`: present and valid.
+- Sensitive-value scan across README, CONTRIBUTING, Sprint report and all docs: **no actual passwords, tokens, secrets, API keys, database credentials or OAuth credentials found**. Examples use placeholders only.
+
+### Final recommendation
+
+**GO — Sprint 1.5 is closed and Sprint 2 may start.** The documentation set is complete and the required validation commands pass. The previously documented external items (physical Google/Apple sign-in, remote GitHub Actions observation and live VPS browser verification) remain operational verification tasks, not blockers to starting Sprint 2. No Feature, Product Logic, API behavior or schema was added or changed during this finalization run.

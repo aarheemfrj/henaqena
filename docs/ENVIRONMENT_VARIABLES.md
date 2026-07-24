@@ -11,7 +11,7 @@ No values below are production secrets. Use local `.env` files or the deployment
 
 | Variable | Required | Sensitive | Purpose | Example format |
 |---|---:|---:|---|---|
-| `DATABASE_URL` | Yes | Yes | Prisma PostgreSQL connection | `postgresql://user:password@host:5432/db?schema=public` |
+| `DATABASE_URL` | Yes | Yes | Prisma PostgreSQL connection | `postgresql://<USER>:<PASSWORD>@<HOST>:<PORT>/<DB>?schema=public` |
 | `PORT` | No | No | API listen port | `4000` |
 | `API_HOST` | No | No | API bind host | `127.0.0.1` |
 | `ADMIN_API_KEY` | Production | Yes | API-key admin mode | long random string |

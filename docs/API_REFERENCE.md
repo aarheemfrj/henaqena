@@ -37,6 +37,7 @@ The table is intentionally exhaustive for routes registered by `apps/api/src/ser
 | Admin users/team | `GET/POST/PATCH /api/admin/team`, `GET/PATCH /api/admin/users` | OWNER/team roles | AdminAccount, User | Implemented |
 | Admin constants/settings | `GET /api/settings`, `PATCH /api/admin/settings`, `GET/POST /api/admin/constants/:type`, `PUT/DELETE /api/admin/constants/:type/:id` | public settings read; admin write | PlatformSettings, Category/Area-like constants | Implemented |
 | Imports | `POST /api/admin/import/providers`, `POST /api/admin/import/providers/v2` | admin | Provider, DataSource, CollectionJob | Implemented/Partial by source |
+| Data collection router | `GET /api/admin/data-collection/sources`, `/overview`, `/records`, `/duplicates`; `PATCH /records/:id`, `/duplicates/:id`, `/records/:id/social-links`; `POST /jobs`, `/jobs/:id/import-csv`, `/jobs/:id/run`, `/jobs/manual` | admin | DataSource, CollectionJob, CollectedBusiness, DuplicateCandidate | Implemented/Partial by source |
 | Backups/maintenance | `GET/POST /api/admin/backups`, `DELETE /api/admin/backups/:filename`, `POST /api/admin/backups/restore`, `PATCH /api/admin/backups/schedule`, `POST /api/admin/maintenance/reset`, `/reset-all` | OWNER-equivalent | PostgreSQL/filesystem, PlatformSettings | Implemented; destructive flows require staging verification |
 | Jobs | `POST /api/jobs/expire-listings` | admin/operational | Listing, Notification | Implemented |
 
@@ -133,10 +134,12 @@ POST /api/ads/:id/react
 POST /api/ads
 GET/POST /api/prices
 GET/POST/PATCH /api/admin/prices[/:id]
+PATCH /api/admin/prices/:id
 GET/POST /api/now
 POST /api/now/:id/helpful
 POST /api/support-tickets
 GET/POST/PATCH /api/admin/now[/:id]
+PATCH /api/admin/now/:id
 POST /api/reviews
 POST /api/reviews/:id/replies
 POST /api/reviews/:id/helpful
@@ -148,9 +151,13 @@ PATCH /api/admin/backups/schedule
 POST /api/admin/maintenance/reset
 POST /api/admin/maintenance/reset-all
 GET/POST/PATCH /api/admin/team[/:id]
+PATCH /api/admin/team/:id
 GET/PATCH /api/admin/users[/:id]
+PATCH /api/admin/users/:id
 GET/PATCH /api/admin/support-tickets[/:id]
+PATCH /api/admin/support-tickets/:id
 GET/PATCH /api/admin/listing-reports[/:id]
+PATCH /api/admin/listing-reports/:id
 GET /api/admin/audit
 GET /api/admin/archive
 GET /api/admin/catalog
@@ -171,6 +178,7 @@ GET /api/admin/providers/:id
 POST /api/admin/providers
 POST /api/admin/import/providers/v2
 GET/PATCH /api/admin/provider-reports[/:id]
+PATCH /api/admin/provider-reports/:id
 GET/POST /api/admin/listings
 GET /api/admin/ads
 GET /api/settings
@@ -187,4 +195,20 @@ PATCH /api/admin/replies/:id
 PATCH /api/admin/listings/:id/content
 GET/POST /api/admin/constants/:type
 PUT/DELETE /api/admin/constants/:type/:id
+```
+
+The mounted data-collection router is included explicitly below because it is registered through `app.use` rather than as top-level handlers:
+
+```text
+GET /api/admin/data-collection/sources
+GET /api/admin/data-collection/overview
+GET /api/admin/data-collection/records
+GET /api/admin/data-collection/duplicates
+PATCH /api/admin/data-collection/records/:id
+PATCH /api/admin/data-collection/duplicates/:id
+POST /api/admin/data-collection/jobs
+POST /api/admin/data-collection/jobs/:id/import-csv
+POST /api/admin/data-collection/jobs/:id/run
+PATCH /api/admin/data-collection/records/:id/social-links
+POST /api/admin/data-collection/jobs/manual
 ```
