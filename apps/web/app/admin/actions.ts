@@ -32,6 +32,49 @@ export async function moderateProvider(formData: FormData) {
   revalidatePath('/');
 }
 
+export async function verifyProvider(formData: FormData) {
+  if (!await hasAdminSession()) redirect('/admin/login');
+  const id = String(formData.get('id') ?? '');
+  if (!id) return;
+  await apiPatch(`/api/admin/providers/${id}/details`, { isVerified: true, status: 'APPROVED' });
+  revalidatePath('/admin/providers'); revalidatePath('/providers'); revalidatePath('/');
+}
+
+const formText = (formData: FormData, key: string) => {
+  const value = String(formData.get(key) ?? '').trim();
+  return value || null;
+};
+
+export async function updateProviderAdmin(formData: FormData) {
+  if (!await hasAdminSession()) redirect('/admin/login');
+  const id = String(formData.get('id') ?? '');
+  if (!id) redirect('/admin/providers?error=1');
+  let images: { url: string; kind?: string }[] = [];
+  try { images = JSON.parse(String(formData.get('images') ?? '[]')) as { url: string; kind?: string }[]; } catch { redirect(`/admin/providers/${id}?error=images`); }
+  if (images.length > 10) redirect(`/admin/providers/${id}?error=images`);
+  let logoUrl: string | null = null;
+  try { logoUrl = (JSON.parse(String(formData.get('logo') ?? '[]')) as { url: string }[])[0]?.url ?? null; } catch { /* empty logo is valid */ }
+  const categoryIds = formData.getAll('categoryIds').map(String).filter(Boolean);
+  const openingHoursRaw = formText(formData, 'openingHours');
+  let openingHours: unknown = openingHoursRaw;
+  if (openingHoursRaw) { try { openingHours = JSON.parse(openingHoursRaw); } catch { /* keep text for the admin */ } }
+  try {
+    await apiPatch(`/api/admin/providers/${id}/details`, {
+      externalId: formText(formData, 'externalId'), name: String(formData.get('name') ?? '').trim(), description: formText(formData, 'description'), logoUrl,
+      phone: formText(formData, 'phone'), whatsapp: formText(formData, 'whatsapp'), email: formText(formData, 'email'), website: formText(formData, 'website'),
+      facebookUrl: formText(formData, 'facebookUrl'), instagramUrl: formText(formData, 'instagramUrl'), tiktokUrl: formText(formData, 'tiktokUrl'),
+      socialPlatform: formText(formData, 'socialPlatform'), socialUrl: formText(formData, 'socialUrl'), address: formText(formData, 'address'),
+      latitude: formText(formData, 'latitude') === null ? null : Number(formData.get('latitude')), longitude: formText(formData, 'longitude') === null ? null : Number(formData.get('longitude')),
+      areaId: String(formData.get('areaId') ?? ''), serviceMode: String(formData.get('serviceMode') ?? 'LOCAL'), phoneType: String(formData.get('phoneType') ?? 'BUSINESS'),
+      openingTime: formText(formData, 'openingTime'), closingTime: formText(formData, 'closingTime'), openingHours,
+      isVerified: formData.get('isVerified') === 'on', status: String(formData.get('status') ?? 'PENDING'), categoryIds, images,
+      kidFriendly: formData.get('kidFriendly') === 'on', accessible: formData.get('accessible') === 'on', hasParking: formData.get('hasParking') === 'on', acceptsCards: formData.get('acceptsCards') === 'on', homeService: formData.get('homeService') === 'on', needsBooking: formData.get('needsBooking') === 'on', open24h: formData.get('open24h') === 'on', hasDelivery: formData.get('hasDelivery') === 'on',
+    });
+  } catch { redirect(`/admin/providers/${id}?error=1`); }
+  revalidatePath(`/admin/providers/${id}`); revalidatePath('/admin/providers'); revalidatePath('/providers'); revalidatePath('/');
+  redirect(`/admin/providers/${id}?updated=1`);
+}
+
 export async function deleteProvider(formData: FormData) {
   if (!await hasAdminSession()) redirect('/admin/login');
   const id = String(formData.get('id') ?? ''); if (!id) return;

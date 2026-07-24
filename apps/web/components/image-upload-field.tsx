@@ -3,7 +3,7 @@
 
 import { useState } from 'react';
 
-type UploadedImage = { url: string; kind?: string };
+export type UploadedImage = { url: string; kind?: string };
 
 const fileToBase64 = (file: File) => new Promise<string>((resolve, reject) => {
   const reader = new FileReader();
@@ -12,8 +12,8 @@ const fileToBase64 = (file: File) => new Promise<string>((resolve, reject) => {
   reader.readAsDataURL(file);
 });
 
-export function ImageUploadField({ name, uploadUrl, max = 10, label = 'الصور' }: { name: string; uploadUrl: string; max?: number; label?: string }) {
-  const [images, setImages] = useState<UploadedImage[]>([]);
+export function ImageUploadField({ name, uploadUrl, max = 10, label = 'الصور', initialImages = [] }: { name: string; uploadUrl: string; max?: number; label?: string; initialImages?: UploadedImage[] }) {
+  const [images, setImages] = useState<UploadedImage[]>(initialImages.slice(0, max));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

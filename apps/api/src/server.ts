@@ -1423,6 +1423,17 @@ app.get('/api/admin/providers', requireAdmin, async (_req, res, next) => {
   } catch (error) { next(error); }
 });
 
+app.get('/api/admin/providers/:id', requireAdmin, async (req, res, next) => {
+  try {
+    const provider = await prisma.provider.findUnique({
+      where: { id: String(req.params.id) },
+      include: { area: true, images: { orderBy: { sortOrder: 'asc' } }, categories: { include: { category: true } } },
+    });
+    if (!provider) return res.status(404).json({ message: 'النشاط غير موجود' });
+    res.json(provider);
+  } catch (error) { next(error); }
+});
+
 const resolveAreaId = async (areaId?: string, newAreaName?: string) => {
   if (areaId) return areaId;
   const name = (newAreaName ?? '').trim();
@@ -1544,6 +1555,9 @@ app.post('/api/admin/import/providers/v2', requireAdmin, async (req, res, next) 
           latitude: raw.latitude === '' ? undefined : raw.latitude,
           longitude: raw.longitude === '' ? undefined : raw.longitude,
           openingHours: raw.openingHours || undefined,
+          // A direct import is an administrative publication.  An empty
+          // spreadsheet cell must not turn the default verification off.
+          isVerified: raw.isVerified === '' || raw.isVerified === null || raw.isVerified === undefined ? true : raw.isVerified,
         });
         const areaId = await resolveAreaId(undefined, row.area || row.city);
         const categoryId = await resolveCategoryId(undefined, row.category);
@@ -1581,7 +1595,7 @@ app.post('/api/admin/import/providers/v2', requireAdmin, async (req, res, next) 
           communityAdded: false,
           submissionKind: 'ADMIN_IMPORT',
           status,
-          isVerified: input.publishMode === 'DIRECT' && row.isVerified,
+          isVerified: input.publishMode === 'DIRECT' ? row.isVerified : false,
         };
 
         let provider: { id: string };
@@ -1682,6 +1696,62 @@ app.patch('/api/admin/settings', requireAdmin, async (req, res, next) => {
 
 const moderationSchema = z.object({ status: z.enum([ReviewStatus.APPROVED, ReviewStatus.REJECTED]) });
 const moderationWithNoteSchema = moderationSchema.extend({ note: z.string().trim().max(500).optional() });
+
+const adminProviderEditSchema = z.object({
+  externalId: z.string().trim().max(160).nullable().optional(),
+  name: z.string().trim().min(2).max(160).optional(),
+  description: z.string().trim().max(1200).nullable().optional(),
+  logoUrl: z.string().trim().max(500).nullable().optional(),
+  phone: z.string().regex(/^01[0125][0-9]{8}$/).nullable().optional(),
+  whatsapp: z.string().regex(/^01[0125][0-9]{8}$/).nullable().optional(),
+  email: z.union([z.string().email().max(180), z.literal('')]).nullable().optional(),
+  website: z.string().trim().max(300).nullable().optional(),
+  facebookUrl: z.string().trim().max(300).nullable().optional(),
+  instagramUrl: z.string().trim().max(300).nullable().optional(),
+  tiktokUrl: z.string().trim().max(300).nullable().optional(),
+  socialPlatform: socialPlatformSchema.nullable().optional(),
+  socialUrl: z.string().trim().max(300).nullable().optional(),
+  address: z.string().trim().max(300).nullable().optional(),
+  latitude: z.coerce.number().min(-90).max(90).nullable().optional(),
+  longitude: z.coerce.number().min(-180).max(180).nullable().optional(),
+  areaId: z.string().min(1).optional(),
+  serviceMode: z.enum(['LOCAL', 'ONLINE']).optional(),
+  phoneType: z.enum(['BUSINESS', 'PERSONAL']).optional(),
+  openingTime: z.string().max(20).nullable().optional(),
+  closingTime: z.string().max(20).nullable().optional(),
+  openingHours: z.any().nullable().optional(),
+  isVerified: z.boolean().optional(),
+  status: z.enum([ReviewStatus.PENDING, ReviewStatus.APPROVED, ReviewStatus.REJECTED]).optional(),
+  categoryIds: z.array(z.string().min(1)).min(1).max(5).optional(),
+  images: z.array(z.object({ url: z.string().trim().min(1).max(500), kind: z.string().max(30).optional() })).max(10).optional(),
+  ...Object.fromEntries(Object.keys(providerAttributesFields).map((key) => [key, z.boolean().optional()])),
+});
+
+app.patch('/api/admin/providers/:id/details', requireAdmin, async (req, res, next) => {
+  try {
+    const input = adminProviderEditSchema.parse(req.body);
+    const existing = await prisma.provider.findUnique({ where: { id: String(req.params.id) } });
+    if (!existing) return res.status(404).json({ message: 'النشاط غير موجود' });
+    const { categoryIds, images, areaId, ...fields } = input;
+    const provider = await prisma.$transaction(async (tx) => {
+      if (images) await tx.providerImage.deleteMany({ where: { providerId: existing.id } });
+      if (categoryIds) await tx.providerCategory.deleteMany({ where: { providerId: existing.id } });
+      return tx.provider.update({
+        where: { id: existing.id },
+        data: {
+          ...fields,
+          ...(areaId ? { area: { connect: { id: areaId } } } : {}),
+          ...(images ? { images: { create: images.map((image, index) => ({ url: image.url, kind: image.kind ?? 'work', sortOrder: index })) } } : {}),
+          ...(categoryIds ? { categories: { create: categoryIds.map((categoryId) => ({ categoryId })) } } : {}),
+        },
+        include: { area: true, images: { orderBy: { sortOrder: 'asc' } }, categories: { include: { category: true } } },
+      });
+    });
+    await audit('provider.admin_details_updated', 'provider', provider.id, { fields: Object.keys(input) });
+    res.json(provider);
+  } catch (error) { next(error); }
+});
+
 app.patch('/api/admin/providers/:id', requireAdmin, async (req, res, next) => {
   try {
     const input = moderationWithNoteSchema.parse(req.body);
