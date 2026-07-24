@@ -12,7 +12,8 @@
 
 ## السجل
 
-- 2026-07-25 — Codex — Module 2 «بكام؟» pre-implementation audit: مراجعة PriceGuide والـAPI وFlutter والمنصة وتحديد فجوات التأكيد والتاريخ والحداثة والتكرار — مكتملة؛ commit: قيد التنفيذ
+- 2026-07-25 — Codex — Module 2 «بكام؟» pre-implementation audit: مراجعة PriceGuide والـAPI وFlutter والمنصة وتحديد فجوات التأكيد والتاريخ والحداثة والتكرار — مكتملة؛ commit: `59c4e10`
+- 2026-07-25 — Codex — Module 2 «بكام؟» stabilization slice: منع الأسعار الصفرية، رفض المناطق غير النشطة، حماية التكرار الأساسي، تحسين ترتيب وفلترة الأسعار العامة، وتسجيل إنشاء أسعار الإدارة — مكتملة؛ commit: قيد التنفيذ
 
 - 2026-07-24 — Codex — Module 1 «مين شاطر» pre-implementation audit: مراجعة البنية الحالية وإعادة استخدام أنماط المصادقة والحظر والملكية والمراجعة والإشعارات والتطبيق والمنصة، وتوثيق مخاطر الخصوصية والتكرار وخطة التنفيذ — مكتملة؛ commit: `5f70b88`
 - 2026-07-24 — Codex — Module 1 «مين شاطر»: additive data model, public/user/admin API, initial Flutter flows and isolated regression coverage — مكتملة جزئيًا؛ release gate NO-GO حتى التحقق الميداني؛ commits: `03df68c`, `95922d6`, `622a26e`, `cfbd511`, `8beae58`, `1a124e1`

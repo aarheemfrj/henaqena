@@ -1507,7 +1507,7 @@ app.get('/api/prices', async (req, res, next) => {
   try {
     const areaId = typeof req.query.areaId === 'string' ? req.query.areaId : undefined;
     const category = typeof req.query.category === 'string' ? req.query.category : undefined;
-    const prices = await prisma.priceGuide.findMany({ where: { status: ReviewStatus.APPROVED, archivedAt: null, deletedAt: null, ...(category ? { category } : {}), ...(areaId ? { OR: [{ areaId: null }, { areaId }] } : {}) }, include: { area: true }, orderBy: { updatedAt: 'desc' }, take: 100 });
+    const prices = await prisma.priceGuide.findMany({ where: { status: ReviewStatus.APPROVED, archivedAt: null, deletedAt: null, ...(category ? { category } : {}), ...(areaId ? { OR: [{ areaId: null }, { area: { id: areaId, isActive: true } }] } : { OR: [{ areaId: null }, { area: { isActive: true } }] }) }, include: { area: true }, orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }], take: 100 });
     res.json(prices);
   } catch (error) { next(error); }
 });
@@ -1517,18 +1517,22 @@ app.post('/api/prices', async (req, res, next) => {
     const session = await sessionFromRequest(req);
     if (!session) return res.status(401).json({ message: 'سجّل الدخول أولاً' });
     const input = priceCreateSchema.parse(req.body);
+    if (input.areaId && !(await priceArea(input.areaId))) return res.status(400).json({ message: 'المنطقة غير متاحة' });
+    const duplicate = await prisma.priceGuide.findFirst({ where: { status: { in: [ReviewStatus.PENDING, ReviewStatus.APPROVED] }, archivedAt: null, deletedAt: null, name: { equals: input.name, mode: 'insensitive' }, category: input.category ?? null, areaId: input.areaId ?? null } });
+    if (duplicate) return res.status(409).json({ message: 'السعر موجود أو قيد المراجعة بالفعل' });
     const price = await prisma.priceGuide.create({ data: { ...input, areaId: input.areaId ?? null, status: ReviewStatus.PENDING } });
     await audit('price.submitted', 'priceGuide', price.id, { userId: session.userId });
     res.status(201).json({ ...price, message: 'تم إرسال السعر للمراجعة' });
   } catch (error) { next(error); }
 });
 
-const priceCreateSchema = z.object({ name: z.string().trim().min(2).max(120), category: z.string().trim().max(80).optional(), minPrice: z.number().nonnegative().max(999999999), maxPrice: z.number().nonnegative().max(999999999), unit: z.string().trim().max(40).optional(), sourceNote: z.string().trim().max(300).optional(), areaId: z.string().min(1).nullable().optional() }).refine((value) => value.maxPrice >= value.minPrice, { message: 'الحد الأقصى يجب أن يكون أكبر من أو يساوي الحد الأدنى' });
+const priceCreateSchema = z.object({ name: z.string().trim().min(2).max(120), category: z.string().trim().max(80).optional(), minPrice: z.number().positive().max(999999999), maxPrice: z.number().positive().max(999999999), unit: z.string().trim().max(40).optional(), sourceNote: z.string().trim().max(300).optional(), areaId: z.string().min(1).nullable().optional() }).refine((value) => value.maxPrice >= value.minPrice, { message: 'الحد الأقصى يجب أن يكون أكبر من أو يساوي الحد الأدنى' });
+const priceArea = async (areaId?: string | null) => areaId ? prisma.area.findFirst({ where: { id: areaId, isActive: true }, select: { id: true } }) : null;
 app.get('/api/admin/prices', requireAdmin, async (_req, res, next) => {
   try { res.json(await prisma.priceGuide.findMany({ include: { area: true }, orderBy: { updatedAt: 'desc' } })); } catch (error) { next(error); }
 });
 app.post('/api/admin/prices', requireAdmin, async (req, res, next) => {
-  try { const input = priceCreateSchema.parse(req.body); const price = await prisma.priceGuide.create({ data: { ...input, areaId: input.areaId ?? null, minPrice: input.minPrice, maxPrice: input.maxPrice, status: ReviewStatus.APPROVED } }); res.status(201).json(price); } catch (error) { next(error); }
+  try { const input = priceCreateSchema.parse(req.body); if (input.areaId && !(await priceArea(input.areaId))) return res.status(400).json({ message: 'المنطقة غير متاحة' }); const price = await prisma.priceGuide.create({ data: { ...input, areaId: input.areaId ?? null, minPrice: input.minPrice, maxPrice: input.maxPrice, status: ReviewStatus.APPROVED } }); await audit('price.created', 'priceGuide', price.id, { source: 'admin' }); res.status(201).json(price); } catch (error) { next(error); }
 });
 app.patch('/api/admin/prices/:id', requireAdmin, async (req, res, next) => {
   try { const input = z.object({ status: moderationSchema.shape.status }).parse(req.body); res.json(await prisma.priceGuide.update({ where: { id: String(req.params.id) }, data: { status: input.status } })); } catch (error) { next(error); }
