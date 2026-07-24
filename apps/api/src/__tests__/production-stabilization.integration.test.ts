@@ -15,7 +15,7 @@ jest.mock('jose', () => ({
   jwtVerify: jest.fn(async () => ({ payload: { sub: 'blocked-google-sub', email: 'blocked-federated@example.com', name: 'Blocked Federated' } })),
 }));
 
-import { app, prisma, providerOpenNow, runListingLifecycle } from '../server';
+import { app, prisma, normalizeSearchText, providerOpenNow, runListingLifecycle } from '../server';
 
 const tables = [
   'AdminSession', 'Session', 'VerificationCode', 'AuditLog', 'ProviderReport', 'ProviderImage',
@@ -221,5 +221,46 @@ describe('Sprint 1 production stabilization integration', () => {
     expect(providerOpenNow({ openingTime: '22:00', closingTime: '02:00' }, atMorning)).toBe(false);
     expect(providerOpenNow({ openingTime: 'bad', closingTime: '22:00' }, atMorning)).toBeNull();
     expect(providerOpenNow({ open24h: true }, atMorning)).toBe(true);
+  });
+
+  it('normalizes Arabic search text without changing stored values', () => {
+    expect(normalizeSearchText('  إِسْعَاف ـ ١٢  ')).toBe('اسعاف 12');
+    expect(normalizeSearchText('مُحَمَّد')).toBe('محمد');
+    expect(normalizeSearchText('HELLO')).toBe('hello');
+  });
+
+  it('ranks exact and prefix matches before service/category/area matches', async () => {
+    const owner = await makeUser('Search owner');
+    const { area, category } = await makeAreaCategory();
+    const exact = await prisma.provider.create({ data: { name: 'مطعم قنا', ownerId: owner.id, areaId: area.id, status: ReviewStatus.APPROVED, categories: { create: { categoryId: category.id } } } });
+    const serviceMatch = await prisma.provider.create({ data: { name: 'مكان آخر', ownerId: owner.id, areaId: area.id, status: ReviewStatus.APPROVED, categories: { create: { categoryId: category.id } }, services: { create: { name: 'مطاعم وأكل', status: ReviewStatus.APPROVED } } } });
+    const response = await request(app).get('/api/providers?meta=true&q=مطعم&pageSize=20');
+    expect(response.status).toBe(200);
+    expect(response.body.data.map((item: { id: string }) => item.id).indexOf(exact.id)).toBeLessThan(response.body.data.map((item: { id: string }) => item.id).indexOf(serviceMatch.id));
+  });
+
+  it('supports service/category/area search, suggestions and excludes inactive taxonomy', async () => {
+    const owner = await makeUser('Suggestion owner');
+    const { area, category } = await makeAreaCategory();
+    const provider = await prisma.provider.create({ data: { name: 'مركز الهواتف', ownerId: owner.id, areaId: area.id, status: ReviewStatus.APPROVED, categories: { create: { categoryId: category.id } }, services: { create: { name: 'صيانة موبايلات', status: ReviewStatus.APPROVED } } } });
+    const suggestions = await request(app).get('/api/search/suggestions?q=موبايلات');
+    expect(suggestions.status).toBe(200);
+    expect(suggestions.body.data.some((item: { value: string; type: string }) => item.value === 'صيانة موبايلات' && item.type === 'service')).toBe(true);
+    const service = await request(app).get('/api/providers?meta=true&q=هواتف');
+    expect(service.status).toBe(200);
+    expect(service.body.data.some((item: { id: string }) => item.id === provider.id)).toBe(true);
+    await prisma.category.update({ where: { id: category.id }, data: { isActive: false } });
+    expect((await request(app).get(`/api/providers?categoryId=${category.id}`)).body.some((item: { id: string }) => item.id === provider.id)).toBe(false);
+  });
+
+  it('rejects oversized search text and keeps pagination stable with search', async () => {
+    const tooLong = await request(app).get(`/api/providers?q=${'x'.repeat(121)}`);
+    expect(tooLong.status).toBe(400);
+    const first = await request(app).get('/api/providers?meta=true&q=Provider&page=1&pageSize=1');
+    const second = await request(app).get('/api/providers?meta=true&q=Provider&page=2&pageSize=1');
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    const ids = [...first.body.data, ...second.body.data].map((item: { id: string }) => item.id);
+    expect(new Set(ids).size).toBe(ids.length);
   });
 });

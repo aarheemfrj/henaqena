@@ -457,6 +457,60 @@ const rangesForDay = (openingHours: unknown, dayIndex: number): OpeningRange[] =
   return openingRange(source[String(dayIndex)] ?? source[names[dayIndex]] ?? source[names[dayIndex].slice(0, 3)]);
 };
 
+/** Search normalization is deliberately non-destructive: database values are never rewritten. */
+export const normalizeSearchText = (value: string) => value
+  .toLocaleLowerCase('ar-EG')
+  .replace(/[أإآٱ]/g, 'ا')
+  .replace(/ى/g, 'ي')
+  .replace(/[ؤ]/g, 'و')
+  .replace(/[ئ]/g, 'ي')
+  .replace(/[\u064B-\u065F\u0670]/g, '')
+  .replace(/ـ/g, '')
+  .replace(/[٠-٩]/g, (digit) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)))
+  .replace(/\s+/g, ' ')
+  .trim();
+
+const searchAliases: Record<string, string[]> = {
+  'دكتور': ['طبيب'],
+  'طبيب': ['دكتور'],
+  'مطعم': ['اكل'],
+  'اكل': ['مطعم'],
+  'صيدليه': ['ادويه'],
+  'ادويه': ['صيدليه'],
+  'موبايلات': ['هواتف'],
+  'هواتف': ['موبايلات'],
+  'سباك': ['سباكه'],
+  'سباكه': ['سباك'],
+  'كهربائي': ['كهرباء'],
+  'كهرباء': ['كهربائي'],
+};
+
+const searchTerms = (query: string) => {
+  const normalized = normalizeSearchText(query);
+  const terms = [normalized, ...(searchAliases[normalized] ?? [])]
+    .map(normalizeSearchText)
+    .filter(Boolean);
+  return [...new Set(terms)];
+};
+
+const searchMatchRank = (query: string, provider: { name: string; description: string | null; address: string | null; area: { name: string }; categories: { category: { name: string; isActive: boolean } }[]; services: { name: string }[] }) => {
+  const terms = searchTerms(query);
+  const name = normalizeSearchText(provider.name);
+  const description = normalizeSearchText(provider.description ?? '');
+  const address = normalizeSearchText(provider.address ?? '');
+  const area = normalizeSearchText(provider.area.name);
+  const categories = provider.categories.filter((item) => item.category.isActive).map((item) => normalizeSearchText(item.category.name));
+  const services = provider.services.map((item) => normalizeSearchText(item.name));
+  if (terms.some((term) => name === term)) return 0;
+  if (terms.some((term) => name.startsWith(term))) return 1;
+  if (terms.some((term) => name.includes(term))) return 2;
+  if (terms.some((term) => services.some((value) => value.includes(term)))) return 3;
+  if (terms.some((term) => categories.some((value) => value.includes(term)))) return 4;
+  if (terms.some((term) => area.includes(term))) return 5;
+  if (terms.some((term) => description.includes(term) || address.includes(term))) return 6;
+  return null;
+};
+
 /** Returns null when hours are absent or invalid; false is never presented as open. */
 export const providerOpenNow = (provider: { open24h?: boolean | null; openingHours?: unknown; openingTime?: string | null; closingTime?: string | null }, now = new Date()): boolean | null => {
   if (provider.open24h) return true;
@@ -471,8 +525,11 @@ export const providerOpenNow = (provider: { open24h?: boolean | null; openingHou
 app.get('/api/providers', async (req, res, next) => {
   try {
     const areaId = typeof req.query.areaId === 'string' ? req.query.areaId : undefined;
+    const categoryId = typeof req.query.categoryId === 'string' ? req.query.categoryId : undefined;
     const category = typeof req.query.category === 'string' ? req.query.category : undefined;
-    const q = typeof req.query.q === 'string' ? req.query.q.trim() : undefined;
+    const rawQuery = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+    if (rawQuery.length > 120) return res.status(400).json({ message: 'نص البحث طويل جدًا' });
+    const q = rawQuery ? rawQuery : undefined;
     const verifiedOnly = req.query.verified === 'true';
     const openNow = req.query.openNow === 'true';
     const sort = typeof req.query.sort === 'string' ? req.query.sort : 'name';
@@ -484,32 +541,63 @@ app.get('/api/providers', async (req, res, next) => {
     const where = {
       status: ReviewStatus.APPROVED, archivedAt: null, deletedAt: null, area: { isActive: true },
       ...(verifiedOnly ? { isVerified: true } : {}), ...(areaId ? { areaId } : {}),
-      ...(category ? { categories: { some: { category: { slug: category, isActive: true } } } } : {}), ...attributeFilters,
-      ...(q ? { OR: [{ name: { contains: q, mode: 'insensitive' as const } }, { description: { contains: q, mode: 'insensitive' as const } }, { address: { contains: q, mode: 'insensitive' as const } }, { categories: { some: { category: { name: { contains: q, mode: 'insensitive' as const, isActive: true } } } } }] } : {}),
+      ...(categoryId || category ? { categories: { some: { ...(categoryId ? { categoryId } : {}), category: { ...(category ? { slug: category } : {}), isActive: true } } } } : {}), ...attributeFilters,
     };
     const [total, rows] = await Promise.all([
       prisma.provider.count({ where }),
-      prisma.provider.findMany({ where, include: { area: true, images: { orderBy: { sortOrder: 'asc' } }, categories: { where: { category: { isActive: true } }, include: { category: true } }, reviews: { where: { status: ReviewStatus.APPROVED }, select: { quality: true, commitment: true, value: true } } }, orderBy: sort === 'latest' ? [{ createdAt: 'desc' }, { id: 'asc' }] : [{ isVerified: 'desc' }, { name: 'asc' }, { id: 'asc' }] }),
+      prisma.provider.findMany({ where, include: { area: true, images: { orderBy: { sortOrder: 'asc' } }, categories: { where: { category: { isActive: true } }, include: { category: true } }, services: { where: { status: ReviewStatus.APPROVED, archivedAt: null, deletedAt: null }, select: { name: true } }, reviews: { where: { status: ReviewStatus.APPROVED }, select: { quality: true, commitment: true, value: true } } }, orderBy: sort === 'latest' ? [{ createdAt: 'desc' }, { id: 'asc' }] : [{ isVerified: 'desc' }, { name: 'asc' }, { id: 'asc' }] }),
     ]);
     const withScores = rows.map((provider) => {
       const rating = provider.reviews.length === 0 ? 0 : provider.reviews.reduce((sum, review) => sum + (review.quality + review.commitment + review.value) / 3, 0) / provider.reviews.length;
-      const { reviews, ...publicProvider } = provider;
-      return { ...publicProvider, rating: Number(rating.toFixed(1)), reviewCount: reviews.length, openNow: providerOpenNow(provider) };
-    }).filter((provider) => !openNow || provider.openNow === true);
-    if (sort === 'rating') withScores.sort((a, b) => b.rating - a.rating || b.reviewCount - a.reviewCount || a.name.localeCompare(b.name, 'ar') || a.id.localeCompare(b.id));
-    if (sort === 'reviews') withScores.sort((a, b) => b.reviewCount - a.reviewCount || b.rating - a.rating || a.name.localeCompare(b.name, 'ar') || a.id.localeCompare(b.id));
+      const { reviews, services, ...publicProvider } = provider;
+      return { ...publicProvider, rating: Number(rating.toFixed(1)), reviewCount: reviews.length, openNow: providerOpenNow(provider), relevance: q ? searchMatchRank(q, { ...provider, services }) : null };
+    }).filter((provider) => (!openNow || provider.openNow === true) && (q ? provider.relevance !== null : true));
+    const relevanceTie = (a: typeof withScores[number], b: typeof withScores[number]) => (q ? (a.relevance! - b.relevance!) : 0) || (b.isVerified ? 0 : 1) - (a.isVerified ? 0 : 1);
+    if (sort === 'rating') withScores.sort((a, b) => relevanceTie(a, b) || b.rating - a.rating || b.reviewCount - a.reviewCount || a.name.localeCompare(b.name, 'ar') || a.id.localeCompare(b.id));
+    if (sort === 'reviews') withScores.sort((a, b) => relevanceTie(a, b) || b.reviewCount - a.reviewCount || b.rating - a.rating || a.name.localeCompare(b.name, 'ar') || a.id.localeCompare(b.id));
+    if (sort === 'latest') withScores.sort((a, b) => relevanceTie(a, b) || a.name.localeCompare(b.name, 'ar') || a.id.localeCompare(b.id));
+    if (sort === 'name') withScores.sort((a, b) => relevanceTie(a, b) || a.name.localeCompare(b.name, 'ar') || a.id.localeCompare(b.id));
     if (sort === 'distance') {
       const latitude = Number(req.query.latitude); const longitude = Number(req.query.longitude);
       const distance = (item: typeof withScores[number]) => item.latitude == null || item.longitude == null ? Number.POSITIVE_INFINITY : ((item.latitude - latitude) ** 2 + (item.longitude - longitude) ** 2);
-      withScores.sort((a, b) => distance(a) - distance(b) || a.name.localeCompare(b.name, 'ar') || a.id.localeCompare(b.id));
+      withScores.sort((a, b) => relevanceTie(a, b) || distance(a) - distance(b) || a.name.localeCompare(b.name, 'ar') || a.id.localeCompare(b.id));
     }
-    const data = withScores.slice((page - 1) * pageSize, page * pageSize);
+    const data = withScores.slice((page - 1) * pageSize, page * pageSize).map(({ relevance, ...item }) => item);
     const response = { data, total: withScores.length, page, pageSize, hasMore: page * pageSize < withScores.length };
     res.json(req.query.meta === 'true' ? response : data);
   } catch (error) {
     if (error instanceof Error && error.message === 'invalid_directory_pagination') return res.status(400).json({ message: 'قيم الصفحة غير صالحة' });
     next(error);
   }
+});
+
+app.get('/api/search/suggestions', async (req, res, next) => {
+  try {
+    const rawQuery = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+    if (rawQuery.length < 2) return res.json({ data: [] });
+    if (rawQuery.length > 80) return res.status(400).json({ message: 'نص البحث طويل جدًا' });
+    const limit = parseDirectoryInteger(req.query.limit, 8, 1, 20);
+    const providers = await prisma.provider.findMany({
+      where: { status: ReviewStatus.APPROVED, archivedAt: null, deletedAt: null, area: { isActive: true } },
+      select: { id: true, name: true, area: { select: { name: true } }, categories: { where: { category: { isActive: true } }, select: { category: { select: { name: true, isActive: true } } } }, services: { where: { status: ReviewStatus.APPROVED, archivedAt: null, deletedAt: null }, select: { name: true } } },
+      orderBy: [{ name: 'asc' }, { id: 'asc' }], take: 500,
+    });
+    const query = normalizeSearchText(rawQuery);
+    const suggestions = providers.flatMap((provider) => {
+      const rank = searchMatchRank(rawQuery, { ...provider, description: null, address: null });
+      if (rank === null) return [];
+      const values = [
+        { value: provider.name, type: 'provider', rank },
+        ...provider.categories.map((item) => ({ value: item.category.name, type: 'category', rank: rank + 1 })),
+        ...provider.services.map((item) => ({ value: item.name, type: 'service', rank: rank + 1 })),
+        { value: provider.area.name, type: 'area', rank: rank + 2 },
+      ];
+      return values.filter((item) => normalizeSearchText(item.value).includes(query));
+    });
+    const unique = new Map<string, { value: string; type: string; rank: number }>();
+    for (const item of suggestions.sort((a, b) => a.rank - b.rank || a.value.localeCompare(b.value, 'ar'))) if (!unique.has(`${item.type}:${normalizeSearchText(item.value)}`)) unique.set(`${item.type}:${normalizeSearchText(item.value)}`, item);
+    res.json({ data: [...unique.values()].slice(0, limit) });
+  } catch (error) { next(error); }
 });
 
 const imageMimeFromBytes = (bytes: Buffer): 'image/jpeg' | 'image/png' | 'image/webp' | null => {
