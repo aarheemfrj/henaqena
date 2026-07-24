@@ -1141,6 +1141,252 @@ app.delete('/api/me/saved-searches/:id', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Module 1 — مين شاطر (community recommendations)
+// ─────────────────────────────────────────────────────────────────────────────
+const minShaterText = (max: number) => z.string().trim().min(1).max(max);
+const minShaterPhone = z.string().trim().regex(/^01[0125][0-9]{8}$/).optional();
+const minShaterRequestInput = z.object({ title: minShaterText(140), description: z.string().trim().max(1200).optional(), categoryId: z.string().min(1), areaId: z.string().min(1).nullable().optional() });
+const minShaterRecommendationInput = z.object({ providerId: z.string().min(1).optional(), recommendedName: minShaterText(140).optional(), phone: minShaterPhone, description: z.string().trim().max(800).optional() }).refine((value) => Boolean(value.providerId || value.recommendedName), { message: 'اختر نشاطًا أو اكتب اسم الترشيح' });
+const minShaterReportInput = z.object({ reason: z.enum(['SPAM', 'OFFENSIVE', 'MISLEADING', 'PERSONAL_DATA', 'ADVERTISEMENT', 'CONFLICT_OF_INTEREST', 'DUPLICATE', 'OTHER']), description: z.string().trim().max(500).optional() });
+const minShaterPage = (req: express.Request) => ({ page: parseDirectoryInteger(req.query.page, 1, 1, 100000), pageSize: parseDirectoryInteger(req.query.pageSize, 20, 1, 50) });
+const minShaterRequestWhere = (viewerId?: string) => ({ archivedAt: null, deletedAt: null, OR: [{ moderationStatus: ReviewStatus.APPROVED, status: { in: ['OPEN', 'CLOSED'] } }, ...(viewerId ? [{ userId: viewerId }] : [])] });
+const minShaterSafeAuthor = (author: { id: string; name: string; avatarUrl: string | null; isProfilePrivate: boolean; points: number; level: string }) => ({ name: author.isProfilePrivate ? 'عضو من قنا' : author.name, avatarUrl: author.isProfilePrivate ? null : author.avatarUrl, level: author.level, points: author.points });
+const minShaterRequestProjection = (request: any, viewerId?: string) => ({
+  id: request.id, title: request.title, description: request.description, status: request.status,
+  category: request.category ? { id: request.category.id, name: request.category.name } : null,
+  area: request.area ? { id: request.area.id, name: request.area.name, city: request.area.city } : null,
+  author: request.user ? minShaterSafeAuthor(request.user) : null, createdAt: request.createdAt, updatedAt: request.updatedAt,
+  recommendationCount: request._count?.recommendations ?? 0, isClosed: request.status === 'CLOSED',
+  viewer: { isOwner: viewerId === request.userId, canEdit: viewerId === request.userId && request.status !== 'CLOSED' && !request.deletedAt && !request.archivedAt, canClose: viewerId === request.userId && request.status === 'OPEN' && request.moderationStatus === ReviewStatus.APPROVED, canRecommend: request.status === 'OPEN' && request.moderationStatus === ReviewStatus.APPROVED, canReport: Boolean(viewerId) },
+});
+const minShaterRequestSelect = { id: true, userId: true, title: true, description: true, status: true, moderationStatus: true, rejectionReason: true, createdAt: true, updatedAt: true, closedAt: true, archivedAt: true, deletedAt: true, category: { select: { id: true, name: true } }, area: { select: { id: true, name: true, city: true } }, user: { select: publicAuthorSelect }, _count: { select: { recommendations: { where: { moderationStatus: ReviewStatus.APPROVED, archivedAt: null, deletedAt: null } } } } } as const;
+const minShaterRecommendationSelect = { id: true, requestId: true, userId: true, providerId: true, recommendedName: true, phone: true, description: true, moderationStatus: true, rejectionReason: true, createdAt: true, updatedAt: true, archivedAt: true, deletedAt: true, user: { select: publicAuthorSelect }, provider: { select: { id: true, name: true, logoUrl: true, status: true, isVerified: true, area: { select: { id: true, name: true, city: true } }, categories: { where: { category: { isActive: true } }, select: { category: { select: { id: true, name: true, slug: true } } } } } }, _count: { select: { helpfulVotes: true } } } as const;
+const minShaterRecommendationProjection = (item: any, viewerId?: string, viewerHelpful = false) => ({
+  id: item.id, provider: item.provider && item.provider.status === ReviewStatus.APPROVED ? { id: item.provider.id, name: item.provider.name, logoUrl: item.provider.logoUrl, isVerified: item.provider.isVerified, area: item.provider.area, categories: item.provider.categories.map((entry: any) => entry.category) } : null,
+  recommendedName: item.recommendedName, phone: viewerId ? item.phone : null, description: item.description,
+  author: item.user ? minShaterSafeAuthor(item.user) : null, createdAt: item.createdAt, helpfulCount: item._count?.helpfulVotes ?? 0, viewerHasMarkedHelpful: viewerHelpful,
+  viewer: { isOwner: viewerId === item.userId, canEdit: viewerId === item.userId && !item.deletedAt && !item.archivedAt, canDelete: viewerId === item.userId && !item.deletedAt && !item.archivedAt, canReport: Boolean(viewerId) },
+});
+const minShaterVisibleRecommendationWhere = { moderationStatus: ReviewStatus.APPROVED, archivedAt: null, deletedAt: null, request: { moderationStatus: ReviewStatus.APPROVED, archivedAt: null, deletedAt: null } } as const;
+
+app.get('/api/min-shater', async (req, res, next) => {
+  try {
+    const session = await sessionFromRequest(req);
+    const { page, pageSize } = minShaterPage(req);
+    const q = typeof req.query.q === 'string' ? normalizeSearchText(req.query.q.trim().slice(0, 120)) : '';
+    const categoryId = typeof req.query.categoryId === 'string' ? req.query.categoryId : undefined;
+    const areaId = typeof req.query.areaId === 'string' ? req.query.areaId : undefined;
+    const status = ['open', 'closed'].includes(String(req.query.status)) ? String(req.query.status).toUpperCase() : undefined;
+    const sort = ['newest', 'recommendations', 'activity'].includes(String(req.query.sort)) ? String(req.query.sort) : 'newest';
+    const where: any = { moderationStatus: ReviewStatus.APPROVED, archivedAt: null, deletedAt: null, ...(status ? { status } : {}), ...(categoryId ? { categoryId, category: { isActive: true } } : { category: { isActive: true } }), ...(areaId ? { areaId, area: { isActive: true } } : { OR: [{ areaId: null }, { area: { isActive: true } }] }) };
+    if (q) where.OR = [{ title: { contains: q, mode: 'insensitive' } }, { description: { contains: q, mode: 'insensitive' } }];
+    const orderBy: any = sort === 'recommendations' ? [{ recommendations: { _count: 'desc' } }, { createdAt: 'desc' }, { id: 'desc' }] : sort === 'activity' ? [{ updatedAt: 'desc' }, { id: 'desc' }] : [{ createdAt: 'desc' }, { id: 'desc' }];
+    const [total, rows] = await Promise.all([prisma.minShaterRequest.count({ where }), prisma.minShaterRequest.findMany({ where, select: minShaterRequestSelect, orderBy, skip: (page - 1) * pageSize, take: pageSize })]);
+    res.json({ data: rows.map((row) => minShaterRequestProjection(row, session?.userId)), total, page, pageSize, hasMore: page * pageSize < total });
+  } catch (error) { next(error); }
+});
+
+app.get('/api/min-shater/similar', async (req, res, next) => {
+  try {
+    const title = typeof req.query.title === 'string' ? normalizeSearchText(req.query.title.trim().slice(0, 140)) : '';
+    if (title.length < 2) return res.json({ data: [] });
+    const categoryId = typeof req.query.categoryId === 'string' ? req.query.categoryId : undefined;
+    const areaId = typeof req.query.areaId === 'string' ? req.query.areaId : undefined;
+    const rows = await prisma.minShaterRequest.findMany({ where: { moderationStatus: ReviewStatus.APPROVED, archivedAt: null, deletedAt: null, ...(categoryId ? { categoryId } : {}), ...(areaId ? { OR: [{ areaId }, { areaId: null }] } : {}), OR: [{ title: { contains: title, mode: 'insensitive' } }, { description: { contains: title, mode: 'insensitive' } }] }, select: minShaterRequestSelect, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: 5 });
+    res.json({ data: rows.map((row) => minShaterRequestProjection(row)) });
+  } catch (error) { next(error); }
+});
+
+app.get('/api/min-shater/:id', async (req, res, next) => {
+  try {
+    const session = await sessionFromRequest(req);
+    const row = await prisma.minShaterRequest.findFirst({ where: { id: String(req.params.id), ...minShaterRequestWhere(session?.userId) }, select: minShaterRequestSelect });
+    if (!row) return res.status(404).json({ message: 'السؤال غير موجود' });
+    const result = minShaterRequestProjection(row, session?.userId) as any;
+    if (session?.userId === row.userId && row.moderationStatus !== ReviewStatus.APPROVED) result.ownerStatus = { moderationStatus: row.moderationStatus, rejectionReason: row.rejectionReason };
+    res.json(result);
+  } catch (error) { next(error); }
+});
+
+app.get('/api/min-shater/:id/recommendations', async (req, res, next) => {
+  try {
+    const session = await sessionFromRequest(req);
+    const request = await prisma.minShaterRequest.findFirst({ where: { id: String(req.params.id), ...minShaterRequestWhere(session?.userId) }, select: { id: true, userId: true, moderationStatus: true, status: true } });
+    if (!request) return res.status(404).json({ message: 'السؤال غير موجود' });
+    const { page, pageSize } = minShaterPage(req);
+    const where: any = request.moderationStatus === ReviewStatus.APPROVED ? minShaterVisibleRecommendationWhere : { requestId: request.id, userId: session?.userId };
+    where.requestId = request.id;
+    const [total, rows] = await Promise.all([prisma.minShaterRecommendation.count({ where }), prisma.minShaterRecommendation.findMany({ where, select: minShaterRecommendationSelect, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], skip: (page - 1) * pageSize, take: pageSize })]);
+    const helpful = session ? await prisma.minShaterHelpful.findMany({ where: { userId: session.userId, recommendationId: { in: rows.map((row) => row.id) } }, select: { recommendationId: true } }) : [];
+    const helpfulIds = new Set(helpful.map((item) => item.recommendationId));
+    res.json({ data: rows.map((row) => minShaterRecommendationProjection(row, session?.userId, helpfulIds.has(row.id))), total, page, pageSize, hasMore: page * pageSize < total });
+  } catch (error) { next(error); }
+});
+
+app.post('/api/min-shater', async (req, res, next) => {
+  try {
+    const session = await sessionFromRequest(req);
+    if (!session) return res.status(401).json({ message: 'سجّل الدخول لإضافة سؤال' });
+    const input = minShaterRequestInput.parse(req.body);
+    const [category, area] = await Promise.all([prisma.category.findFirst({ where: { id: input.categoryId, isActive: true }, select: { id: true } }), input.areaId ? prisma.area.findFirst({ where: { id: input.areaId, isActive: true }, select: { id: true } }) : null]);
+    if (!category) return res.status(400).json({ message: 'الفئة غير متاحة' });
+    if (input.areaId && !area) return res.status(400).json({ message: 'المنطقة غير متاحة' });
+    const row = await prisma.minShaterRequest.create({ data: { ...input, userId: session.userId, areaId: input.areaId ?? null, status: 'OPEN', moderationStatus: ReviewStatus.PENDING }, select: minShaterRequestSelect });
+    res.status(201).json({ ...minShaterRequestProjection(row, session.userId), message: 'سؤالك اتبعت للمراجعة' });
+  } catch (error) { next(error); }
+});
+
+app.patch('/api/min-shater/:id', async (req, res, next) => {
+  try {
+    const session = await sessionFromRequest(req); if (!session) return res.status(401).json({ message: 'سجّل الدخول أولاً' });
+    const existing = await prisma.minShaterRequest.findUnique({ where: { id: String(req.params.id) } });
+    if (!existing || existing.userId !== session.userId) return res.status(403).json({ message: 'لا تملك هذا السؤال' });
+    if (existing.deletedAt || existing.archivedAt || existing.status === 'CLOSED') return res.status(400).json({ message: 'السؤال مغلق أو مؤرشف' });
+    const input = minShaterRequestInput.parse(req.body);
+    const [category, area] = await Promise.all([prisma.category.findFirst({ where: { id: input.categoryId, isActive: true }, select: { id: true } }), input.areaId ? prisma.area.findFirst({ where: { id: input.areaId, isActive: true }, select: { id: true } }) : null]);
+    if (!category || (input.areaId && !area)) return res.status(400).json({ message: 'الفئة أو المنطقة غير متاحة' });
+    const row = await prisma.minShaterRequest.update({ where: { id: existing.id }, data: { ...input, areaId: input.areaId ?? null, moderationStatus: ReviewStatus.PENDING, rejectionReason: null }, select: minShaterRequestSelect });
+    res.json({ ...minShaterRequestProjection(row, session.userId), message: 'تم تحديث السؤال وإرساله للمراجعة' });
+  } catch (error) { next(error); }
+});
+
+app.post('/api/min-shater/:id/close', async (req, res, next) => {
+  try {
+    const session = await sessionFromRequest(req); if (!session) return res.status(401).json({ message: 'سجّل الدخول أولاً' });
+    const row = await prisma.minShaterRequest.findUnique({ where: { id: String(req.params.id) } });
+    if (!row || row.userId !== session.userId) return res.status(403).json({ message: 'لا تملك هذا السؤال' });
+    if (row.moderationStatus !== ReviewStatus.APPROVED) return res.status(400).json({ message: 'لا يمكن إغلاق سؤال غير معتمد' });
+    const updated = row.status === 'CLOSED' ? row : await prisma.minShaterRequest.update({ where: { id: row.id }, data: { status: 'CLOSED', closedAt: new Date() }, select: minShaterRequestSelect });
+    res.json({ ...minShaterRequestProjection(updated, session.userId), message: 'تم إغلاق السؤال' });
+  } catch (error) { next(error); }
+});
+
+app.delete('/api/min-shater/:id', async (req, res, next) => {
+  try {
+    const session = await sessionFromRequest(req); if (!session) return res.status(401).json({ message: 'سجّل الدخول أولاً' });
+    const row = await prisma.minShaterRequest.findUnique({ where: { id: String(req.params.id) } });
+    if (!row || row.userId !== session.userId) return res.status(403).json({ message: 'لا تملك هذا السؤال' });
+    await prisma.minShaterRequest.update({ where: { id: row.id }, data: { deletedAt: new Date() } });
+    res.json({ deleted: true });
+  } catch (error) { next(error); }
+});
+
+app.post('/api/min-shater/:id/recommendations', async (req, res, next) => {
+  try {
+    const session = await sessionFromRequest(req); if (!session) return res.status(401).json({ message: 'سجّل الدخول لإضافة ترشيح' });
+    const input = minShaterRecommendationInput.parse(req.body);
+    const request = await prisma.minShaterRequest.findUnique({ where: { id: String(req.params.id) } });
+    if (!request || request.moderationStatus !== ReviewStatus.APPROVED || request.status !== 'OPEN' || request.archivedAt || request.deletedAt) return res.status(400).json({ message: 'السؤال غير متاح للترشيح' });
+    let providerId: string | null = null;
+    if (input.providerId) {
+      const provider = await prisma.provider.findFirst({ where: { id: input.providerId, status: ReviewStatus.APPROVED, archivedAt: null, deletedAt: null, area: { isActive: true } }, select: { id: true } });
+      if (!provider) return res.status(400).json({ message: 'النشاط غير متاح أو غير معتمد' });
+      providerId = provider.id;
+      const duplicate = await prisma.minShaterRecommendation.findFirst({ where: { requestId: request.id, userId: session.userId, providerId, deletedAt: null } });
+      if (duplicate) return res.status(409).json({ message: 'رشحت هذا النشاط من قبل' });
+    } else {
+      const normalized = normalizeSearchText(input.recommendedName!);
+      const candidates = await prisma.minShaterRecommendation.findMany({ where: { requestId: request.id, userId: session.userId, providerId: null, deletedAt: null }, select: { recommendedName: true } });
+      if (candidates.some((item) => normalizeSearchText(item.recommendedName ?? '') === normalized)) return res.status(409).json({ message: 'أضفت هذا الترشيح من قبل' });
+    }
+    const row = await prisma.minShaterRecommendation.create({ data: { requestId: request.id, userId: session.userId, providerId, recommendedName: input.recommendedName ?? null, phone: input.phone ?? null, description: input.description ?? null, moderationStatus: ReviewStatus.PENDING }, select: minShaterRecommendationSelect });
+    res.status(201).json({ ...minShaterRecommendationProjection(row, session.userId), message: 'ترشيحك اتبعت للمراجعة' });
+  } catch (error) { next(error); }
+});
+
+app.patch('/api/min-shater/recommendations/:id', async (req, res, next) => {
+  try {
+    const session = await sessionFromRequest(req); if (!session) return res.status(401).json({ message: 'سجّل الدخول أولاً' });
+    const existing = await prisma.minShaterRecommendation.findUnique({ where: { id: String(req.params.id) } });
+    if (!existing || existing.userId !== session.userId) return res.status(403).json({ message: 'لا تملك هذا الترشيح' });
+    if (existing.deletedAt || existing.archivedAt) return res.status(400).json({ message: 'الترشيح غير متاح للتعديل' });
+    const input = minShaterRecommendationInput.parse(req.body);
+    let providerId: string | null = null;
+    if (input.providerId) {
+      const provider = await prisma.provider.findFirst({ where: { id: input.providerId, status: ReviewStatus.APPROVED, archivedAt: null, deletedAt: null, area: { isActive: true } }, select: { id: true } });
+      if (!provider) return res.status(400).json({ message: 'النشاط غير متاح أو غير معتمد' });
+      providerId = provider.id;
+    }
+    const row = await prisma.minShaterRecommendation.update({ where: { id: existing.id }, data: { providerId, recommendedName: input.recommendedName ?? null, phone: input.phone ?? null, description: input.description ?? null, moderationStatus: ReviewStatus.PENDING, rejectionReason: null }, select: minShaterRecommendationSelect });
+    res.json({ ...minShaterRecommendationProjection(row, session.userId), message: 'تم تحديث الترشيح وإرساله للمراجعة' });
+  } catch (error) { next(error); }
+});
+
+app.delete('/api/min-shater/recommendations/:id', async (req, res, next) => {
+  try {
+    const session = await sessionFromRequest(req); if (!session) return res.status(401).json({ message: 'سجّل الدخول أولاً' });
+    const row = await prisma.minShaterRecommendation.findUnique({ where: { id: String(req.params.id) } });
+    if (!row || row.userId !== session.userId) return res.status(403).json({ message: 'لا تملك هذا الترشيح' });
+    await prisma.minShaterRecommendation.update({ where: { id: row.id }, data: { deletedAt: new Date() } });
+    res.json({ deleted: true });
+  } catch (error) { next(error); }
+});
+
+app.post('/api/min-shater/recommendations/:id/helpful', async (req, res, next) => {
+  try {
+    const session = await sessionFromRequest(req); if (!session) return res.status(401).json({ message: 'سجّل الدخول أولاً' });
+    const item = await prisma.minShaterRecommendation.findFirst({ where: { id: String(req.params.id), ...minShaterVisibleRecommendationWhere }, select: { id: true } });
+    if (!item) return res.status(404).json({ message: 'الترشيح غير موجود' });
+    await prisma.minShaterHelpful.upsert({ where: { recommendationId_userId: { recommendationId: item.id, userId: session.userId } }, create: { recommendationId: item.id, userId: session.userId }, update: {} });
+    const count = await prisma.minShaterHelpful.count({ where: { recommendationId: item.id } });
+    res.json({ active: true, count });
+  } catch (error) { next(error); }
+});
+
+app.delete('/api/min-shater/recommendations/:id/helpful', async (req, res, next) => {
+  try {
+    const session = await sessionFromRequest(req); if (!session) return res.status(401).json({ message: 'سجّل الدخول أولاً' });
+    await prisma.minShaterHelpful.deleteMany({ where: { recommendationId: String(req.params.id), userId: session.userId } });
+    const count = await prisma.minShaterHelpful.count({ where: { recommendationId: String(req.params.id) } });
+    res.json({ active: false, count });
+  } catch (error) { next(error); }
+});
+
+app.post('/api/min-shater/:id/report', async (req, res, next) => {
+  try {
+    const session = await sessionFromRequest(req); if (!session) return res.status(401).json({ message: 'سجّل الدخول أولاً' });
+    const input = minShaterReportInput.parse(req.body);
+    const target = await prisma.minShaterRequest.findFirst({ where: { id: String(req.params.id), ...minShaterRequestWhere() }, select: { id: true } });
+    if (!target) return res.status(404).json({ message: 'السؤال غير موجود' });
+    const duplicate = await prisma.minShaterReport.findFirst({ where: { reporterUserId: session.userId, requestId: target.id, status: 'PENDING' } });
+    if (duplicate) return res.status(409).json({ message: 'لديك بلاغ قيد المراجعة بالفعل' });
+    const report = await prisma.minShaterReport.create({ data: { reporterUserId: session.userId, requestId: target.id, ...input } });
+    res.status(201).json({ id: report.id, status: report.status, message: 'تم إرسال البلاغ للمراجعة' });
+  } catch (error) { next(error); }
+});
+
+app.post('/api/min-shater/recommendations/:id/report', async (req, res, next) => {
+  try {
+    const session = await sessionFromRequest(req); if (!session) return res.status(401).json({ message: 'سجّل الدخول أولاً' });
+    const input = minShaterReportInput.parse(req.body);
+    const target = await prisma.minShaterRecommendation.findFirst({ where: { id: String(req.params.id), ...minShaterVisibleRecommendationWhere }, select: { id: true } });
+    if (!target) return res.status(404).json({ message: 'الترشيح غير موجود' });
+    const duplicate = await prisma.minShaterReport.findFirst({ where: { reporterUserId: session.userId, recommendationId: target.id, status: 'PENDING' } });
+    if (duplicate) return res.status(409).json({ message: 'لديك بلاغ قيد المراجعة بالفعل' });
+    const report = await prisma.minShaterReport.create({ data: { reporterUserId: session.userId, recommendationId: target.id, ...input } });
+    res.status(201).json({ id: report.id, status: report.status, message: 'تم إرسال البلاغ للمراجعة' });
+  } catch (error) { next(error); }
+});
+
+app.get('/api/me/min-shater/requests', async (req, res, next) => {
+  try {
+    const session = await sessionFromRequest(req); if (!session) return res.status(401).json({ message: 'سجّل الدخول أولاً' });
+    const { page, pageSize } = minShaterPage(req); const status = typeof req.query.status === 'string' ? req.query.status.toUpperCase() : undefined;
+    const where: any = { userId: session.userId, ...(status && ['OPEN', 'CLOSED'].includes(status) ? { status } : {}), ...(status && ['PENDING', 'APPROVED', 'REJECTED'].includes(status) ? { moderationStatus: status } : {}) };
+    const [total, rows] = await Promise.all([prisma.minShaterRequest.count({ where }), prisma.minShaterRequest.findMany({ where, select: minShaterRequestSelect, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], skip: (page - 1) * pageSize, take: pageSize })]);
+    res.json({ data: rows.map((row) => ({ ...minShaterRequestProjection(row, session.userId), moderationStatus: row.moderationStatus, rejectionReason: row.rejectionReason })), total, page, pageSize, hasMore: page * pageSize < total });
+  } catch (error) { next(error); }
+});
+
+app.get('/api/me/min-shater/recommendations', async (req, res, next) => {
+  try {
+    const session = await sessionFromRequest(req); if (!session) return res.status(401).json({ message: 'سجّل الدخول أولاً' });
+    const { page, pageSize } = minShaterPage(req); const [total, rows] = await Promise.all([prisma.minShaterRecommendation.count({ where: { userId: session.userId } }), prisma.minShaterRecommendation.findMany({ where: { userId: session.userId }, select: { ...minShaterRecommendationSelect, request: { select: { id: true, title: true } } }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], skip: (page - 1) * pageSize, take: pageSize })]);
+    res.json({ data: rows.map((row: any) => ({ ...minShaterRecommendationProjection(row, session.userId), request: row.request, moderationStatus: row.moderationStatus, rejectionReason: row.rejectionReason })), total, page, pageSize, hasMore: page * pageSize < total });
+  } catch (error) { next(error); }
+});
+
 app.get('/api/me/contributions', async (req, res, next) => {
   try {
     const session = await sessionFromRequest(req);
@@ -1641,6 +1887,67 @@ app.get('/api/admin/catalog', requireAdmin, async (req, res, next) => {
     else if (entity === 'prices') items = await prisma.priceGuide.findMany({ where: { ...(status ? { status: status as ReviewStatus } : {}), ...(q ? { name: { contains: q, mode: 'insensitive' } } : {}) }, include: { area: true }, orderBy: { updatedAt: 'desc' }, take: 500 });
     else items = await prisma.nowUpdate.findMany({ where: { ...(status ? { status: status as ReviewStatus } : {}), ...(q ? { title: { contains: q, mode: 'insensitive' } } : {}) }, include: { area: true }, orderBy: { updatedAt: 'desc' }, take: 500 });
     res.json({ entity, items });
+  } catch (error) { next(error); }
+});
+
+const minShaterAdminStatus = z.object({ status: z.enum(['APPROVED', 'REJECTED', 'HIDDEN', 'ARCHIVED']), reason: z.string().trim().max(500).optional() });
+app.get('/api/admin/min-shater/requests', requireAdmin, async (req, res, next) => {
+  try {
+    const { page, pageSize } = minShaterPage(req); const status = typeof req.query.status === 'string' ? req.query.status.toUpperCase() : undefined; const search = typeof req.query.q === 'string' ? req.query.q.trim().slice(0, 120) : undefined;
+    const where: any = { ...(status && ['PENDING', 'APPROVED', 'REJECTED'].includes(status) ? { moderationStatus: status } : {}), ...(status === 'CLOSED' ? { status: 'CLOSED' } : {}), ...(search ? { OR: [{ title: { contains: search, mode: 'insensitive' } }, { description: { contains: search, mode: 'insensitive' } }] } : {}) };
+    const [total, rows] = await Promise.all([prisma.minShaterRequest.count({ where }), prisma.minShaterRequest.findMany({ where, select: { ...minShaterRequestSelect, user: { select: { id: true, name: true, email: true, phone: true } } }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], skip: (page - 1) * pageSize, take: pageSize })]);
+    res.json({ data: rows, total, page, pageSize, hasMore: page * pageSize < total });
+  } catch (error) { next(error); }
+});
+app.get('/api/admin/min-shater/recommendations', requireAdmin, async (req, res, next) => {
+  try {
+    const { page, pageSize } = minShaterPage(req); const status = typeof req.query.status === 'string' ? req.query.status.toUpperCase() : undefined;
+    const where: any = status && ['PENDING', 'APPROVED', 'REJECTED'].includes(status) ? { moderationStatus: status } : {};
+    const [total, rows] = await Promise.all([prisma.minShaterRecommendation.count({ where }), prisma.minShaterRecommendation.findMany({ where, select: { ...minShaterRecommendationSelect, request: { select: { id: true, title: true, status: true } } }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], skip: (page - 1) * pageSize, take: pageSize })]);
+    res.json({ data: rows, total, page, pageSize, hasMore: page * pageSize < total });
+  } catch (error) { next(error); }
+});
+app.get('/api/admin/min-shater/reports', requireAdmin, async (req, res, next) => {
+  try {
+    const { page, pageSize } = minShaterPage(req); const status = typeof req.query.status === 'string' ? req.query.status.toUpperCase() : undefined;
+    const where: any = status ? { status } : {};
+    const [total, rows] = await Promise.all([prisma.minShaterReport.count({ where }), prisma.minShaterReport.findMany({ where, include: { reporter: { select: { id: true, name: true, email: true } }, request: { select: { id: true, title: true } }, recommendation: { select: { id: true, recommendedName: true, provider: { select: { id: true, name: true } } } } }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], skip: (page - 1) * pageSize, take: pageSize })]);
+    res.json({ data: rows, total, page, pageSize, hasMore: page * pageSize < total });
+  } catch (error) { next(error); }
+});
+app.get('/api/admin/min-shater/analytics', requireAdmin, async (_req, res, next) => {
+  try {
+    const [requests, pendingRequests, approvedRequests, closedRequests, recommendations, pendingRecommendations, reports, zeroRecommendation] = await Promise.all([
+      prisma.minShaterRequest.count(), prisma.minShaterRequest.count({ where: { moderationStatus: ReviewStatus.PENDING } }), prisma.minShaterRequest.count({ where: { moderationStatus: ReviewStatus.APPROVED } }), prisma.minShaterRequest.count({ where: { status: 'CLOSED' } }),
+      prisma.minShaterRecommendation.count(), prisma.minShaterRecommendation.count({ where: { moderationStatus: ReviewStatus.PENDING } }), prisma.minShaterReport.count({ where: { status: 'PENDING' } }), prisma.minShaterRequest.count({ where: { moderationStatus: ReviewStatus.APPROVED, recommendations: { none: { moderationStatus: ReviewStatus.APPROVED, deletedAt: null, archivedAt: null } } } }),
+    ]);
+    res.json({ requests, pendingRequests, approvedRequests, closedRequests, recommendations, pendingRecommendations, reports, zeroRecommendation });
+  } catch (error) { next(error); }
+});
+app.patch('/api/admin/min-shater/requests/:id/status', requireAdminRoles(['OWNER', 'MODERATOR', 'REVIEWER']), async (req, res, next) => {
+  try {
+    const input = minShaterAdminStatus.parse(req.body); const id = String(req.params.id); const existing = await prisma.minShaterRequest.findUnique({ where: { id } }); if (!existing) return res.status(404).json({ message: 'السؤال غير موجود' });
+    const data: any = input.status === 'ARCHIVED' || input.status === 'HIDDEN' ? { archivedAt: new Date(), rejectionReason: input.reason ?? null } : input.status === 'APPROVED' ? { moderationStatus: ReviewStatus.APPROVED, archivedAt: null, rejectionReason: null } : { moderationStatus: ReviewStatus.REJECTED, rejectionReason: input.reason ?? 'يرجى مراجعة المحتوى', archivedAt: null };
+    const row = await prisma.minShaterRequest.update({ where: { id }, data, select: minShaterRequestSelect });
+    await prisma.notification.create({ data: { userId: existing.userId, title: input.status === 'APPROVED' ? 'تم اعتماد سؤالك' : 'تحديث على سؤالك', body: input.status === 'APPROVED' ? 'سؤالك ظاهر الآن في مين شاطر.' : `سبب القرار: ${input.reason ?? 'يرجى مراجعة المحتوى.'}`, targetType: 'min-shater-request', targetId: id } });
+    await audit(`min_shater.request.${input.status.toLowerCase()}`, 'minShaterRequest', id, { status: input.status, reason: input.reason });
+    res.json(row);
+  } catch (error) { next(error); }
+});
+app.patch('/api/admin/min-shater/recommendations/:id/status', requireAdminRoles(['OWNER', 'MODERATOR', 'REVIEWER']), async (req, res, next) => {
+  try {
+    const input = minShaterAdminStatus.parse(req.body); const id = String(req.params.id); const existing = await prisma.minShaterRecommendation.findUnique({ where: { id }, include: { request: { select: { id: true, status: true, userId: true } } } }); if (!existing) return res.status(404).json({ message: 'الترشيح غير موجود' });
+    if (input.status === 'APPROVED' && existing.request.status !== 'OPEN') return res.status(400).json({ message: 'السؤال مغلق' });
+    const data: any = input.status === 'ARCHIVED' || input.status === 'HIDDEN' ? { archivedAt: new Date(), rejectionReason: input.reason ?? null } : input.status === 'APPROVED' ? { moderationStatus: ReviewStatus.APPROVED, archivedAt: null, rejectionReason: null } : { moderationStatus: ReviewStatus.REJECTED, rejectionReason: input.reason ?? 'يرجى مراجعة المحتوى', archivedAt: null };
+    const row = await prisma.minShaterRecommendation.update({ where: { id }, data, select: minShaterRecommendationSelect });
+    await prisma.notification.create({ data: { userId: existing.userId, title: input.status === 'APPROVED' ? 'تم اعتماد ترشيحك' : 'تحديث على ترشيحك', body: input.status === 'APPROVED' ? 'ترشيحك ظاهر الآن.' : `سبب القرار: ${input.reason ?? 'يرجى مراجعة المحتوى.'}`, targetType: 'min-shater-request', targetId: existing.request.id } });
+    await audit(`min_shater.recommendation.${input.status.toLowerCase()}`, 'minShaterRecommendation', id, { status: input.status, reason: input.reason });
+    res.json(row);
+  } catch (error) { next(error); }
+});
+app.patch('/api/admin/min-shater/reports/:id/status', requireAdminRoles(['OWNER', 'MODERATOR', 'REVIEWER']), async (req, res, next) => {
+  try {
+    const input = z.object({ status: z.enum(['RESOLVED', 'DISMISSED']), reason: z.string().trim().max(500).optional() }).parse(req.body); const id = String(req.params.id); const report = await prisma.minShaterReport.update({ where: { id }, data: { status: input.status, reviewedAt: new Date() } }); await audit(`min_shater.report.${input.status.toLowerCase()}`, 'minShaterReport', id, { status: input.status, reason: input.reason }); res.json(report);
   } catch (error) { next(error); }
 });
 
