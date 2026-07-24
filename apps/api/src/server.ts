@@ -452,9 +452,10 @@ app.post('/api/uploads/provider-images', async (req, res, next) => {
     const input = z.object({ images: z.array(uploadedImageSchema).min(1).max(10) }).parse(req.body);
     const folder = path.join(uploadRoot, 'providers');
     await mkdir(folder, { recursive: true });
-    const images = await Promise.all(input.images.map(async (image) => {
-      const bytes = Buffer.from(image.base64, 'base64');
-      if (bytes.length === 0 || bytes.length > 2 * 1024 * 1024) throw new Error('حجم الصورة يجب ألا يزيد عن 2 ميجابايت');
+    const decodedImages = input.images.map((image) => ({ image, bytes: Buffer.from(image.base64, 'base64') }));
+    const oversized = decodedImages.find(({ bytes }) => bytes.length === 0 || bytes.length > 2 * 1024 * 1024);
+    if (oversized) return res.status(400).json({ message: 'حجم الصورة يجب ألا يزيد عن 2 ميجابايت. اختر صورة أصغر أو ارفعها من جديد.' });
+    const images = await Promise.all(decodedImages.map(async ({ image, bytes }) => {
       const extension = image.mimeType === 'image/png' ? 'png' : image.mimeType === 'image/webp' ? 'webp' : 'jpg';
       const filename = `${Date.now()}-${randomBytes(10).toString('hex')}.${extension}`;
       await writeFile(path.join(folder, filename), bytes, { flag: 'wx' });
@@ -1959,6 +1960,9 @@ app.use((_req: express.Request, res: express.Response) => {
 });
 
 app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  if (error && typeof error === 'object' && 'status' in error && (error as { status?: number }).status === 413) {
+    return res.status(413).json({ message: 'حجم الرفع كبير. اختر صورًا أقل أو أصغر وحاول مرة أخرى.' });
+  }
   if (error instanceof z.ZodError) {
     const formatted = error.issues.map(issue => ({ path: issue.path.join('.'), message: issue.message }));
     return res.status(400).json({ message: 'بيانات المدخلات غير صحيحة', errors: formatted });
