@@ -33,6 +33,10 @@ Internal Qena map markers now use a bounded API contract, approved-only visibili
 
 Provider detail is now public-safe and bounded, rating metadata is aggregate-based, reviews are paginated with owner-only replies and author deletion, and the mobile provider page supports refresh, gallery deduplication and synchronized favorite state. See `SPRINT_2D_PROVIDER_EXPERIENCE_REPORT.md`.
 
+### Sprint 2F — Post-Sprint-2 Stabilization Freeze — Closed (local verification)
+
+The Directory → Search → Map → Provider Detail → Reviews → Favorites journey was audited without adding features. Authorization, visibility, pagination, state consistency and available build/test gates passed locally. Device, weak-network and VPS staging checks remain required before production release; see `SPRINT_2F_POST_SPRINT_2_STABILIZATION_FREEZE_REPORT.md`.
+
 ## Sprint 3 — Security and media operations
 
 1. Design access/refresh-token rotation with revocation and replay detection.

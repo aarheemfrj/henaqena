@@ -98,6 +98,21 @@ describe('Sprint 1 production stabilization integration', () => {
     expect((await request(app).delete(`/api/me/listings/${listing.id}`).set('Authorization', `Bearer ${otherToken}`)).status).toBe(404);
   });
 
+  it('blocks review, favorite and helpful actions for a blocked account', async () => {
+    const owner = await makeUser('Blocked action owner');
+    const reviewer = await makeUser('Blocked action reviewer');
+    const ownerToken = await makeToken(owner.id);
+    const reviewerToken = await makeToken(reviewer.id);
+    const { provider } = await makeProvider(owner.id, ReviewStatus.APPROVED);
+    const review = await request(app).post('/api/reviews').set('Authorization', `Bearer ${reviewerToken}`).send({ providerId: provider.id, quality: 4, commitment: 4, value: 4 });
+    expect(review.status).toBe(201);
+    await prisma.user.update({ where: { id: reviewer.id }, data: { isBlocked: true } });
+    expect((await request(app).post('/api/reviews').set('Authorization', `Bearer ${reviewerToken}`).send({ providerId: provider.id, quality: 5, commitment: 5, value: 5 })).status).toBe(401);
+    expect((await request(app).post(`/api/providers/${provider.id}/favorite`).set('Authorization', `Bearer ${reviewerToken}`).send({})).status).toBe(401);
+    expect((await request(app).post(`/api/reviews/${review.body.id}/helpful`).set('Authorization', `Bearer ${reviewerToken}`)).status).toBe(401);
+    expect((await request(app).post(`/api/reviews/${review.body.id}/replies`).set('Authorization', `Bearer ${ownerToken}`).send({ text: 'رد' })).status).toBe(201);
+  });
+
   it('rejects invalid image bytes and oversized images despite declared MIME', async () => {
     const user = await makeUser('Uploader');
     const token = await makeToken(user.id);
@@ -303,6 +318,14 @@ describe('Sprint 1 production stabilization integration', () => {
     expect(ownerReview.status).toBe(403);
     const review = await request(app).post('/api/reviews').set('Authorization', `Bearer ${reviewerToken}`).send({ providerId: provider.id, quality: 5, commitment: 4, value: 5, comment: 'ممتاز' });
     expect(review.status).toBe(201);
+    const reviewerTwo = await makeUser('Reviewer two');
+    const reviewerThree = await makeUser('Reviewer three');
+    const reviewerTwoToken = await makeToken(reviewerTwo.id);
+    const reviewerThreeToken = await makeToken(reviewerThree.id);
+    const reviewTwo = await request(app).post('/api/reviews').set('Authorization', `Bearer ${reviewerTwoToken}`).send({ providerId: provider.id, quality: 4, commitment: 4, value: 4 });
+    const reviewThree = await request(app).post('/api/reviews').set('Authorization', `Bearer ${reviewerThreeToken}`).send({ providerId: provider.id, quality: 3, commitment: 4, value: 3 });
+    expect(reviewTwo.status).toBe(201);
+    expect(reviewThree.status).toBe(201);
     const replyByOther = await request(app).post(`/api/reviews/${review.body.id}/replies`).set('Authorization', `Bearer ${otherToken}`).send({ text: 'رد' });
     expect(replyByOther.status).toBe(403);
     const replyByOwner = await request(app).post(`/api/reviews/${review.body.id}/replies`).set('Authorization', `Bearer ${ownerToken}`).send({ text: 'شكرًا' });
@@ -310,11 +333,17 @@ describe('Sprint 1 production stabilization integration', () => {
     const firstPage = await request(app).get(`/api/providers/${provider.id}/reviews?page=1&pageSize=1`);
     expect(firstPage.status).toBe(200);
     expect(firstPage.body.data).toHaveLength(1);
-    expect(firstPage.body.hasMore).toBe(false);
+    expect(firstPage.body.hasMore).toBe(true);
+    const secondPage = await request(app).get(`/api/providers/${provider.id}/reviews?page=2&pageSize=1`);
+    expect(secondPage.status).toBe(200);
+    expect(secondPage.body.data).toHaveLength(1);
+    expect(secondPage.body.data[0].id).not.toBe(firstPage.body.data[0].id);
     const helpful = await request(app).post(`/api/reviews/${review.body.id}/helpful`).set('Authorization', `Bearer ${otherToken}`);
     expect(helpful.status).toBe(200);
     const removed = await request(app).delete(`/api/me/reviews/${review.body.id}`).set('Authorization', `Bearer ${reviewerToken}`);
     expect(removed.status).toBe(200);
+    expect((await request(app).delete(`/api/me/reviews/${reviewTwo.body.id}`).set('Authorization', `Bearer ${reviewerTwoToken}`)).status).toBe(200);
+    expect((await request(app).delete(`/api/me/reviews/${reviewThree.body.id}`).set('Authorization', `Bearer ${reviewerThreeToken}`)).status).toBe(200);
     expect((await request(app).get(`/api/providers/${provider.id}/reviews`)).body.total).toBe(0);
   });
 });

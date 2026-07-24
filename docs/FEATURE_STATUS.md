@@ -17,6 +17,8 @@
 
 These statuses describe completed engineering sprints, not new product features.
 
+Sprint 2F stabilization freeze is closed for local verification; it does not change the product-feature matrix.
+
 Legend: **Implemented** = present in current code; **Partial** = some paths/UI or external setup missing; **Planned** = not implemented; **Unverified** = code exists but runtime evidence is missing.
 
 | Module | Status | Evidence / notes |

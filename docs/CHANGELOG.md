@@ -57,3 +57,8 @@ All notable engineering changes are documented here. Product features outside th
 - Hardened provider detail projection and active-area visibility.
 - Added paginated provider reviews, owner-only replies, approved-review helpful checks and author review deletion.
 - Improved mobile provider detail refresh, rating/open-state display, gallery URL deduplication and favorite synchronization.
+## Unreleased — Sprint 2F stabilization freeze
+
+- Added regression coverage for blocked-user actions and review pagination uniqueness.
+- Re-ran API, Web/Admin and Flutter release gates without changing product scope.
+- Recorded the post-Sprint-2 journey/state audit and explicit device/staging verification gaps.

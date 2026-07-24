@@ -66,3 +66,26 @@ The API integration suite verifies safe public projection, owner self-review rej
 ## Recommendation
 
 **GO for Sprint 2E planning** after the final repository-wide web gates and `git diff --check` pass. Production deployment still requires physical-device verification and external integration credentials.
+
+## Final Release Gate
+
+| Check | Result |
+|---|---|
+| `cd apps/api && npm run prisma:generate` | Pass |
+| `cd apps/api && npm run test:db` | Pass — isolated Docker PostgreSQL, 8 suites / 86 tests |
+| `cd apps/api && npm run build` | Pass |
+| `cd apps/web && npm run lint` | Pass |
+| `cd apps/web && npm run build` | Pass |
+| `cd apps/mobile && flutter analyze --no-fatal-infos --no-fatal-warnings` | Pass — 0 errors; 45 existing non-fatal diagnostics |
+| `cd apps/mobile && flutter test` | Pass — 10/10 |
+| `git diff --check` | Pass |
+| Documentation links | Pass; no broken internal links |
+| Secrets scan | No real credentials found in docs/README |
+| API route inventory | 142 server routes accounted for in API reference |
+| Public provider/review visibility | Pass; approved/active filters and safe projection verified |
+| Pagination/favorite/ownership regression checks | Pass; no duplicate page result, IDOR rejected, blocked actions rejected |
+
+**Commit:** `34753b4` is the existing Sprint 2D documentation commit; the final verification tests are recorded in the follow-up freeze commit.
+**Tag status:** `v0.5-provider` already existed and was preserved unchanged; no existing tag was rewritten.
+**Deferred:** physical device journeys, full review pagination UI, optimistic Helpful update, push delivery, token rotation and object storage.
+**Final decision:** **GO** for the post-Sprint-2 stabilization freeze. Production release remains gated on device/staging verification.
