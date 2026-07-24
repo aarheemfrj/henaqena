@@ -8332,7 +8332,7 @@ class _PriceCardState extends State<PriceCard> {
             'من ${widget.item['minPrice']} إلى ${widget.item['maxPrice']} جنيه${widget.item['unit'] == null ? '' : ' · ${widget.item['unit']}'}',
           ),
           Text(
-            '${widget.item['confirmationCount'] ?? 0} تأكيد · آخر تأكيد ${widget.item['lastConfirmedAt'] == null ? 'غير محدد' : 'حديث'}',
+            '${widget.item['confirmationCount'] ?? 0} تأكيد · ثقة ${widget.item['confidenceScore'] ?? 50}% · ${widget.item['freshness'] == 'stale-soon' ? 'يحتاج تحديثًا قريبًا' : 'محدث'}',
             style: const TextStyle(color: muted, fontSize: 12),
           ),
           Row(
