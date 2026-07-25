@@ -121,6 +121,27 @@ export async function moderatePrice(formData: FormData) {
   await apiPatch(`/api/admin/prices/${id}`, { status }); revalidatePath('/admin/prices');
 }
 
+export async function updatePriceAdmin(formData: FormData) {
+  if (!await hasAdminSession()) redirect('/admin/login');
+  const id = String(formData.get('id') ?? ''); if (!id) return;
+  await apiPatch(`/api/admin/prices/${id}`, {
+    name: String(formData.get('name') ?? '').trim(), category: String(formData.get('category') ?? '').trim() || null,
+    minPrice: Number(formData.get('minPrice') ?? 0), maxPrice: Number(formData.get('maxPrice') ?? 0),
+    unit: String(formData.get('unit') ?? '').trim() || null, sourceNote: String(formData.get('sourceNote') ?? '').trim() || null,
+    validUntil: String(formData.get('validUntil') ?? '').trim() || null, confidenceScore: Number(formData.get('confidenceScore') ?? 50),
+    sourceType: String(formData.get('sourceType') ?? 'COMMUNITY'), status: String(formData.get('status') ?? 'APPROVED'),
+  });
+  revalidatePath('/admin/prices'); revalidatePath('/prices');
+}
+
+export async function archivePriceAdmin(formData: FormData) {
+  if (!await hasAdminSession()) redirect('/admin/login');
+  const id = String(formData.get('id') ?? ''); if (!id) return;
+  const archived = String(formData.get('archived') ?? 'true') === 'true';
+  await apiPatch(`/api/admin/prices/${id}/archive`, { archived, reason: String(formData.get('reason') ?? '').trim() || undefined });
+  revalidatePath('/admin/prices'); revalidatePath('/prices');
+}
+
 export async function createNow(formData: FormData) {
   if (!await hasAdminSession()) redirect('/admin/login');
   await apiPost('/api/admin/now', { title: String(formData.get('title') ?? ''), body: String(formData.get('body') ?? '') || undefined, category: String(formData.get('category') ?? 'عام') });

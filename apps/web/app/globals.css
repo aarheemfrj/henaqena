@@ -187,3 +187,5 @@ button { font:inherit; }
 @keyframes scrollReveal { from { opacity:.15; translate:0 18px; } to { opacity:1; translate:0 0; } }
 .warningBadge { color:#8a4b00; background:#fff1c7; }
 .muted { color:var(--muted); font-size:12px; }
+.compactForm { display:flex; flex-wrap:wrap; align-items:center; gap:6px; min-width:220px; }
+.compactForm input,.compactForm select { min-width:70px; max-width:150px; padding:6px 8px; border:1px solid var(--line); border-radius:8px; font:inherit; font-size:12px; }

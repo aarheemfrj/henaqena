@@ -18,6 +18,7 @@ The existing prices foundation was audited and hardened through additive migrati
 - Mobile cards now show confidence percentage and freshness wording.
 - Added an administration-only outlier signal for approved prices: comparable rows are grouped by category and area, and a row is flagged when its midpoint differs from the group median by at least 2.5x. The signal is never returned by the public prices endpoint.
 - Added an administration filter for reviewing flagged prices without changing or auto-rejecting them.
+- Added direct admin editing for price name, category, range, unit, source, validity and confidence, plus archive/restore controls.
 
 ## Verified
 
@@ -28,7 +29,7 @@ The existing prices foundation was audited and hardened through additive migrati
 
 ## Still missing
 
-Device/staging verification and a richer editable admin table remain for the next slice. Outlier detection is advisory only and does not auto-reject or change a price.
+Device/staging verification remains for the next slice. Outlier detection is advisory only and does not auto-reject or change a price.
 
 Mobile freshness display commit: `8a21873`.
 

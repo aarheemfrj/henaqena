@@ -20,6 +20,7 @@
 - 2026-07-25 — Codex — Module 2 «بكام؟» freshness/confidence/admin lifecycle: إضافة صلاحية ومصدر ودرجة ثقة، إخفاء الأسعار المنتهية، أرشفة/استرجاع إداري وسجل تدقيق، واختبارات PostgreSQL — مكتملة؛ commit: `f3e27e5`
 - 2026-07-25 — Codex — Module 2 «بكام؟» mobile freshness display: إظهار درجة الثقة وحالة الحداثة داخل بطاقة السعر — مكتملة؛ commit: قيد التنفيذ
 - 2026-07-25 — Codex — Module 2 «بكام؟» outlier review slice: إضافة إشارة إدارية استشارية للأسعار الشاذة حسب الفئة والمنطقة، وفلتر مراجعة داخل لوحة الإدارة، مع اختبار PostgreSQL معزول — مكتملة؛ commit: قيد التنفيذ
+- 2026-07-25 — Codex — Module 2 «بكام؟» admin editing slice: تمكين تعديل بيانات السعر ونطاقه وصلاحيته وثقته ومصدره، مع أرشفة واسترجاع من جدول الإدارة — مكتملة؛ commit: قيد التنفيذ
 
 - 2026-07-24 — Codex — Module 1 «مين شاطر» pre-implementation audit: مراجعة البنية الحالية وإعادة استخدام أنماط المصادقة والحظر والملكية والمراجعة والإشعارات والتطبيق والمنصة، وتوثيق مخاطر الخصوصية والتكرار وخطة التنفيذ — مكتملة؛ commit: `5f70b88`
 - 2026-07-24 — Codex — Module 1 «مين شاطر»: additive data model, public/user/admin API, initial Flutter flows and isolated regression coverage — مكتملة جزئيًا؛ release gate NO-GO حتى التحقق الميداني؛ commits: `03df68c`, `95922d6`, `622a26e`, `cfbd511`, `8beae58`, `1a124e1`
