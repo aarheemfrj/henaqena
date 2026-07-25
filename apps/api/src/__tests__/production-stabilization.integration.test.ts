@@ -430,6 +430,10 @@ describe('Sprint 1 production stabilization integration', () => {
     expect(adminResponse.body).toHaveLength(1);
     expect(adminResponse.body[0].outlier).toBe(true);
     expect(adminResponse.body[0].outlierReason).toBeTruthy();
+    const edited = await request(app).patch(`/api/admin/prices/${adminResponse.body[0].id}`).set('Authorization', `Bearer ${adminToken}`).send({ name: 'طماطم 3 معدل', minPrice: 90, maxPrice: 110, confidenceScore: 65, sourceType: 'OFFICIAL' });
+    expect(edited.status).toBe(200);
+    expect(edited.body.name).toBe('طماطم 3 معدل');
+    expect(edited.body.confidenceScore).toBe(65);
     const publicResponse = await request(app).get('/api/prices');
     expect(publicResponse.body.find((row: { id: string }) => row.id === adminResponse.body[0].id)?.outlier).toBeUndefined();
   });
