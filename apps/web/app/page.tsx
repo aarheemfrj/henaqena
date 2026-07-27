@@ -6,16 +6,19 @@ import { FavoriteButton } from '@/components/favorite-button';
 export const revalidate = 3600;
 
 export default async function HomePage() {
-  const [providersResult, categoriesResult] = await Promise.allSettled([
+  const [providersResult, categoriesResult, settingsResult] = await Promise.allSettled([
     apiGet<Provider[]>('/api/providers', { revalidate: 3600 }),
-    apiGet<Paginated<Category>>('/api/categories', { revalidate: 86400, cache: 'force-cache' })
+    apiGet<Paginated<Category>>('/api/categories', { revalidate: 86400, cache: 'force-cache' }),
+    apiGet<{ maintenanceMode: boolean; maintenanceMessage: string; appName: string; appTagline: string; enabledModules: Record<string, boolean> }>('/api/settings', { revalidate: 60 }),
   ]);
+  const settings = settingsResult.status === 'fulfilled' ? settingsResult.value : null;
+  if (settings?.maintenanceMode) return <section className="heroPanel"><div><span className="eyebrow">{settings.appName}</span><h1>{settings.maintenanceMessage}</h1><p>نعود إليكم قريبًا.</p></div></section>;
   const providers = providersResult.status === 'fulfilled' ? providersResult.value : [];
   const categories = categoriesResult.status === 'fulfilled' ? categoriesResult.value.data : [];
+  const enabled = settings?.enabledModules ?? {};
   return <>
-    <section className="heroPanel"><div><span className="eyebrow">منصة خدمات مجتمع قنا</span><h1>كل ما تحتاجه..<br />قريب منك.</h1><p>ابحث عن الخدمات والأماكن، تابع العروض، واعرف الجديد في منطقتك من مكان واحد.</p></div><aside className="heroMetric"><small>مقدمو خدمات ظاهرون الآن</small><strong>{providers.length}</strong><span>متصلون بنفس بيانات تطبيق هنا قنا</span></aside></section>
-    <section className="section"><div className="sectionHead"><h2>الفئات</h2><Link href="/providers">شوف الكل</Link></div><div className="categoryRail">{categories.map((category) => <Link className="category" href={`/providers?category=${category.slug}`} key={category.id}><i />{category.name}</Link>)}{categories.length === 0 && <span className="empty">يتم تحميل الفئات من المنصة…</span>}</div></section>
-    <section className="section"><div className="sectionHead"><h2>أماكن قريبة منك</h2><Link href="/providers">كل مقدمي الخدمات</Link></div><div className="providerGrid">{providers.slice(0, 6).map((provider) => <ProviderCard key={provider.id} provider={provider} />)}{providers.length === 0 && <div className="surface empty">تعذر الوصول للبيانات الآن. شغّل API هنا قنا ثم أعد المحاولة.</div>}</div></section>
+    <section className="heroPanel"><div><span className="eyebrow">منصة خدمات مجتمع قنا</span><h1>{settings?.appTagline ?? 'كل ما تحتاجه..'}<br />قريب منك.</h1><p>ابحث عن الخدمات والأماكن، تابع العروض، واعرف الجديد في منطقتك من مكان واحد.</p></div><aside className="heroMetric"><small>مقدمو خدمات ظاهرون الآن</small><strong>{providers.length}</strong><span>متصلون بنفس بيانات تطبيق هنا قنا</span></aside></section>
+    {enabled.providers !== false && <><section className="section"><div className="sectionHead"><h2>الفئات</h2><Link href="/providers">شوف الكل</Link></div><div className="categoryRail">{categories.map((category) => <Link className="category" href={`/providers?category=${category.slug}`} key={category.id}><i />{category.name}</Link>)}{categories.length === 0 && <span className="empty">يتم تحميل الفئات من المنصة…</span>}</div></section><section className="section"><div className="sectionHead"><h2>أماكن قريبة منك</h2><Link href="/providers">كل مقدمي الخدمات</Link></div><div className="providerGrid">{providers.slice(0, 6).map((provider) => <ProviderCard key={provider.id} provider={provider} />)}{providers.length === 0 && <div className="surface empty">تعذر الوصول للبيانات الآن. شغّل API هنا قنا ثم أعد المحاولة.</div>}</div></section></>}
   </>;
 }
 

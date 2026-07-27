@@ -3,7 +3,10 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
-const groups = [
+type AdminNavItem = { href: string; label: string; icon: string; roles?: string[] };
+type AdminNavGroup = { label: string; items: AdminNavItem[] };
+
+const groups: AdminNavGroup[] = [
   {
     label: 'المتابعة',
     items: [
@@ -34,26 +37,28 @@ const groups = [
       { href: '/admin/data-collection', label: 'تجميع البيانات', icon: '⌘' },
       { href: '/admin/archive', label: 'الأرشيف والاسترجاع', icon: '↺' },
       { href: '/admin/catalog', label: 'سجل البيانات', icon: '▤' },
+      { href: '/admin/notifications', label: 'حملات الإشعارات', icon: '◌' },
     ],
   },
     {
       label: 'الإدارة',
       items: [
-      { href: '/admin/maintenance', label: 'النسخ والصيانة', icon: '⟳' },
-      { href: '/admin/users', label: 'المستخدمون', icon: '◎' },
-      { href: '/admin/team', label: 'فريق العمل', icon: '◉' },
-      { href: '/admin/security', label: 'الأمان والأدوار', icon: '⌑' },
+      { href: '/admin/maintenance', label: 'النسخ والصيانة', icon: '⟳', roles: ['OWNER'] },
+      { href: '/admin/users', label: 'المستخدمون', icon: '◎', roles: ['OWNER', 'MODERATOR'] },
+      { href: '/admin/team', label: 'فريق العمل', icon: '◉', roles: ['OWNER'] },
+      { href: '/admin/security', label: 'الأمان والأدوار', icon: '⌑', roles: ['OWNER'] },
+      { href: '/admin/settings', label: 'إعدادات التطبيق', icon: '⚙', roles: ['OWNER', 'CONTENT_EDITOR'] },
     ],
   },
 ];
 
-export function AdminNav() {
+export function AdminNav({ role = 'OWNER' }: { role?: string }) {
   const pathname = usePathname();
   return <aside className="adminSidebar" aria-label="مراكز الإدارة">
     <div className="adminSidebarHead"><span className="adminSidebarMark">⚙</span><div><strong>مركز التحكم</strong><small>هنا قنا</small></div></div>
     {groups.map((group) => <section className="adminNavGroup" key={group.label}>
       <small>{group.label}</small>
-      {group.items.map((item) => {
+      {group.items.filter((item) => !item.roles || item.roles.includes(role) || role === 'OWNER').map((item) => {
         const active = pathname === item.href;
         return <Link key={item.href} href={item.href} className={active ? 'adminNavActive' : 'adminNavLink'}><span>{item.icon}</span>{item.label}</Link>;
       })}

@@ -43,7 +43,7 @@ Legend: **Implemented** = present in current code; **Partial** = some paths/UI o
 | Google Maps/Places | Unverified | Feature-flagged and credential-dependent |
 | Data import/collection | Partial | Admin import and OSM/Google paths; source quotas and browser E2E pending |
 | Admin dashboard | Partial | Next.js CRUD/moderation/settings/import screens; full browser audit pending |
-| Owner business portal | Planned | Owner API checks exist; dedicated self-service portal is not complete |
+| Owner business portal | Partial | Account/business portal now lists owned activities and lets owners submit services/offers for moderation; full provider editing, claims and owner analytics remain |
 | Analytics/reporting | Partial | Admin summaries/audit endpoints; full product analytics dashboards are limited |
 | Backups/restore/reset | Partial | API and scripts exist; destructive operations require operational approval |
 | Push notifications | Planned | DB notifications only |
@@ -56,5 +56,5 @@ Legend: **Implemented** = present in current code; **Partial** = some paths/UI o
 
 When a feature changes, update this table and the [Documentation Gaps](./DOCUMENTATION_GAPS.md) entry if runtime evidence is still missing. Do not mark an external integration Implemented solely because a client package is installed.
 
-| مين شاطر community recommendations | Partial | API, moderation, isolated regression coverage and initial Flutter feed/request/recommendation flow are implemented; admin contribution history, full notifications deep-linking, best selection and images remain deferred/unverified |
+| مين شاطر community recommendations | Partial | API, moderation, contribution endpoints, initial Flutter feed/request/recommendation flow and owner-selected best recommendation are implemented; images and full contribution history UI remain deferred/unverified |
 | بكام؟ prices | Partial | Price submissions, confirmations, freshness/expiry, confidence/source metadata, audited archive/restore, advisory outlier review and direct admin editing are implemented; staging verification remains |

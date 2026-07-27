@@ -365,7 +365,7 @@ String? _absoluteUrl(String baseUrl, String? value) {
   // Old seed rows may still point at a deleted placeholder asset. Treat it as
   // missing so the UI uses its designed category fallback instead of logging
   // a noisy 404 and reserving a broken image slot.
-  if (value.contains('test-placeholder.jpg')) return null;
+  if (value.contains('test-placeholder.jpg') || value.contains('temp-logo-mark.svg')) return null;
   final parsed = Uri.tryParse(value);
   if (parsed?.hasScheme == true) return value;
   return '${baseUrl.replaceFirst(RegExp(r'/$'), '')}/${value.replaceFirst(RegExp(r'^/'), '')}';
@@ -1908,6 +1908,24 @@ class ApiClient {
           );
     if (response.statusCode == 401) throw Exception('unauthorized');
     if (response.statusCode != 200) throw Exception('min_shater_helpful_error');
+    return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+  }
+
+  Future<Map<String, dynamic>> selectMinShaterRecommendation(
+    String requestId,
+    String recommendationId,
+  ) async {
+    final response = await http
+        .post(
+          Uri.parse(
+            '$baseUrl/api/min-shater/$requestId/recommendations/$recommendationId/select',
+          ),
+          headers: _jsonHeaders,
+        )
+        .timeout(const Duration(seconds: 8));
+    if (response.statusCode == 401) throw Exception('unauthorized');
+    if (response.statusCode != 200)
+      throw Exception('min_shater_select_error');
     return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
   }
 

@@ -163,6 +163,7 @@ model Area {
   priceGuides       PriceGuide[]
   nowUpdates        NowUpdate[]
   minShaterRequests MinShaterRequest[]
+  notificationCampaigns NotificationCampaign[]
   createdAt         DateTime           @default(now())
 }
 
@@ -490,6 +491,7 @@ model MinShaterRecommendation {
   recommendedName  String?
   phone            String?
   description      String?
+  isSelected       Boolean            @default(false)
   moderationStatus ReviewStatus       @default(PENDING)
   rejectionReason  String?
   createdAt        DateTime           @default(now())
@@ -591,8 +593,21 @@ model PriceGuide {
   sourceType      String              @default("COMMUNITY")
   lastReviewedAt  DateTime?
   confirmations   PriceConfirmation[]
+  history         PriceHistory[]
 
   @@index([status, validUntil, updatedAt])
+}
+
+model PriceHistory {
+  id           String     @id @default(cuid())
+  priceGuideId String
+  changedBy    String?
+  snapshot     Json
+  reason       String?
+  createdAt    DateTime   @default(now())
+  priceGuide   PriceGuide @relation(fields: [priceGuideId], references: [id], onDelete: Cascade)
+
+  @@index([priceGuideId, createdAt])
 }
 
 model PriceConfirmation {
@@ -811,9 +826,56 @@ model Notification {
   createdAt  DateTime  @default(now())
 }
 
+model NotificationCampaign {
+  id           String    @id @default(cuid())
+  title        String
+  body         String
+  targetAreaId String?
+  targetRole   String?
+  scheduledAt  DateTime?
+  sentAt       DateTime?
+  status       String    @default("PENDING")
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  targetArea   Area?     @relation(fields: [targetAreaId], references: [id], onDelete: SetNull)
+
+  @@index([status, scheduledAt])
+}
+
 model PlatformSettings {
-  id                 String   @id @default("default")
-  adRotationSeconds  Int      @default(6)
-  dataRefreshSeconds Int      @default(900)
-  updatedAt          DateTime @updatedAt
+  id                    String   @id @default("default")
+  adRotationSeconds     Int      @default(6)
+  dataRefreshSeconds    Int      @default(900)
+  maintenanceMode       Boolean  @default(false)
+  maintenanceMessage    String   @default("نعود إليكم قريبًا. التطبيق تحت الصيانة المؤقتة.")
+  appName               String   @default("هنا قنا")
+  appTagline            String   @default("كل ما تحتاجه.. قريب منك")
+  supportPhone          String?
+  supportWhatsapp       String?
+  supportEmail          String?
+  facebookUrl           String?
+  instagramUrl          String?
+  homeSections          Json     @default("[]")
+  enabledModules        Json     @default("{}")
+  privacyPolicy         String   @default("")
+  termsOfUse            String   @default("")
+  priceDefaultValidityDays Int   @default(30)
+  priceOutlierRatio     Float    @default(2.5)
+  updatedAt             DateTime @updatedAt
+}
+
+model PlatformConstant {
+  id        String   @id @default(cuid())
+  type      String
+  name      String
+  slug      String
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  metadata  Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([type, name])
+  @@unique([type, slug])
+  @@index([type, isActive, sortOrder])
 }

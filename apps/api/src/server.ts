@@ -104,6 +104,35 @@ const startBackupScheduler = () => {
   }, 60 * 1000);
 };
 const publicAuthorSelect = { id: true, name: true, avatarUrl: true, isProfilePrivate: true, points: true, level: true } as const;
+const defaultHomeSections = ['providers', 'prices', 'now', 'listings'];
+const defaultEnabledModules = { providers: true, prices: true, now: true, listings: true, minShater: true, notifications: true };
+const platformSettingsSelect = {
+  adRotationSeconds: true, dataRefreshSeconds: true, maintenanceMode: true, maintenanceMessage: true,
+  appName: true, appTagline: true, supportPhone: true, supportWhatsapp: true, supportEmail: true,
+  facebookUrl: true, instagramUrl: true, homeSections: true, enabledModules: true, privacyPolicy: true, termsOfUse: true,
+  priceDefaultValidityDays: true, priceOutlierRatio: true,
+} as const;
+const publicPlatformSettings = (settings: any) => ({
+  adRotationSeconds: settings.adRotationSeconds,
+  dataRefreshSeconds: settings.dataRefreshSeconds,
+  maintenanceMode: settings.maintenanceMode,
+  maintenanceMessage: settings.maintenanceMessage,
+  appName: settings.appName,
+  appTagline: settings.appTagline,
+  supportPhone: settings.supportPhone,
+  supportWhatsapp: settings.supportWhatsapp,
+  supportEmail: settings.supportEmail,
+  facebookUrl: settings.facebookUrl,
+  instagramUrl: settings.instagramUrl,
+  homeSections: Array.isArray(settings.homeSections) && settings.homeSections.length ? settings.homeSections : defaultHomeSections,
+  enabledModules: { ...defaultEnabledModules, ...(settings.enabledModules && typeof settings.enabledModules === 'object' ? settings.enabledModules : {}) },
+  privacyPolicy: settings.privacyPolicy,
+  termsOfUse: settings.termsOfUse,
+  priceDefaultValidityDays: settings.priceDefaultValidityDays,
+  priceOutlierRatio: settings.priceOutlierRatio,
+});
+const ensurePlatformSettings = () => prisma.platformSettings.upsert({ where: { id: 'default' }, update: {}, create: { id: 'default' } });
+const constantSlug = (name: string) => name.toLowerCase().trim().replace(/[^a-z0-9؀-ۿ]+/g, '-').replace(/^-+|-+$/g, '') || `constant-${randomBytes(3).toString('hex')}`;
 const verificationWebhooks: Record<string, string | undefined> = {
   whatsapp: process.env.WHATSAPP_OTP_WEBHOOK_URL,
   sms: process.env.SMS_OTP_WEBHOOK_URL,
@@ -145,10 +174,10 @@ app.get('/api/bootstrap', async (_req, res, next) => {
     const [areas, categories, settings] = await Promise.all([
       prisma.area.findMany({ where: { isActive: true }, orderBy: { name: 'asc' }, select: { id: true, name: true, city: true } }),
       prisma.category.findMany({ where: { isActive: true }, orderBy: { name: 'asc' }, select: { id: true, name: true, slug: true } }),
-      prisma.platformSettings.upsert({ where: { id: 'default' }, update: {}, create: { id: 'default' } }),
+      ensurePlatformSettings(),
     ]);
     res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
-    res.json({ generatedAt: new Date().toISOString(), areas, categories, settings: { adRotationSeconds: settings.adRotationSeconds, dataRefreshSeconds: settings.dataRefreshSeconds } });
+    res.json({ generatedAt: new Date().toISOString(), areas, categories, settings: publicPlatformSettings(settings) });
   } catch (error) { next(error); }
 });
 app.get('/ready', async (_req, res) => {
@@ -983,8 +1012,19 @@ app.get('/api/listings', async (req, res, next) => {
 
 app.get('/api/listings/categories', async (req, res, next) => {
   try {
+    const configured = await prisma.platformConstant.findMany({ where: { type: 'listing-types', isActive: true }, orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }], select: { name: true } });
+    if (configured.length) return res.json({ data: configured.map((row) => row.name) });
     const rows = await prisma.listing.findMany({ select: { category: true }, distinct: ['category'], orderBy: { category: 'asc' } });
     res.json({ data: rows.map((row) => row.category) });
+  } catch (error) { next(error); }
+});
+
+app.get('/api/constants/:type', async (req, res, next) => {
+  try {
+    const type = String(req.params.type);
+    if (!['service-types', 'listing-types', 'news-types'].includes(type)) return res.status(400).json({ message: 'نوع ثابت غير معروف' });
+    const data = await prisma.platformConstant.findMany({ where: { type, isActive: true }, orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }], select: { id: true, name: true, slug: true, metadata: true } });
+    res.json({ data });
   } catch (error) { next(error); }
 });
 
@@ -1161,11 +1201,11 @@ const minShaterRequestProjection = (request: any, viewerId?: string) => ({
   viewer: { isOwner: viewerId === request.userId, canEdit: viewerId === request.userId && request.status !== 'CLOSED' && !request.deletedAt && !request.archivedAt, canClose: viewerId === request.userId && request.status === 'OPEN' && request.moderationStatus === ReviewStatus.APPROVED, canRecommend: request.status === 'OPEN' && request.moderationStatus === ReviewStatus.APPROVED, canReport: Boolean(viewerId) },
 });
 const minShaterRequestSelect = { id: true, userId: true, title: true, description: true, status: true, moderationStatus: true, rejectionReason: true, createdAt: true, updatedAt: true, closedAt: true, archivedAt: true, deletedAt: true, category: { select: { id: true, name: true } }, area: { select: { id: true, name: true, city: true } }, user: { select: publicAuthorSelect }, _count: { select: { recommendations: { where: { moderationStatus: ReviewStatus.APPROVED, archivedAt: null, deletedAt: null } } } } } as const;
-const minShaterRecommendationSelect = { id: true, requestId: true, userId: true, providerId: true, recommendedName: true, phone: true, description: true, moderationStatus: true, rejectionReason: true, createdAt: true, updatedAt: true, archivedAt: true, deletedAt: true, user: { select: publicAuthorSelect }, provider: { select: { id: true, name: true, logoUrl: true, status: true, isVerified: true, area: { select: { id: true, name: true, city: true } }, categories: { where: { category: { isActive: true } }, select: { category: { select: { id: true, name: true, slug: true } } } } } }, _count: { select: { helpfulVotes: true } } } as const;
+const minShaterRecommendationSelect = { id: true, requestId: true, userId: true, providerId: true, recommendedName: true, phone: true, description: true, isSelected: true, moderationStatus: true, rejectionReason: true, createdAt: true, updatedAt: true, archivedAt: true, deletedAt: true, user: { select: publicAuthorSelect }, provider: { select: { id: true, name: true, logoUrl: true, status: true, isVerified: true, area: { select: { id: true, name: true, city: true } }, categories: { where: { category: { isActive: true } }, select: { category: { select: { id: true, name: true, slug: true } } } } } }, _count: { select: { helpfulVotes: true } } } as const;
 const minShaterRecommendationProjection = (item: any, viewerId?: string, viewerHelpful = false) => ({
   id: item.id, provider: item.provider && item.provider.status === ReviewStatus.APPROVED ? { id: item.provider.id, name: item.provider.name, logoUrl: item.provider.logoUrl, isVerified: item.provider.isVerified, area: item.provider.area, categories: item.provider.categories.map((entry: any) => entry.category) } : null,
   recommendedName: item.recommendedName, phone: viewerId ? item.phone : null, description: item.description,
-  author: item.user ? minShaterSafeAuthor(item.user) : null, createdAt: item.createdAt, helpfulCount: item._count?.helpfulVotes ?? 0, viewerHasMarkedHelpful: viewerHelpful,
+  author: item.user ? minShaterSafeAuthor(item.user) : null, createdAt: item.createdAt, helpfulCount: item._count?.helpfulVotes ?? 0, isSelected: item.isSelected === true, viewerHasMarkedHelpful: viewerHelpful,
   viewer: { isOwner: viewerId === item.userId, canEdit: viewerId === item.userId && !item.deletedAt && !item.archivedAt, canDelete: viewerId === item.userId && !item.deletedAt && !item.archivedAt, canReport: Boolean(viewerId) },
 });
 const minShaterVisibleRecommendationWhere = { moderationStatus: ReviewStatus.APPROVED, archivedAt: null, deletedAt: null, request: { moderationStatus: ReviewStatus.APPROVED, archivedAt: null, deletedAt: null } } as const;
@@ -1343,6 +1383,18 @@ app.delete('/api/min-shater/recommendations/:id/helpful', async (req, res, next)
   } catch (error) { next(error); }
 });
 
+app.post('/api/min-shater/:requestId/recommendations/:recommendationId/select', async (req, res, next) => {
+  try {
+    const session = await sessionFromRequest(req); if (!session) return res.status(401).json({ message: 'سجّل الدخول أولاً' });
+    const requestId = String(req.params.requestId); const recommendationId = String(req.params.recommendationId);
+    const recommendation = await prisma.minShaterRecommendation.findFirst({ where: { id: recommendationId, requestId, moderationStatus: ReviewStatus.APPROVED, archivedAt: null, deletedAt: null, request: { userId: session.userId, moderationStatus: ReviewStatus.APPROVED, deletedAt: null, archivedAt: null } }, select: { id: true } });
+    if (!recommendation) return res.status(404).json({ message: 'الترشيح غير متاح للاختيار' });
+    await prisma.$transaction([prisma.minShaterRecommendation.updateMany({ where: { requestId }, data: { isSelected: false } }), prisma.minShaterRecommendation.update({ where: { id: recommendation.id }, data: { isSelected: true } })]);
+    await audit('min_shater.recommendation.selected', 'minShaterRecommendation', recommendation.id, { requestId, userId: session.userId });
+    res.json({ selected: true, recommendationId: recommendation.id });
+  } catch (error) { next(error); }
+});
+
 app.post('/api/min-shater/:id/report', async (req, res, next) => {
   try {
     const session = await sessionFromRequest(req); if (!session) return res.status(401).json({ message: 'سجّل الدخول أولاً' });
@@ -1394,7 +1446,7 @@ app.get('/api/me/contributions', async (req, res, next) => {
     const limit = Math.min(50, Math.max(1, Number(req.query.limit ?? 20)));
     const offset = Math.max(0, Number(req.query.offset ?? 0));
     const [providers, listings, reviews, reports, providerCount, listingCount, reviewCount, reportCount] = await Promise.all([
-      prisma.provider.findMany({ where: { ownerId: session.userId }, include: { area: true }, orderBy: { createdAt: 'desc' }, take: limit, skip: offset }),
+      prisma.provider.findMany({ where: { ownerId: session.userId }, include: { area: true, services: { orderBy: { createdAt: 'desc' } }, offers: { orderBy: { createdAt: 'desc' } } }, orderBy: { createdAt: 'desc' }, take: limit, skip: offset }),
       prisma.listing.findMany({ where: { ownerId: session.userId }, include: { area: true, images: true }, orderBy: { createdAt: 'desc' }, take: limit, skip: offset }),
       prisma.review.findMany({ where: { authorId: session.userId }, include: { provider: { select: { id: true, name: true } } }, orderBy: { createdAt: 'desc' }, take: limit, skip: offset }),
       prisma.providerReport.findMany({ where: { reporterId: session.userId }, include: { provider: { select: { id: true, name: true } } }, orderBy: { createdAt: 'desc' }, take: limit, skip: offset }),
@@ -1493,7 +1545,7 @@ app.post('/api/ads/:id/react', async (req, res, next) => {
 });
 
 const adCreateSchema = z.object({ name: z.string().trim().min(2).max(120), imageUrl: z.string().url(), description: z.string().trim().max(600).optional(), targetUrl: z.string().url().optional(), weight: z.number().int().min(1).max(100).default(100), areaId: z.string().min(1).nullable().optional(), startsAt: z.coerce.date(), endsAt: z.coerce.date() });
-app.post('/api/ads', requireAdmin, async (req, res, next) => {
+app.post('/api/ads', requireAdminRoles(['OWNER', 'CONTENT_EDITOR']), async (req, res, next) => {
   try {
     const input = adCreateSchema.parse(req.body);
     if (input.endsAt <= input.startsAt) return res.status(400).json({ message: 'تاريخ الانتهاء يجب أن يكون بعد البداية' });
@@ -1549,8 +1601,9 @@ app.post('/api/prices', async (req, res, next) => {
 
 const priceCreateSchema = z.object({ name: z.string().trim().min(2).max(120), category: z.string().trim().max(80).optional(), minPrice: z.number().positive().max(999999999), maxPrice: z.number().positive().max(999999999), unit: z.string().trim().max(40).optional(), sourceNote: z.string().trim().max(300).optional(), areaId: z.string().min(1).nullable().optional(), validUntil: z.coerce.date().nullable().optional(), confidenceScore: z.number().int().min(0).max(100).optional(), sourceType: z.enum(['COMMUNITY', 'ADMIN', 'OFFICIAL', 'PROVIDER']).optional() }).refine((value) => value.maxPrice >= value.minPrice, { message: 'الحد الأقصى يجب أن يكون أكبر من أو يساوي الحد الأدنى' });
 const priceArea = async (areaId?: string | null) => areaId ? prisma.area.findFirst({ where: { id: areaId, isActive: true }, select: { id: true } }) : null;
+const priceSnapshot = (price: unknown) => JSON.parse(JSON.stringify(price));
 type PriceOutlierRow = { id: string; category: string | null; areaId: string | null; minPrice: unknown; maxPrice: unknown; status: ReviewStatus; archivedAt: Date | null; deletedAt: Date | null };
-const priceOutlierSignals = (prices: PriceOutlierRow[]) => {
+const priceOutlierSignals = (prices: PriceOutlierRow[], threshold = 2.5) => {
   const groups = new Map<string, PriceOutlierRow[]>();
   for (const price of prices) {
     if (price.status !== ReviewStatus.APPROVED || price.archivedAt || price.deletedAt) continue;
@@ -1566,7 +1619,7 @@ const priceOutlierSignals = (prices: PriceOutlierRow[]) => {
     for (const row of rows) {
       const midpoint = (Number(row.minPrice) + Number(row.maxPrice)) / 2;
       const ratio = midpoint >= median ? midpoint / median : median / midpoint;
-      if (ratio >= 2.5) signals.set(row.id, { outlier: true, outlierRatio: Number(ratio.toFixed(2)), outlierReason: 'النطاق يختلف كثيرًا عن الأسعار المعتمدة المشابهة' });
+      if (ratio >= threshold) signals.set(row.id, { outlier: true, outlierRatio: Number(ratio.toFixed(2)), outlierReason: 'النطاق يختلف كثيرًا عن الأسعار المعتمدة المشابهة' });
     }
   }
   return signals;
@@ -1574,20 +1627,27 @@ const priceOutlierSignals = (prices: PriceOutlierRow[]) => {
 app.get('/api/admin/prices', requireAdmin, async (req, res, next) => {
   try {
     const prices = await prisma.priceGuide.findMany({ include: { area: true }, orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }] });
-    const signals = priceOutlierSignals(prices);
+    const settings = await ensurePlatformSettings();
+    const signals = priceOutlierSignals(prices, settings.priceOutlierRatio);
     const outliersOnly = req.query.outliersOnly === 'true';
     res.json(prices.map((price) => ({ ...price, outlier: signals.get(price.id)?.outlier ?? false, outlierRatio: signals.get(price.id)?.outlierRatio ?? null, outlierReason: signals.get(price.id)?.outlierReason ?? null })).filter((price) => !outliersOnly || price.outlier));
   } catch (error) { next(error); }
 });
-app.post('/api/admin/prices', requireAdmin, async (req, res, next) => {
-  try { const input = priceCreateSchema.parse(req.body); if (input.areaId && !(await priceArea(input.areaId))) return res.status(400).json({ message: 'المنطقة غير متاحة' }); const price = await prisma.priceGuide.create({ data: { ...input, areaId: input.areaId ?? null, minPrice: input.minPrice, maxPrice: input.maxPrice, confidenceScore: input.confidenceScore ?? 80, sourceType: input.sourceType ?? 'ADMIN', lastReviewedAt: new Date(), status: ReviewStatus.APPROVED } }); await audit('price.created', 'priceGuide', price.id, { source: 'admin' }); res.status(201).json(price); } catch (error) { next(error); }
+app.post('/api/admin/prices', requireAdminRoles(['OWNER', 'CONTENT_EDITOR']), async (req, res, next) => {
+  try { const input = priceCreateSchema.parse(req.body); if (input.areaId && !(await priceArea(input.areaId))) return res.status(400).json({ message: 'المنطقة غير متاحة' }); const settings = await ensurePlatformSettings(); const validUntil = input.validUntil ?? new Date(Date.now() + settings.priceDefaultValidityDays * 24 * 60 * 60 * 1000); const price = await prisma.priceGuide.create({ data: { ...input, validUntil, areaId: input.areaId ?? null, minPrice: input.minPrice, maxPrice: input.maxPrice, confidenceScore: input.confidenceScore ?? 80, sourceType: input.sourceType ?? 'ADMIN', lastReviewedAt: new Date(), status: ReviewStatus.APPROVED } }); await prisma.priceHistory.create({ data: { priceGuideId: price.id, snapshot: priceSnapshot(price), reason: 'إنشاء إداري' } }); await audit('price.created', 'priceGuide', price.id, { source: 'admin' }); res.status(201).json(price); } catch (error) { next(error); }
 });
-app.patch('/api/admin/prices/:id/archive', requireAdmin, async (req, res, next) => {
-  try { const input = z.object({ archived: z.boolean(), reason: z.string().trim().max(240).optional() }).parse(req.body); const price = await prisma.priceGuide.update({ where: { id: String(req.params.id) }, data: { archivedAt: input.archived ? new Date() : null, archiveReason: input.archived ? input.reason ?? 'أرشفة إدارية' : null } }); await audit(input.archived ? 'price.archived' : 'price.restored', 'priceGuide', price.id, { reason: input.reason }); res.json(price); } catch (error) { next(error); }
+app.patch('/api/admin/prices/:id/archive', requireAdminRoles(['OWNER', 'CONTENT_EDITOR']), async (req, res, next) => {
+  try { const input = z.object({ archived: z.boolean(), reason: z.string().trim().max(240).optional() }).parse(req.body); const price = await prisma.priceGuide.update({ where: { id: String(req.params.id) }, data: { archivedAt: input.archived ? new Date() : null, archiveReason: input.archived ? input.reason ?? 'أرشفة إدارية' : null } }); await prisma.priceHistory.create({ data: { priceGuideId: price.id, snapshot: priceSnapshot(price), reason: input.archived ? input.reason ?? 'أرشفة إدارية' : 'استرجاع إداري' } }); await audit(input.archived ? 'price.archived' : 'price.restored', 'priceGuide', price.id, { reason: input.reason }); res.json(price); } catch (error) { next(error); }
 });
-app.patch('/api/admin/prices/:id', requireAdmin, async (req, res, next) => {
-  try { const input = z.object({ status: moderationSchema.shape.status.optional(), name: z.string().trim().min(2).max(120).optional(), category: z.string().trim().max(80).nullable().optional(), minPrice: z.number().positive().max(999999999).optional(), maxPrice: z.number().positive().max(999999999).optional(), unit: z.string().trim().max(40).nullable().optional(), sourceNote: z.string().trim().max(300).nullable().optional(), validUntil: z.coerce.date().nullable().optional(), confidenceScore: z.number().int().min(0).max(100).optional(), sourceType: z.enum(['COMMUNITY', 'ADMIN', 'OFFICIAL', 'PROVIDER']).optional(), archiveReason: z.string().trim().max(240).nullable().optional() }).parse(req.body); if (input.minPrice !== undefined && input.maxPrice !== undefined && input.maxPrice < input.minPrice) return res.status(400).json({ message: 'النطاق السعري غير صحيح' }); const status = input.status ?? ReviewStatus.APPROVED; const price = await prisma.priceGuide.update({ where: { id: String(req.params.id) }, data: { ...input, status, archivedAt: status === ReviewStatus.APPROVED ? null : undefined, lastReviewedAt: new Date() } }); await audit('price.updated', 'priceGuide', price.id, { status }); res.json(price); } catch (error) { next(error); }
+app.patch('/api/admin/prices/:id', requireAdminRoles(['OWNER', 'CONTENT_EDITOR']), async (req, res, next) => {
+  try {
+    const input = z.object({ status: moderationSchema.shape.status.optional(), name: z.string().trim().min(2).max(120).optional(), category: z.string().trim().max(80).nullable().optional(), minPrice: z.coerce.number().positive().max(999999999).optional(), maxPrice: z.coerce.number().positive().max(999999999).optional(), unit: z.string().trim().max(40).nullable().optional(), sourceNote: z.string().trim().max(300).nullable().optional(), areaId: z.string().min(1).nullable().optional(), validUntil: z.coerce.date().nullable().optional(), confidenceScore: z.coerce.number().int().min(0).max(100).optional(), sourceType: z.enum(['COMMUNITY', 'ADMIN', 'OFFICIAL', 'PROVIDER']).optional(), archiveReason: z.string().trim().max(240).nullable().optional() }).parse(req.body);
+    if (input.areaId && !(await priceArea(input.areaId))) return res.status(400).json({ message: 'المنطقة غير متاحة' });
+    if (input.minPrice !== undefined && input.maxPrice !== undefined && input.maxPrice < input.minPrice) return res.status(400).json({ message: 'النطاق السعري غير صحيح' });
+    const status = input.status ?? ReviewStatus.APPROVED; const price = await prisma.priceGuide.update({ where: { id: String(req.params.id) }, data: { ...input, status, archivedAt: status === ReviewStatus.APPROVED ? null : undefined, lastReviewedAt: new Date() } }); await prisma.priceHistory.create({ data: { priceGuideId: price.id, snapshot: priceSnapshot(price), reason: 'تعديل إداري' } }); await audit('price.updated', 'priceGuide', price.id, { status }); res.json(price);
+  } catch (error) { next(error); }
 });
+app.get('/api/admin/prices/:id/history', requireAdmin, async (req, res, next) => { try { res.json(await prisma.priceHistory.findMany({ where: { priceGuideId: String(req.params.id) }, orderBy: { createdAt: 'desc' }, take: 100 })); } catch (error) { next(error); } });
 
 app.get('/api/now', async (req, res, next) => {
   try {
@@ -1638,7 +1698,12 @@ app.post('/api/admin/now', requireAdmin, async (req, res, next) => {
   try { const input = nowCreateSchema.parse(req.body); const update = await prisma.nowUpdate.create({ data: { ...input, areaId: input.areaId ?? null, startsAt: input.startsAt ?? new Date(), status: ReviewStatus.APPROVED } }); res.status(201).json(update); } catch (error) { next(error); }
 });
 app.patch('/api/admin/now/:id', requireAdmin, async (req, res, next) => {
-  try { const input = z.object({ status: moderationSchema.shape.status }).parse(req.body); res.json(await prisma.nowUpdate.update({ where: { id: String(req.params.id) }, data: { status: input.status } })); } catch (error) { next(error); }
+  try {
+    const input = nowCreateSchema.partial().extend({ status: moderationSchema.shape.status.optional() }).parse(req.body);
+    const update = await prisma.nowUpdate.update({ where: { id: String(req.params.id) }, data: input });
+    await audit('now.updated', 'nowUpdate', update.id, { fields: Object.keys(input) });
+    res.json(update);
+  } catch (error) { next(error); }
 });
 
 const reviewSchema = z.object({ providerId: z.string().min(1), quality: z.number().int().min(1).max(5), commitment: z.number().int().min(1).max(5), value: z.number().int().min(1).max(5), comment: z.string().trim().max(1000).optional() });
@@ -1763,8 +1828,8 @@ const fullResetTables = [
   'ListingInterest', 'ListingReport', 'ListingImage', 'ReviewHelpful',
   'ReviewReply', 'AdReaction', 'NowHelpful', 'Notification', 'SupportTicket',
   'DuplicateCandidate', 'CollectedBusiness', 'CollectionJob', 'DataSource',
-  'Provider', 'Listing', 'Review', 'Ad', 'PriceGuide', 'NowUpdate',
-  'Category', 'Area', 'PlatformSettings', 'User', 'AdminAccount',
+  'Provider', 'Listing', 'Review', 'Ad', 'PriceHistory', 'PriceGuide', 'NowUpdate',
+  'Category', 'NotificationCampaign', 'Area', 'PlatformConstant', 'PlatformSettings', 'User', 'AdminAccount',
 ] as const;
 
 app.post('/api/admin/maintenance/reset', requireAdminRoles(['OWNER']), async (req, res, next) => {
@@ -1783,7 +1848,7 @@ app.post('/api/admin/maintenance/reset', requireAdminRoles(['OWNER']), async (re
         // still referenced remain visible and keep their relationships intact.
         await tx.category.deleteMany({ where: { providers: { none: {} } } });
       }
-      if (unique.includes('notifications')) await tx.notification.deleteMany();
+      if (unique.includes('notifications')) { await tx.notification.deleteMany(); await tx.notificationCampaign.deleteMany(); }
       if (unique.includes('users')) {
         await tx.session.deleteMany();
         await tx.verificationCode.deleteMany();
@@ -1868,19 +1933,38 @@ app.patch('/api/admin/team/:id', requireAdminRoles(['OWNER']), async (req, res, 
 });
 
 app.get('/api/admin/users', requireAdmin, async (_req, res, next) => {
-  try { res.json(await prisma.user.findMany({ select: { id: true, name: true, phone: true, email: true, points: true, level: true, role: true, isBlocked: true, blockedAt: true, blockedReason: true, createdAt: true, _count: { select: { reviews: true, listings: true, providers: true } } }, orderBy: { createdAt: 'desc' }, take: 500 })); } catch (error) { next(error); }
+  try { res.json(await prisma.user.findMany({ select: { id: true, name: true, phone: true, email: true, points: true, level: true, role: true, isBlocked: true, isProfilePrivate: true, notificationsEnabled: true, notificationScope: true, blockedAt: true, blockedReason: true, createdAt: true, _count: { select: { reviews: true, listings: true, providers: true } } }, orderBy: { createdAt: 'desc' }, take: 500 })); } catch (error) { next(error); }
 });
 app.patch('/api/admin/users/:id', requireAdminRoles(['OWNER', 'MODERATOR']), async (req, res, next) => {
   try {
-    const input = z.object({ isBlocked: z.boolean(), blockedReason: z.string().trim().max(500).nullable().optional() }).parse(req.body);
+    const input = z.object({ name: z.string().trim().min(2).max(80).optional(), email: z.union([z.string().email(), z.literal('')]).nullable().optional(), phone: z.union([z.string().regex(/^01[0125][0-9]{8}$/), z.literal('')]).nullable().optional(), points: z.coerce.number().int().min(0).max(1000000).optional(), level: z.enum(['QENAWY', 'QENAWY_RAYEQ', 'QENAWY_ASIL']).optional(), isProfilePrivate: z.boolean().optional(), notificationsEnabled: z.boolean().optional(), notificationScope: z.enum(['all', 'area']).optional(), isBlocked: z.boolean().optional(), blockedReason: z.string().trim().max(500).nullable().optional(), newPassword: z.string().min(8).max(128).optional() }).parse(req.body);
     const user = await prisma.user.findUnique({ where: { id: String(req.params.id) }, select: { id: true, role: true } });
     if (!user || user.role === 'SYSTEM' || user.role === 'ADMIN') return res.status(404).json({ message: 'المستخدم غير موجود أو محمي' });
-    const updated = await prisma.user.update({ where: { id: user.id }, data: { isBlocked: input.isBlocked, blockedAt: input.isBlocked ? new Date() : null, blockedReason: input.isBlocked ? (input.blockedReason ?? null) : null } });
-    if (input.isBlocked) await prisma.session.deleteMany({ where: { userId: user.id } });
-    await audit(input.isBlocked ? 'user.blocked' : 'user.unblocked', 'user', user.id, { reason: input.blockedReason ?? null });
+    const { newPassword, isBlocked, blockedReason, ...fields } = input;
+    const updated = await prisma.user.update({ where: { id: user.id }, data: { ...fields, ...(input.email === '' ? { email: null } : {}), ...(input.phone === '' ? { phone: null } : {}), ...(newPassword ? { passwordHash: await passwordHash(newPassword) } : {}), ...(isBlocked !== undefined ? { isBlocked, blockedAt: isBlocked ? new Date() : null, blockedReason: isBlocked ? (blockedReason ?? null) : null } : {}) } });
+    if (isBlocked) await prisma.session.deleteMany({ where: { userId: user.id } });
+    await audit(isBlocked === true ? 'user.blocked' : isBlocked === false ? 'user.unblocked' : 'user.updated', 'user', user.id, { fields: Object.keys(input), reason: blockedReason ?? null });
     res.json({ id: updated.id, isBlocked: updated.isBlocked, blockedAt: updated.blockedAt, blockedReason: updated.blockedReason });
   } catch (error) { next(error); }
 });
+app.post('/api/admin/users/:id/logout-all', requireAdminRoles(['OWNER', 'MODERATOR']), async (req, res, next) => { try { const user = await prisma.user.findUnique({ where: { id: String(req.params.id) }, select: { id: true, role: true } }); if (!user || user.role === 'SYSTEM' || user.role === 'ADMIN') return res.status(404).json({ message: 'المستخدم محمي' }); const result = await prisma.session.deleteMany({ where: { userId: user.id } }); await audit('user.sessions_revoked', 'user', user.id, { count: result.count }); res.json({ revoked: result.count }); } catch (error) { next(error); } });
+
+const notificationCampaignSchema = z.object({ title: z.string().trim().min(2).max(120), body: z.string().trim().min(2).max(1000), targetAreaId: z.string().min(1).nullable().optional(), targetRole: z.string().trim().max(40).nullable().optional(), scheduledAt: z.coerce.date().nullable().optional() });
+const dispatchNotificationCampaign = async (campaignId: string) => {
+  const campaign = await prisma.notificationCampaign.findUnique({ where: { id: campaignId } });
+  if (!campaign || campaign.status !== 'PENDING') return { sent: 0 };
+  const users = await prisma.user.findMany({ where: { isBlocked: false, notificationsEnabled: true, ...(campaign.targetRole ? { role: campaign.targetRole } : {}), ...(campaign.targetAreaId ? { preferredAreaIds: { has: campaign.targetAreaId } } : {}) }, select: { id: true } });
+  await prisma.$transaction(async (tx) => {
+    if (users.length) await tx.notification.createMany({ data: users.map((user) => ({ userId: user.id, title: campaign.title, body: campaign.body, targetType: 'campaign', targetId: campaign.id })) });
+    await tx.notificationCampaign.update({ where: { id: campaign.id }, data: { status: 'SENT', sentAt: new Date() } });
+  });
+  await audit('notification_campaign.sent', 'notificationCampaign', campaign.id, { sent: users.length });
+  return { sent: users.length };
+};
+const processNotificationCampaigns = async () => { const campaigns = await prisma.notificationCampaign.findMany({ where: { status: 'PENDING', scheduledAt: { lte: new Date() } }, take: 20 }); for (const campaign of campaigns) { try { await dispatchNotificationCampaign(campaign.id); } catch (error) { await prisma.notificationCampaign.update({ where: { id: campaign.id }, data: { status: 'FAILED' } }).catch(() => undefined); console.error('[notification-campaign]', error); } } };
+app.get('/api/admin/notification-campaigns', requireAdmin, async (_req, res, next) => { try { res.json(await prisma.notificationCampaign.findMany({ include: { targetArea: true }, orderBy: { createdAt: 'desc' }, take: 250 })); } catch (error) { next(error); } });
+app.post('/api/admin/notification-campaigns', requireAdmin, async (req, res, next) => { try { const input = notificationCampaignSchema.parse(req.body); const campaign = await prisma.notificationCampaign.create({ data: { ...input, targetAreaId: input.targetAreaId ?? null, targetRole: input.targetRole || null, scheduledAt: input.scheduledAt ?? new Date() } }); if (!input.scheduledAt || input.scheduledAt <= new Date()) { const result = await dispatchNotificationCampaign(campaign.id); return res.status(201).json({ ...campaign, ...result, status: 'SENT' }); } res.status(201).json(campaign); } catch (error) { next(error); } });
+app.patch('/api/admin/notification-campaigns/:id/cancel', requireAdmin, async (req, res, next) => { try { const campaign = await prisma.notificationCampaign.update({ where: { id: String(req.params.id), status: 'PENDING' }, data: { status: 'CANCELLED' } }); await audit('notification_campaign.cancelled', 'notificationCampaign', campaign.id); res.json(campaign); } catch (error) { next(error); } });
 
 app.get('/api/admin/support-tickets', requireAdmin, async (_req, res, next) => {
   try { res.json(await prisma.supportTicket.findMany({ include: { user: { select: publicAuthorSelect } }, orderBy: { createdAt: 'desc' }, take: 250 })); } catch (error) { next(error); }
@@ -2092,8 +2176,12 @@ app.patch('/api/admin/lifecycle/:entity/:id', requireAdmin, async (req, res, nex
 
 app.get('/api/admin/services', requireAdmin, async (_req, res, next) => { try { res.json(await prisma.providerService.findMany({ include: { provider: { select: { id: true, name: true } } }, orderBy: { createdAt: 'desc' }, take: 250 })); } catch (error) { next(error); } });
 app.get('/api/admin/offers', requireAdmin, async (_req, res, next) => { try { res.json(await prisma.providerOffer.findMany({ include: { provider: { select: { id: true, name: true } } }, orderBy: { createdAt: 'desc' }, take: 250 })); } catch (error) { next(error); } });
+app.post('/api/admin/services', requireAdmin, async (req, res, next) => { try { const input = serviceSchema.extend({ providerId: z.string().min(1) }).parse(req.body); const item = await prisma.providerService.create({ data: { providerId: input.providerId, name: input.name, description: input.description, logoUrl: input.logoUrl, price: input.price, priceNote: input.priceNote, status: ReviewStatus.APPROVED }, include: { provider: { select: { id: true, name: true } } } }); await audit('service.admin_create', 'providerService', item.id, { providerId: input.providerId }); res.status(201).json(item); } catch (error) { next(error); } });
+app.post('/api/admin/offers', requireAdmin, async (req, res, next) => { try { const input = offerSchema.extend({ providerId: z.string().min(1) }).parse(req.body); const item = await prisma.providerOffer.create({ data: { providerId: input.providerId, title: input.title, description: input.description, startsAt: input.startsAt, endsAt: input.endsAt, status: ReviewStatus.APPROVED }, include: { provider: { select: { id: true, name: true } } } }); await audit('offer.admin_create', 'providerOffer', item.id, { providerId: input.providerId }); res.status(201).json(item); } catch (error) { next(error); } });
 app.patch('/api/admin/services/:id', requireAdmin, async (req, res, next) => { try { const { status } = moderationSchema.parse(req.body); const item = await prisma.providerService.update({ where: { id: String(req.params.id) }, data: { status } }); await audit(`service.${status.toLowerCase()}`, 'providerService', item.id, { status }); res.json(item); } catch (error) { next(error); } });
 app.patch('/api/admin/offers/:id', requireAdmin, async (req, res, next) => { try { const { status } = moderationSchema.parse(req.body); const item = await prisma.providerOffer.update({ where: { id: String(req.params.id) }, data: { status } }); await audit(`offer.${status.toLowerCase()}`, 'providerOffer', item.id, { status }); res.json(item); } catch (error) { next(error); } });
+app.patch('/api/admin/services/:id/content', requireAdmin, async (req, res, next) => { try { const input = serviceSchema.partial().extend({ status: moderationSchema.shape.status.optional(), providerId: z.string().min(1).optional() }).parse(req.body); const item = await prisma.providerService.update({ where: { id: String(req.params.id) }, data: input, include: { provider: { select: { id: true, name: true } } } }); await audit('service.content_updated', 'providerService', item.id, { fields: Object.keys(input) }); res.json(item); } catch (error) { next(error); } });
+app.patch('/api/admin/offers/:id/content', requireAdmin, async (req, res, next) => { try { const input = offerSchema.partial().extend({ status: moderationSchema.shape.status.optional(), providerId: z.string().min(1).optional() }).parse(req.body); const item = await prisma.providerOffer.update({ where: { id: String(req.params.id) }, data: input, include: { provider: { select: { id: true, name: true } } } }); await audit('offer.content_updated', 'providerOffer', item.id, { fields: Object.keys(input) }); res.json(item); } catch (error) { next(error); } });
 
 const parseCsvLine = (line: string) => line.split(',').map((value) => value.trim().replace(/^"|"$/g, ''));
 app.post('/api/admin/import/providers', requireAdmin, async (req, res, next) => {
@@ -2403,25 +2491,45 @@ app.get('/api/admin/ads', requireAdmin, async (_req, res, next) => {
 // (signed in or not) can sync to the same cadence.
 app.get('/api/settings', async (_req, res, next) => {
   try {
-    const settings = await prisma.platformSettings.upsert({ where: { id: 'default' }, update: {}, create: { id: 'default' } });
-    res.json({ adRotationSeconds: settings.adRotationSeconds, dataRefreshSeconds: settings.dataRefreshSeconds });
+    res.json(publicPlatformSettings(await ensurePlatformSettings()));
   } catch (error) { next(error); }
 });
 
 const platformSettingsSchema = z.object({
   adRotationSeconds: z.coerce.number().int().min(2).max(60),
   dataRefreshSeconds: z.coerce.number().int().min(60).max(3600),
+  maintenanceMode: z.coerce.boolean().optional(),
+  maintenanceMessage: z.string().trim().max(500).optional(),
+  appName: z.string().trim().min(2).max(80).optional(),
+  appTagline: z.string().trim().max(160).optional(),
+  supportPhone: z.string().trim().max(40).nullable().optional(),
+  supportWhatsapp: z.string().trim().max(40).nullable().optional(),
+  supportEmail: z.union([z.string().email().max(180), z.literal('')]).nullable().optional(),
+  facebookUrl: z.string().trim().url().max(300).nullable().optional(),
+  instagramUrl: z.string().trim().url().max(300).nullable().optional(),
+  homeSections: z.array(z.enum(['providers', 'prices', 'now', 'listings', 'minShater', 'ads'])).max(10).optional(),
+  enabledModules: z.record(z.string(), z.boolean()).optional(),
+  privacyPolicy: z.string().max(20000).optional(),
+  termsOfUse: z.string().max(20000).optional(),
+  priceDefaultValidityDays: z.coerce.number().int().min(1).max(365).optional(),
+  priceOutlierRatio: z.coerce.number().min(1.1).max(20).optional(),
 });
-app.patch('/api/admin/settings', requireAdmin, async (req, res, next) => {
+app.patch('/api/admin/settings', requireAdminRoles(['OWNER', 'CONTENT_EDITOR']), async (req, res, next) => {
   try {
     const input = platformSettingsSchema.parse(req.body);
+    const data = {
+      ...input,
+      ...(input.supportEmail === '' ? { supportEmail: null } : {}),
+      ...(input.homeSections ? { homeSections: input.homeSections } : {}),
+      ...(input.enabledModules ? { enabledModules: { ...defaultEnabledModules, ...input.enabledModules } } : {}),
+    };
     const settings = await prisma.platformSettings.upsert({
       where: { id: 'default' },
-      update: { adRotationSeconds: input.adRotationSeconds, dataRefreshSeconds: input.dataRefreshSeconds },
-      create: { id: 'default', adRotationSeconds: input.adRotationSeconds, dataRefreshSeconds: input.dataRefreshSeconds },
+      update: data,
+      create: data as Prisma.PlatformSettingsUncheckedCreateInput,
     });
-    await audit('settings.update', 'PlatformSettings', settings.id, { adRotationSeconds: settings.adRotationSeconds, dataRefreshSeconds: settings.dataRefreshSeconds });
-    res.json({ adRotationSeconds: settings.adRotationSeconds, dataRefreshSeconds: settings.dataRefreshSeconds });
+    await audit('settings.update', 'PlatformSettings', settings.id, { fields: Object.keys(input) });
+    res.json(publicPlatformSettings(settings));
   } catch (error) { next(error); }
 });
 
@@ -2595,8 +2703,28 @@ app.patch('/api/admin/listings/:id', requireAdmin, async (req, res, next) => {
 });
 app.patch('/api/admin/listings/:id/content', requireAdmin, async (req, res, next) => {
   try {
-    const input = z.object({ title: z.string().trim().min(3).max(120).optional(), description: z.string().trim().max(1200).nullable().optional(), category: z.enum(['للبيع', 'للإيجار', 'وظائف', 'سيارات', 'عقارات']).optional(), price: z.number().positive().max(999999999).optional() }).parse(req.body);
-    const listing = await prisma.listing.update({ where: { id: String(req.params.id) }, data: input });
+    const input = z.object({
+      title: z.string().trim().min(3).max(120).optional(),
+      description: z.string().trim().max(1200).nullable().optional(),
+      category: z.string().trim().min(1).max(60).optional(),
+      price: z.coerce.number().positive().max(999999999).optional(),
+      areaId: z.string().min(1).optional(),
+      ownerId: z.string().min(1).optional(),
+      logoUrl: z.string().trim().max(500).nullable().optional(),
+      expiresAt: z.coerce.date().nullable().optional(),
+      images: z.array(z.object({ url: z.string().trim().min(1).max(500) })).max(5).optional(),
+    }).parse(req.body);
+    const existing = await prisma.listing.findUnique({ where: { id: String(req.params.id) }, include: { images: true } });
+    if (!existing) return res.status(404).json({ message: 'الإعلان غير موجود' });
+    if (input.areaId && !(await prisma.area.findFirst({ where: { id: input.areaId, isActive: true }, select: { id: true } }))) return res.status(400).json({ message: 'المنطقة غير متاحة' });
+    if (input.ownerId && !(await prisma.user.findUnique({ where: { id: input.ownerId }, select: { id: true } }))) return res.status(400).json({ message: 'صاحب الإعلان غير موجود' });
+    const { images, ...fields } = input;
+    const listing = await prisma.$transaction(async (tx) => {
+      if (!images) return tx.listing.update({ where: { id: existing.id }, data: fields, include: { area: true, images: true, owner: true } });
+      await tx.listingImage.deleteMany({ where: { listingId: existing.id } });
+      return tx.listing.update({ where: { id: existing.id }, data: { ...fields, images: { create: images } }, include: { area: true, images: true, owner: true } });
+    });
+    if (images) await Promise.all(existing.images.map((image) => removeLocalUpload(image.url)));
     await audit('listing.content_updated', 'listing', listing.id, { fields: Object.keys(input) });
     res.json(listing);
   } catch (error) { next(error); }
@@ -2604,9 +2732,10 @@ app.patch('/api/admin/listings/:id/content', requireAdmin, async (req, res, next
 
 app.patch('/api/admin/ads/:id', requireAdmin, async (req, res, next) => {
   try {
-    const { status } = moderationSchema.parse(req.body);
-    const ad = await prisma.ad.update({ where: { id: String(req.params.id) }, data: { status } });
-    await audit(`ad.${status.toLowerCase()}`, 'ad', ad.id, { status });
+    const input = adCreateSchema.partial().extend({ status: moderationSchema.shape.status.optional() }).parse(req.body);
+    if (input.endsAt && input.startsAt && input.endsAt <= input.startsAt) return res.status(400).json({ message: 'تاريخ الانتهاء يجب أن يكون بعد البداية' });
+    const ad = await prisma.ad.update({ where: { id: String(req.params.id) }, data: input });
+    await audit('ad.updated', 'ad', ad.id, { fields: Object.keys(input) });
     res.json(ad);
   } catch (error) { next(error); }
 });
@@ -2622,9 +2751,7 @@ app.get('/api/admin/constants/:type', requireAdmin, async (req, res, next) => {
       const items = await prisma.area.findMany({ orderBy: { name: 'asc' } });
       return res.json({ data: items });
     }
-    if (['service-types', 'listing-types', 'news-types'].includes(type)) {
-      return res.json({ data: [] });
-    }
+    if (['service-types', 'listing-types', 'news-types'].includes(type)) return res.json({ data: await prisma.platformConstant.findMany({ where: { type }, orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }] }) });
     res.status(400).json({ message: 'نوع ثابت غير معروف' });
   } catch (error) { next(error); }
 });
@@ -2650,7 +2777,9 @@ app.post('/api/admin/constants/:type', requireAdmin, async (req, res, next) => {
       return res.json(item);
     }
     if (['service-types', 'listing-types', 'news-types'].includes(type)) {
-      return res.json({ id: randomBytes(8).toString('hex'), name });
+      const item = await prisma.platformConstant.create({ data: { type, name, slug: `${constantSlug(name)}-${randomBytes(3).toString('hex')}` } });
+      await audit('constant.create', 'platformConstant', item.id, { type, name });
+      return res.json(item);
     }
     res.status(400).json({ message: 'نوع ثابت غير معروف' });
   } catch (error) { next(error); }
@@ -2677,7 +2806,9 @@ app.put('/api/admin/constants/:type/:id', requireAdmin, async (req, res, next) =
       return res.json(item);
     }
     if (['service-types', 'listing-types', 'news-types'].includes(type)) {
-      return res.json({ id, name });
+      const item = await prisma.platformConstant.update({ where: { id }, data: { name, slug: `${constantSlug(name)}-${randomBytes(3).toString('hex')}` } });
+      await audit('constant.update', 'platformConstant', item.id, { type, name });
+      return res.json(item);
     }
     res.status(400).json({ message: 'نوع ثابت غير معروف' });
   } catch (error) { next(error); }
@@ -2715,7 +2846,9 @@ app.delete('/api/admin/constants/:type/:id', requireAdmin, async (req, res, next
       return res.json({ ok: true, archived: false });
     }
     if (['service-types', 'listing-types', 'news-types'].includes(type)) {
-      return res.json({ ok: true });
+      const item = await prisma.platformConstant.update({ where: { id }, data: { isActive: false } });
+      await audit('constant.deactivated', 'platformConstant', id, { type });
+      return res.json({ ok: true, archived: true, item });
     }
     res.status(400).json({ message: 'نوع ثابت غير معروف' });
   } catch (error) { next(error); }
@@ -2770,6 +2903,9 @@ if (process.env.NODE_ENV !== 'test') app.listen(port, host, () => {
     void runListingLifecycle().catch((error) => console.error('[listing-lifecycle]', error));
     const lifecycleTimer = setInterval(() => void runListingLifecycle().catch((error) => console.error('[listing-lifecycle]', error)), 6 * 60 * 60 * 1000);
     lifecycleTimer.unref();
+    void processNotificationCampaigns().catch((error) => console.error('[notification-campaign]', error));
+    const notificationTimer = setInterval(() => void processNotificationCampaigns().catch((error) => console.error('[notification-campaign]', error)), 60 * 1000);
+    notificationTimer.unref();
     startBackupScheduler();
     backupTimer?.unref();
   }

@@ -199,7 +199,7 @@ class HenaQenaApp extends StatelessWidget {
       builder: (context, _, _) => MaterialApp(
         navigatorKey: appNavigatorKey,
         debugShowCheckedModeBanner: false,
-        title: 'هنا قنا',
+        title: PlatformConfig.value['appName'] as String? ?? 'هنا قنا',
         theme: AppThemeController.theme(AppThemeController.current),
         builder: (context, child) => Directionality(
           textDirection: TextDirection.rtl,
@@ -209,12 +209,74 @@ class HenaQenaApp extends StatelessWidget {
         // the home route mounted avoids disposing an inherited subtree while
         // one of its descendants (a dialog, field, or route transition) still
         // depends on it.
-        home: AuthSession.isSignedIn
-            ? const HomeShell()
-            : const WelcomeScreen(),
+        home: const AppEntry(),
       ),
     );
   }
+}
+
+class PlatformConfig {
+  static Map<String, dynamic> value = const {};
+  static bool enabled(String key) {
+    final modules = value['enabledModules'];
+    return modules is Map && modules[key] != false;
+  }
+}
+
+class AppEntry extends StatefulWidget {
+  const AppEntry({super.key});
+  @override
+  State<AppEntry> createState() => _AppEntryState();
+}
+
+class _AppEntryState extends State<AppEntry> {
+  late Future<Map<String, dynamic>> settings = _load();
+
+  Future<Map<String, dynamic>> _load() async {
+    try {
+      final result = await ApiClient().fetchPlatformSettings();
+      PlatformConfig.value = result;
+      return result;
+    } catch (_) {
+      PlatformConfig.value = const {};
+      return const {};
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<Map<String, dynamic>>(
+    future: settings,
+    builder: (context, snapshot) {
+      final settings = snapshot.data ?? const <String, dynamic>{};
+      if (settings['maintenanceMode'] == true) {
+        return MaintenanceScreen(message: settings['maintenanceMessage'] as String?);
+      }
+      if (snapshot.connectionState == ConnectionState.waiting) {
+        return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      }
+      return AuthSession.isSignedIn ? const HomeShell() : const WelcomeScreen();
+    },
+  );
+}
+
+class MaintenanceScreen extends StatelessWidget {
+  const MaintenanceScreen({super.key, this.message});
+  final String? message;
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    body: Center(
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const LogoMark(size: 78),
+          const SizedBox(height: 20),
+          const Text('هنا قنا', style: AppTextStyles.displayMedium),
+          const SizedBox(height: 12),
+          Text(message?.trim().isNotEmpty == true ? message! : 'نعود إليكم قريبًا.', textAlign: TextAlign.center, style: AppTextStyles.bodyMedium),
+        ]),
+      ),
+    ),
+  );
 }
 
 /// The shared back control for every regular application page. New pages use
@@ -1780,25 +1842,35 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   int refreshEpoch = 0;
   int unreadNotifications = 0;
   DateTime? backgroundedAt;
-  List<Widget> get pages => [
-    HomePage(key: ValueKey('home-$refreshEpoch')),
-    DirectoryPage(key: ValueKey('directory-$refreshEpoch')),
-    PricesPage(key: ValueKey('prices-$refreshEpoch')),
-    NowPage(key: ValueKey('now-$refreshEpoch')),
-    ListingsPage(key: ValueKey('listings-$refreshEpoch')),
-  ];
-  final labels = const ['الرئيسية', 'مين؟', 'بكام؟', 'دلوقتي', 'عندك؟'];
-  final icons = const [
-    Icons.home_outlined,
-    Icons.person_search_outlined,
-    Icons.sell_outlined,
-    Icons.bolt_outlined,
-    Icons.campaign_outlined,
-  ];
+  List<String> get sectionKeys {
+    final configured = [
+      'home',
+      if (PlatformConfig.enabled('providers')) 'providers',
+      if (PlatformConfig.enabled('prices')) 'prices',
+      if (PlatformConfig.enabled('now')) 'now',
+      if (PlatformConfig.enabled('listings')) 'listings',
+    ];
+    // Flutter's NavigationBar requires at least two destinations. If the
+    // platform disables every content module, keep a safe notifications
+    // destination so remote configuration can never crash the shell.
+    return configured.length >= 2 ? configured : [...configured, 'notifications'];
+  }
+  List<Widget> get pages => sectionKeys.map((key) => switch (key) {
+    'providers' => DirectoryPage(key: ValueKey('directory-$refreshEpoch')),
+    'prices' => PricesPage(key: ValueKey('prices-$refreshEpoch')),
+    'now' => NowPage(key: ValueKey('now-$refreshEpoch')),
+    'listings' => ListingsPage(key: ValueKey('listings-$refreshEpoch')),
+    'notifications' => const NotificationsPage(),
+    _ => HomePage(key: ValueKey('home-$refreshEpoch')),
+  }).toList();
+  List<String> get labels => sectionKeys.map((key) => switch (key) {
+    'providers' => 'مين؟', 'prices' => 'بكام؟', 'now' => 'دلوقتي', 'listings' => 'عندك?', 'notifications' => 'تنبيهات', _ => 'الرئيسية',
+  }).toList();
+  List<IconData> get icons => sectionKeys.map((key) => switch (key) {
+    'providers' => Icons.person_search_outlined, 'prices' => Icons.sell_outlined, 'now' => Icons.bolt_outlined, 'listings' => Icons.campaign_outlined, 'notifications' => Icons.notifications_none_outlined, _ => Icons.home_outlined,
+  }).toList();
 
-  void _select(int value) => setState(() {
-    index = value;
-  });
+  void _select(int value) => setState(() => index = value.clamp(0, pages.length - 1));
 
   Future<void> _loadUnreadNotifications() async {
     if (!AuthSession.isSignedIn) {
@@ -1886,7 +1958,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
                 child: Padding(
                   padding: EdgeInsets.fromLTRB(18, 10, 18, 0),
                   child: PersistentTopActions(
-                    sectionIndex: index,
+                    sectionKey: sectionKeys[index],
                     notificationCount: unreadNotifications,
                     onNotificationsTap: _openNotifications,
                   ),
@@ -1920,18 +1992,18 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
 class PersistentTopActions extends StatelessWidget {
   const PersistentTopActions({
     super.key,
-    required this.sectionIndex,
+    required this.sectionKey,
     required this.notificationCount,
     required this.onNotificationsTap,
   });
 
-  final int sectionIndex;
+  final String sectionKey;
   final int notificationCount;
   final VoidCallback onNotificationsTap;
 
   void _openAdd(BuildContext context) {
-    final options = switch (sectionIndex) {
-      1 => [
+    final options = switch (sectionKey) {
+      'providers' => [
         _AddAction(
           'إضافة نشاط',
           Icons.storefront_outlined,
@@ -1943,7 +2015,7 @@ class PersistentTopActions extends StatelessWidget {
           () => const SupportPage(),
         ),
       ],
-      2 => [
+      'prices' => [
         _AddAction(
           'اقتراح سعر',
           Icons.sell_outlined,
@@ -1955,14 +2027,14 @@ class PersistentTopActions extends StatelessWidget {
           () => const ContributionFormPage(kind: 'offer'),
         ),
       ],
-      3 => [
+      'now' => [
         _AddAction(
           'إضافة تنبيه محلي',
           Icons.campaign_outlined,
           () => const ContributionFormPage(kind: 'now'),
         ),
       ],
-      4 => [
+      'listings' => [
         _AddAction(
           'إضافة إعلان',
           Icons.add_business_outlined,
@@ -2037,12 +2109,12 @@ class PersistentTopActions extends StatelessWidget {
         ),
         const SizedBox(width: 8),
         _TopActionButton(
-          onTap: () => sectionIndex == 0
+          onTap: () => sectionKey == 'home'
               ? Navigator.of(
                   context,
                 ).push(MaterialPageRoute(builder: (_) => const AccountPage()))
               : _openAdd(context),
-          child: sectionIndex == 0
+          child: sectionKey == 'home'
               ? Icon(Icons.person_outline, color: colors.primary, size: 23)
               : Icon(Icons.add, color: colors.primary),
         ),
@@ -2893,12 +2965,16 @@ class SectionTitle extends StatelessWidget {
   Widget build(BuildContext context) => Row(
     mainAxisAlignment: MainAxisAlignment.spaceBetween,
     children: [
-      Text(
-        title,
-        style: TextStyle(
-          color: deepTeal,
-          fontSize: 16,
-          fontWeight: FontWeight.w700,
+      Flexible(
+        child: Text(
+          title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: deepTeal,
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+          ),
         ),
       ),
       if (onSeeAll != null)
@@ -3194,34 +3270,39 @@ class _HeroWeatherSectionState extends State<_HeroWeatherSection> {
           ),
           const SizedBox(width: 10),
           Expanded(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: data.days.skip(1).map((day) {
-                final (icon, _) = _weatherIconAndLabel(day.weatherCode);
-                return Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      _weatherDayNames[day.date.weekday % 7],
-                      style: const TextStyle(
-                        color: Color(0xBBF7F6F2),
-                        fontSize: 10,
-                      ),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: data.days.skip(1).map((day) {
+                  final (icon, _) = _weatherIconAndLabel(day.weatherCode);
+                  return Padding(
+                    padding: const EdgeInsetsDirectional.only(end: 12),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _weatherDayNames[day.date.weekday % 7],
+                          style: const TextStyle(
+                            color: Color(0xBBF7F6F2),
+                            fontSize: 10,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(icon, size: 14, color: Colors.white),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${day.maxTemp.round()}°',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 4),
-                    Icon(icon, size: 14, color: Colors.white),
-                    const SizedBox(width: 4),
-                    Text(
-                      '${day.maxTemp.round()}°',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                );
-              }).toList(),
+                  );
+                }).toList(),
+              ),
             ),
           ),
         ],
@@ -3931,6 +4012,7 @@ class _MinShaterDetailPageState extends State<MinShaterDetailPage> {
   );
   late Future<Map<String, dynamic>> recommendations = api
       .fetchMinShaterRecommendations(widget.id);
+  bool canSelectRecommendation = false;
   Future<void> reload() async {
     setState(() {
       details = api.fetchMinShaterRequest(widget.id);
@@ -3972,6 +4054,8 @@ class _MinShaterDetailPageState extends State<MinShaterDetailPage> {
                       },
                     );
                   final item = snapshot.data!;
+                  canSelectRecommendation =
+                      (item['viewer'] as Map?)?['isOwner'] == true;
                   final category = (item['category'] as Map?)?['name'] ?? 'عام';
                   final area = (item['area'] as Map?)?['name'] ?? 'كل قنا';
                   return Card(
@@ -4068,6 +4152,8 @@ class _MinShaterDetailPageState extends State<MinShaterDetailPage> {
                         .map(
                           (row) => MinShaterRecommendationCard(
                             item: Map<String, dynamic>.from(row),
+                            requestId: widget.id,
+                            canSelect: canSelectRecommendation,
                             onChanged: reload,
                           ),
                         )
@@ -4087,9 +4173,13 @@ class MinShaterRecommendationCard extends StatefulWidget {
   const MinShaterRecommendationCard({
     super.key,
     required this.item,
+    required this.requestId,
+    required this.canSelect,
     required this.onChanged,
   });
   final Map<String, dynamic> item;
+  final String requestId;
+  final bool canSelect;
   final Future<void> Function() onChanged;
   @override
   State<MinShaterRecommendationCard> createState() =>
@@ -4101,6 +4191,7 @@ class _MinShaterRecommendationCardState
   late bool helpful = widget.item['viewerHasMarkedHelpful'] == true;
   late int count = (widget.item['helpfulCount'] as num? ?? 0).toInt();
   bool saving = false;
+  bool selecting = false;
 
   Future<void> toggle() async {
     if (!AuthSession.isSignedIn) {
@@ -4137,6 +4228,26 @@ class _MinShaterRecommendationCardState
     }
   }
 
+  Future<void> selectRecommendation() async {
+    if (!widget.canSelect || selecting) return;
+    setState(() => selecting = true);
+    try {
+      await ApiClient().selectMinShaterRecommendation(
+        widget.requestId,
+        widget.item['id'] as String,
+      );
+      await widget.onChanged();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تعذر اختيار الترشيح الآن')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => selecting = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = widget.item['provider'] as Map?;
@@ -4152,6 +4263,11 @@ class _MinShaterRecommendationCardState
               name as String,
               style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
             ),
+            if (widget.item['isSelected'] == true)
+              Padding(
+                padding: EdgeInsets.only(top: 6),
+                child: Text('اختيار صاحب السؤال', style: TextStyle(color: teal, fontWeight: FontWeight.w700)),
+              ),
             if ((widget.item['description'] as String?)?.isNotEmpty == true)
               Padding(
                 padding: const EdgeInsets.only(top: 6),
@@ -4166,8 +4282,15 @@ class _MinShaterRecommendationCardState
                     color: helpful ? teal : muted,
                   ),
                 ),
-                Text('$count مفيد'),
-                const Spacer(),
+                Expanded(child: Text('$count مفيد')),
+                if (widget.canSelect && widget.item['isSelected'] != true)
+                  TextButton.icon(
+                    onPressed: selecting ? null : selectRecommendation,
+                    icon: selecting
+                        ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.check_circle_outline),
+                    label: const Text('اختيار'),
+                  ),
                 if (provider != null)
                   TextButton(
                     onPressed: () => Navigator.push(
@@ -4906,31 +5029,39 @@ class _DirectoryPageState extends State<DirectoryPage> {
         const SizedBox(height: 10),
         Row(
           children: [
-            OutlinedButton.icon(
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const MinShaterFeedPage()),
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const MinShaterFeedPage()),
+                ),
+                icon: const Icon(Icons.stars_outlined),
+                label: const Text('مين شاطر؟'),
               ),
-              icon: const Icon(Icons.stars_outlined),
-              label: const Text('مين شاطر؟'),
             ),
             const SizedBox(width: 8),
-            OutlinedButton.icon(
-              onPressed: () => _showFilters(context),
-              icon: const Icon(Icons.tune),
-              label: const Text('فلاتر'),
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () => _showFilters(context),
+                icon: const Icon(Icons.tune),
+                label: const Text('فلاتر'),
+              ),
             ),
             const SizedBox(width: 8),
-            OutlinedButton.icon(
+            IconButton.outlined(
+              tooltip: 'احفظ البحث',
               onPressed: _saveSearch,
               icon: const Icon(Icons.bookmark_add_outlined),
-              label: const Text('احفظ البحث'),
             ),
-            const Spacer(),
-            OutlinedButton.icon(
+            const SizedBox(width: 8),
+            IconButton.outlined(
+              tooltip: 'فتح الخريطة',
               onPressed: _openMap,
-              icon: const Icon(Icons.map_outlined),
-              label: const Text('خريطة'),
+              style: IconButton.styleFrom(
+                foregroundColor: Theme.of(context).colorScheme.primary,
+                side: BorderSide(color: Theme.of(context).colorScheme.primary),
+              ),
+              icon: const Icon(Icons.map_rounded),
             ),
           ],
         ),
@@ -7105,10 +7236,11 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                               ),
                               if (data != null && data.reviewCount > 0) ...[
                                 const SizedBox(height: 5),
-                                Row(
+                                Wrap(
+                                  spacing: 6,
+                                  runSpacing: 2,
                                   children: [
                                     Icon(Icons.star, color: gold, size: 16),
-                                    const SizedBox(width: 3),
                                     Text(
                                       '${data.rating.toStringAsFixed(1)} · ${data.reviewCount} تقييم',
                                       style: const TextStyle(
@@ -7118,7 +7250,6 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                                       ),
                                     ),
                                     if (data.openNow != null) ...[
-                                      const SizedBox(width: 10),
                                       Text(
                                         data.openNow!
                                             ? 'مفتوح الآن'
@@ -7338,11 +7469,15 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                           children: [
                             Icon(Icons.near_me_outlined, size: 16, color: teal),
                             const SizedBox(width: 6),
-                            Text(
-                              'على بعد ${_formatDistanceKm(km)} · ${_estimateTravelTime(km)}',
-                              style: const TextStyle(
-                                color: muted,
-                                fontSize: 12,
+                            Expanded(
+                              child: Text(
+                                'على بعد ${_formatDistanceKm(km)} · ${_estimateTravelTime(km)}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: muted,
+                                  fontSize: 12,
+                                ),
                               ),
                             ),
                           ],

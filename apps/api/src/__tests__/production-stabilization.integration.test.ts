@@ -25,7 +25,7 @@ const tables = [
   'ProviderCategory', 'ListingFavorite', 'ListingInterest', 'ListingReport', 'ListingImage',
   'ReviewHelpful', 'ReviewReply', 'AdReaction', 'NowHelpful', 'Notification', 'SupportTicket',
   'DuplicateCandidate', 'CollectedBusiness', 'CollectionJob', 'DataSource', 'Provider', 'Listing',
-  'Review', 'Ad', 'PriceGuide', 'NowUpdate', 'Category', 'Area', 'PlatformSettings', 'User', 'AdminAccount',
+  'Review', 'Ad', 'PriceHistory', 'PriceGuide', 'NowUpdate', 'Category', 'NotificationCampaign', 'Area', 'PlatformConstant', 'PlatformSettings', 'User', 'AdminAccount',
 ];
 
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');

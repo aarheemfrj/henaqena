@@ -56,7 +56,7 @@ Only after the foundation is stable: richer prices/history, Qena Now source work
 
 ## Module 1 — مين شاطر
 
-Audit and additive data/API foundation are complete. The current release is Partial: moderation APIs, admin queue and the initial mobile flows are available. Next work is to complete contribution history, notifications deep links, richer filters and the deferred best-recommendation decision before a release tag.
+Audit and additive data/API foundation are complete. The current release is Partial: moderation APIs, admin queue, contribution endpoints, owner-selected best recommendation and initial mobile flows are available. Contribution history UI, images and push infrastructure remain outside the verified release gate.
 
 ## Module 2 — بكام؟
 

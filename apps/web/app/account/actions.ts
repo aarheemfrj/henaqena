@@ -3,7 +3,7 @@
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { clearUserSession, createUserSession, getUserApiToken } from '@/lib/user-session';
-import { getApiBaseUrl, userPatch } from '@/lib/api';
+import { getApiBaseUrl, userPatch, userPost } from '@/lib/api';
 
 export async function loginUser(formData: FormData) {
   const response = await fetch(`${getApiBaseUrl()}/api/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ identifier: String(formData.get('identifier') ?? ''), password: String(formData.get('password') ?? '') }), cache: 'no-store' });
@@ -39,6 +39,18 @@ export async function updateProfile(formData: FormData) {
   redirect('/account?updated=1');
 }
 
+export async function updatePreferences(formData: FormData) {
+  try {
+    await userPatch('/api/me/preferences', {
+      notificationsEnabled: formData.get('notificationsEnabled') === 'on',
+      notificationScope: String(formData.get('notificationScope') ?? 'all'),
+      notificationDigest: formData.get('notificationDigest') === 'on',
+      isProfilePrivate: formData.get('isProfilePrivate') === 'on',
+    });
+  } catch { redirect('/account?error=preferences'); }
+  revalidatePath('/account'); redirect('/account?updated=1');
+}
+
 export async function changePassword(formData: FormData) {
   try {
     await userPatch('/api/me/password', { currentPassword: String(formData.get('currentPassword') ?? ''), newPassword: String(formData.get('newPassword') ?? '') });
@@ -46,4 +58,22 @@ export async function changePassword(formData: FormData) {
     redirect('/account?error=password');
   }
   redirect('/account?passwordChanged=1');
+}
+
+export async function addBusinessService(formData: FormData) {
+  const providerId = String(formData.get('providerId') ?? '');
+  if (!providerId) redirect('/account/business?error=service');
+  try {
+    await userPost(`/api/providers/${providerId}/services`, { name: String(formData.get('name') ?? ''), description: String(formData.get('description') ?? '') || undefined, price: String(formData.get('price') ?? '').trim() ? Number(formData.get('price')) : undefined, priceNote: String(formData.get('priceNote') ?? '') || undefined });
+  } catch { redirect('/account/business?error=service'); }
+  revalidatePath('/account/business'); redirect('/account/business?updated=1');
+}
+
+export async function addBusinessOffer(formData: FormData) {
+  const providerId = String(formData.get('providerId') ?? '');
+  if (!providerId) redirect('/account/business?error=offer');
+  try {
+    await userPost(`/api/providers/${providerId}/offers`, { title: String(formData.get('title') ?? ''), description: String(formData.get('description') ?? '') || undefined, startsAt: String(formData.get('startsAt') ?? ''), endsAt: String(formData.get('endsAt') ?? '') });
+  } catch { redirect('/account/business?error=offer'); }
+  revalidatePath('/account/business'); redirect('/account/business?updated=1');
 }
